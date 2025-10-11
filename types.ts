@@ -1,0 +1,75 @@
+
+export type Currency = 'KRW' | 'USD';
+export type Page = 'Dashboard' | 'Expenses' | 'Investments' | 'Issues' | 'Settings';
+
+export enum UserRole {
+  Admin = 'Admin',
+  Editor = 'Editor',
+  Viewer = 'Viewer'
+}
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  avatar: string;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  type: 'income' | 'expense';
+}
+
+export interface Expense {
+  id: number;
+  categoryId: number;
+  date: string;
+  amount: number;
+  memo: string;
+  createdBy: number;
+}
+
+export interface Budget {
+  id: number;
+  categoryId: number;
+  month: string; // YYYY-MM
+  limitAmount: number;
+}
+
+export interface InvestmentAccount {
+  id: number;
+  name: string;
+  broker: string;
+}
+
+export interface Holding {
+  id: number;
+  accountId: number;
+  symbol: string;
+  name: string;
+  qty: number;
+  avgPrice: number;
+  currentPrice: number;
+}
+
+export enum IssueStatus {
+  Open = 'Open',
+  InProgress = 'In Progress',
+  Closed = 'Closed'
+}
+
+export interface IssueLabel {
+  name: string;
+  color: string;
+}
+
+export interface Issue {
+  id: number;
+  title: string;
+  status: IssueStatus;
+  assigneeId: number;
+  labels: IssueLabel[];
+  body: string;
+}
