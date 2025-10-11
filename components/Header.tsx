@@ -5,9 +5,10 @@ import { Currency } from '../types';
 interface HeaderProps {
   currency: Currency;
   setCurrency: (currency: Currency) => void;
+  onQuickAdd?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ currency, setCurrency }) => {
+const Header: React.FC<HeaderProps> = ({ currency, setCurrency, onQuickAdd }) => {
   const toggleCurrency = () => {
     setCurrency(currency === 'KRW' ? 'USD' : 'KRW');
   };
@@ -21,9 +22,14 @@ const Header: React.FC<HeaderProps> = ({ currency, setCurrency }) => {
           <span className="absolute right-10 font-bold text-xs text-sky-400">{`KRW`}</span>
           <span className="absolute right-5 font-bold text-xs text-sky-400">{`USD`}</span>
         </div>
-        <button className="bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition">
-          Quick Add
-        </button>
+        {onQuickAdd && (
+          <button
+            onClick={onQuickAdd}
+            className="bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition"
+          >
+            Quick Add
+          </button>
+        )}
       </div>
     </header>
   );

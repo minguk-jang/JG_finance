@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { Currency } from '../types';
 import Card from './ui/Card';
-import { EXPENSES, CATEGORIES, BUDGETS, HOLDINGS, USD_KRW_EXCHANGE_RATE } from '../constants';
+import { BUDGETS, HOLDINGS, USD_KRW_EXCHANGE_RATE } from '../constants';
+import { api } from '../lib/api';
 
 interface DashboardProps {
   currency: Currency;
@@ -19,19 +20,45 @@ const formatCurrency = (value: number, currency: Currency) => {
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [expensesData, categoriesData] = await Promise.all([
+          api.getExpenses(),
+          api.getCategories()
+        ]);
+        setExpenses(expensesData);
+        setCategories(categoriesData);
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return <div className="text-center text-gray-400 p-8">Loading...</div>;
+  }
+
   const currentMonth = '2024-07';
 
-  const monthlyExpenses = EXPENSES.filter(e => e.date.startsWith(currentMonth) && CATEGORIES.find(c => c.id === e.categoryId)?.type === 'expense');
-  const monthlyIncomes = EXPENSES.filter(e => e.date.startsWith(currentMonth) && CATEGORIES.find(c => c.id === e.categoryId)?.type === 'income');
+  const monthlyExpenses = expenses.filter(e => e.date.startsWith(currentMonth) && categories.find(c => c.id === e.category_id)?.type === 'expense');
+  const monthlyIncomes = expenses.filter(e => e.date.startsWith(currentMonth) && categories.find(c => c.id === e.category_id)?.type === 'income');
 
   const totalExpense = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalIncome = monthlyIncomes.reduce((sum, e) => sum + e.amount, 0);
   const netIncome = totalIncome - totalExpense;
 
   const budgetData = BUDGETS.filter(b => b.month === currentMonth).map(budget => {
-    const category = CATEGORIES.find(c => c.id === budget.categoryId);
+    const category = categories.find(c => c.id === budget.categoryId);
     const spent = monthlyExpenses
-      .filter(e => e.categoryId === budget.categoryId)
+      .filter(e => e.category_id === budget.categoryId)
       .reduce((sum, e) => sum + e.amount, 0);
     const percentage = Math.min(((spent / budget.limitAmount) * 100), 100);
     return {
@@ -41,19 +68,19 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
       percentage
     };
   });
-  
+
   const netWorthData = [
     { name: 'Jan', value: 350000000 }, { name: 'Feb', value: 355000000 }, { name: 'Mar', value: 365000000 },
     { name: 'Apr', value: 360000000 }, { name: 'May', value: 375000000 }, { name: 'Jun', value: 380000000 },
     { name: 'Jul', value: (380000000 + HOLDINGS.reduce((acc, h) => acc + (h.currentPrice - h.avgPrice) * h.qty, 0)) },
   ];
 
-  const expenseByCategory = CATEGORIES
+  const expenseByCategory = categories
     .filter(c => c.type === 'expense')
     .map(category => ({
       name: category.name,
       amount: monthlyExpenses
-        .filter(e => e.categoryId === category.id)
+        .filter(e => e.category_id === category.id)
         .reduce((sum, e) => sum + e.amount, 0),
     }))
     .filter(d => d.amount > 0);
