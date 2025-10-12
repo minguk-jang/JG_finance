@@ -9,6 +9,7 @@ import Income, { IncomeHandle } from './components/Income';
 import Investments from './components/Investments';
 import Issues from './components/Issues';
 import Settings from './components/Settings';
+import QuickAddVoiceModal from './components/QuickAddVoiceModal';
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('Dashboard');
@@ -16,6 +17,7 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const expensesRef = useRef<ExpensesHandle>(null);
   const incomeRef = useRef<IncomeHandle>(null);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 
   useEffect(() => {
     const body = document.body;
@@ -24,21 +26,18 @@ const App: React.FC = () => {
   }, [theme]);
 
   const handleQuickAdd = () => {
-    const openExpenseModal = () => expensesRef.current?.openAddModal();
-    const openIncomeModal = () => incomeRef.current?.openAddModal();
+    setIsQuickAddOpen(true);
+  };
 
-    if (currentPage === 'Income') {
-      openIncomeModal();
-      return;
+  const handleCloseQuickAdd = () => {
+    setIsQuickAddOpen(false);
+  };
+
+  const handleExpenseCreated = () => {
+    if (currentPage !== 'Expenses') {
+      setCurrentPage('Expenses');
     }
-
-    if (currentPage === 'Expenses') {
-      openExpenseModal();
-      return;
-    }
-
-    setCurrentPage('Expenses');
-    setTimeout(openExpenseModal, 100);
+    expensesRef.current?.refresh?.();
   };
 
   const renderContent = () => {
@@ -75,6 +74,13 @@ const App: React.FC = () => {
           {renderContent()}
         </main>
       </div>
+      <QuickAddVoiceModal
+        isOpen={isQuickAddOpen}
+        onClose={handleCloseQuickAdd}
+        currency={currency}
+        theme={theme}
+        onExpenseCreated={handleExpenseCreated}
+      />
     </div>
   );
 };

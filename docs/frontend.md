@@ -60,3 +60,8 @@ cd frontend
 npm install
 npm run dev
 ```
+
+## Quick Add (Gemini) prerequisites
+- Set `VITE_GEMINI_API_KEY` in the project root `.env` to enable Gemini requests.
+- (Optional) Override the default model with `VITE_GEMINI_MODEL=gemini-2.5-flash` or another supported ID.
+- 사용자는 지출 설명을 직접 입력한 뒤 Gemini 분석 버튼으로 세부 정보를 제안받을 수 있습니다.

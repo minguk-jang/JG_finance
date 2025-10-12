@@ -10,6 +10,7 @@ interface ExpensesProps {
 
 export interface ExpensesHandle {
   openAddModal: () => void;
+  refresh: () => Promise<void>;
 }
 
 const formatCurrency = (value: number, currency: Currency) => {
@@ -198,7 +199,8 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
   };
 
   useImperativeHandle(ref, () => ({
-    openAddModal: () => handleOpenModal()
+    openAddModal: () => handleOpenModal(),
+    refresh: () => fetchData()
   }));
 
   const handleCloseModal = () => {

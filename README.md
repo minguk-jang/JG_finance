@@ -77,6 +77,21 @@ npm run dev  # http://localhost:5173
 
 프론트엔드는 Vite 프록시를 통해 `/api` 요청을 백엔드로 전달합니다. 필요 시 `.env.development`로 API 기본 URL을 조정할 수 있습니다.
 
+### 3-1. 빠른 추가 설정
+
+빠른 추가 기능을 사용하려면 프론트엔드 루트에 `.env` 파일을 생성하고 Gemini API 키를 설정하세요.
+
+```
+# .env
+VITE_GEMINI_API_KEY=your-google-gemini-api-key
+# (선택) 기본 모델을 재정의하려면 아래 키를 사용하세요.
+# VITE_GEMINI_MODEL=gemini-2.5-flash
+```
+
+- Google AI Studio에서 무료 플랜을 이용할 수 있습니다. 키 발급 후 최소 권한으로 관리하세요.
+- 지출 내용을 텍스트로 입력한 뒤 Gemini 분석 버튼을 눌러 제안된 데이터를 검토하고 저장할 수 있습니다.
+- API 호출이 실패하면 오류 메시지가 표시되며, 사용자는 텍스트와 폼을 직접 수정해 지출을 저장할 수 있습니다.
+
 ## 대표 API 엔드포인트
 
 - `GET /api/categories` / `POST /api/categories` … 카테고리 CRUD
