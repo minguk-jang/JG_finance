@@ -1,6 +1,5 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { Currency, Page } from './types';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Currency, Page, User } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -11,6 +10,15 @@ import Issues from './components/Issues';
 import Settings from './components/Settings';
 import QuickAddVoiceModal from './components/QuickAddVoiceModal';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from './constants';
+import { api } from './lib/api';
+
+const resolveStoredMemberId = (): number => {
+  if (typeof window === 'undefined') return -1;
+  const storedId = window.localStorage.getItem('activeMemberId');
+  if (!storedId) return -1;
+  const parsed = parseInt(storedId, 10);
+  return Number.isFinite(parsed) ? parsed : -1;
+};
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('Dashboard');
@@ -20,6 +28,8 @@ const App: React.FC = () => {
   const incomeRef = useRef<IncomeHandle>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<number>(DEFAULT_USD_KRW_EXCHANGE_RATE);
+  const [members, setMembers] = useState<User[]>([]);
+  const [activeMemberId, setActiveMemberId] = useState<number>(() => resolveStoredMemberId());
 
   useEffect(() => {
     const body = document.body;
@@ -42,6 +52,37 @@ const App: React.FC = () => {
     window.localStorage.setItem('usdKrwExchangeRate', exchangeRate.toString());
   }, [exchangeRate]);
 
+  const loadMembers = useCallback(async () => {
+    try {
+      const data = await api.getUsers();
+      setMembers(data);
+      setActiveMemberId(prev => {
+        if (data.length === 0) {
+          return -1;
+        }
+        if (data.some(user => user.id === prev && prev > 0)) {
+          return prev;
+        }
+        return data[0].id;
+      });
+    } catch (error) {
+      console.error('Failed to load members:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (activeMemberId > 0) {
+      window.localStorage.setItem('activeMemberId', activeMemberId.toString());
+    } else {
+      window.localStorage.removeItem('activeMemberId');
+    }
+  }, [activeMemberId]);
+
   const handleQuickAdd = () => {
     setIsQuickAddOpen(true);
   };
@@ -58,7 +99,11 @@ const App: React.FC = () => {
   };
 
   const renderSettings = () => (
-    <Settings exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} />
+    <Settings
+      exchangeRate={exchangeRate}
+      onExchangeRateChange={setExchangeRate}
+      onUsersRefresh={loadMembers}
+    />
   );
 
   const renderContent = () => {
@@ -66,9 +111,25 @@ const App: React.FC = () => {
       case 'Dashboard':
         return <Dashboard currency={currency} exchangeRate={exchangeRate} />;
       case 'Expenses':
-        return <Expenses ref={expensesRef} currency={currency} exchangeRate={exchangeRate} />;
+        return (
+          <Expenses
+            ref={expensesRef}
+            currency={currency}
+            exchangeRate={exchangeRate}
+            activeMemberId={activeMemberId}
+            members={members}
+          />
+        );
       case 'Income':
-        return <Income ref={incomeRef} currency={currency} exchangeRate={exchangeRate} />;
+        return (
+          <Income
+            ref={incomeRef}
+            currency={currency}
+            exchangeRate={exchangeRate}
+            activeMemberId={activeMemberId}
+            members={members}
+          />
+        );
       case 'Investments':
         return <Investments currency={currency} exchangeRate={exchangeRate} />;
       case 'Issues':
@@ -89,6 +150,9 @@ const App: React.FC = () => {
           setCurrency={setCurrency}
           theme={theme}
           setTheme={setTheme}
+          members={members}
+          activeMemberId={activeMemberId}
+          onActiveMemberChange={setActiveMemberId}
           onQuickAdd={handleQuickAdd}
         />
         <main className={`flex-1 overflow-x-hidden overflow-y-auto p-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -100,6 +164,7 @@ const App: React.FC = () => {
         onClose={handleCloseQuickAdd}
         currency={currency}
         theme={theme}
+        activeMemberId={activeMemberId}
         onExpenseCreated={handleExpenseCreated}
       />
     </div>

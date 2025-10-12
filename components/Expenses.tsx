@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { Currency } from '../types';
+import { Currency, User } from '../types';
 import Card from './ui/Card';
-import { USERS, DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
+import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
 import { api } from '../lib/api';
 
 interface ExpensesProps {
   currency: Currency;
   exchangeRate: number;
+  activeMemberId: number;
+  members: User[];
 }
 
 export interface ExpensesHandle {
@@ -26,7 +28,7 @@ const formatCurrency = (value: number, currency: Currency, exchangeRate: number)
 type SortKey = 'date' | 'category' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchangeRate }, ref) => {
+const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchangeRate, activeMemberId, members }, ref) => {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,7 +85,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
   }, [filters]);
 
   const getCategoryName = (id: number) => categories.find(c => c.id === id)?.name || 'N/A';
-  const getUserName = (id: number) => USERS.find(u => u.id === id)?.name || 'N/A';
+  const getUserName = (id: number) => members.find(user => user.id === id)?.name || 'N/A';
 
   // Statistics calculation
   const calculateStatistics = () => {
@@ -213,11 +215,16 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      if (activeMemberId <= 0) {
+        alert('먼저 작업자를 선택해주세요.');
+        return;
+      }
       const data = {
         category_id: parseInt(formData.category_id),
         date: formData.date,
         amount: parseFloat(formData.amount),
-        memo: formData.memo
+        memo: formData.memo,
+        created_by: activeMemberId
       };
 
       if (editingExpense) {

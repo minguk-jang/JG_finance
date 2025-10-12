@@ -5,6 +5,8 @@ from typing import List
 from app.core.deps import get_db
 from app.core.security import get_password_hash
 from app.models.user import User as UserModel
+from app.models.expense import Expense as ExpenseModel
+from app.models.issue import Issue as IssueModel
 from app.schemas.user import User, UserCreate, UserUpdate
 
 router = APIRouter()
@@ -78,6 +80,50 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     db_user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    fallback_user = (
+        db.query(UserModel)
+        .filter(UserModel.id != user_id)
+        .order_by(UserModel.id.asc())
+        .first()
+    )
+
+    reassignment_needed = False
+
+    expenses_to_reassign = (
+        db.query(ExpenseModel.id)
+        .filter(ExpenseModel.created_by == user_id)
+        .first()
+    )
+    if expenses_to_reassign:
+        reassignment_needed = True
+
+    issues_to_reassign = (
+        db.query(IssueModel.id)
+        .filter(IssueModel.assignee_id == user_id)
+        .first()
+    )
+    if issues_to_reassign:
+        reassignment_needed = True
+
+    if reassignment_needed and not fallback_user:
+        raise HTTPException(
+            status_code=400,
+            detail="해당 구성원은 다른 데이터에서 사용 중입니다. 다른 구성원을 만든 뒤 다시 삭제하거나 관련 기록을 삭제해주세요."
+        )
+
+    if fallback_user:
+        fallback_id = fallback_user.id
+        if expenses_to_reassign:
+            db.query(ExpenseModel).filter(ExpenseModel.created_by == user_id).update(
+                {ExpenseModel.created_by: fallback_id},
+                synchronize_session=False
+            )
+        if issues_to_reassign:
+            db.query(IssueModel).filter(IssueModel.assignee_id == user_id).update(
+                {IssueModel.assignee_id: fallback_id},
+                synchronize_session=False
+            )
 
     db.delete(db_user)
     db.commit()

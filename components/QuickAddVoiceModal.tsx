@@ -8,6 +8,7 @@ interface QuickAddVoiceModalProps {
   onClose: () => void;
   currency: Currency;
   theme: 'dark' | 'light';
+  activeMemberId: number;
   onExpenseCreated?: (expense: any) => void;
 }
 
@@ -30,6 +31,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
   onClose,
   currency,
   theme,
+  activeMemberId,
   onExpenseCreated,
 }) => {
   const [transcript, setTranscript] = useState<string>('');
@@ -158,6 +160,10 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
       event.preventDefault();
       setError(null);
 
+      if (activeMemberId <= 0) {
+        setError('작업자를 먼저 선택해주세요.');
+        return;
+      }
       const amount = parseFloat(formData.amount);
       if (!Number.isFinite(amount) || amount <= 0) {
         setError('금액을 확인해주세요.');
@@ -180,6 +186,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
         date: formData.date,
         amount,
         memo: formData.memo,
+        created_by: activeMemberId,
       };
 
       setIsSubmitting(true);
@@ -203,7 +210,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
         setIsSubmitting(false);
       }
     },
-    [formData, onExpenseCreated]
+    [activeMemberId, formData, onExpenseCreated]
   );
 
   const handleClose = useCallback(() => {
@@ -416,4 +423,3 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
 };
 
 export default QuickAddVoiceModal;
-

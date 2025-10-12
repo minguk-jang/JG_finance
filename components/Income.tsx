@@ -1,12 +1,14 @@
 import React, { useEffect, useImperativeHandle, useState, forwardRef } from 'react';
-import { Currency } from '../types';
+import { Currency, User } from '../types';
 import Card from './ui/Card';
-import { USERS, DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
+import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
 import { api } from '../lib/api';
 
 interface IncomeProps {
   currency: Currency;
   exchangeRate: number;
+  activeMemberId: number;
+  members: User[];
 }
 
 export interface IncomeHandle {
@@ -25,7 +27,7 @@ const formatCurrency = (value: number, currency: Currency, exchangeRate: number)
 type SortKey = 'date' | 'category' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }, ref) => {
+const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, activeMemberId, members }, ref) => {
   const [incomes, setIncomes] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,7 +84,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
   }, [filters]);
 
   const getCategoryName = (id: number) => categories.find((category) => category.id === id)?.name || 'N/A';
-  const getUserName = (id: number) => USERS.find((user) => user.id === id)?.name || 'N/A';
+  const getUserName = (id: number) => members.find((user) => user.id === id)?.name || 'N/A';
 
   const calculateStatistics = () => {
     const totalAmount = incomes.reduce((sum, income) => sum + (income.amount ?? 0), 0);
@@ -209,11 +211,16 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
+      if (activeMemberId <= 0) {
+        alert('먼저 작업자를 선택해주세요.');
+        return;
+      }
       const data = {
         category_id: parseInt(formData.category_id, 10),
         date: formData.date,
         amount: parseFloat(formData.amount),
-        memo: formData.memo
+        memo: formData.memo,
+        created_by: activeMemberId
       };
 
       if (editingIncome) {
