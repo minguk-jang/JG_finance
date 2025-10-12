@@ -50,7 +50,7 @@ def create_budget(budget: BudgetCreate, db: Session = Depends(get_db)):
             detail="Budget already exists for this category and month"
         )
 
-    db_budget = BudgetModel(**budget.dict())
+    db_budget = BudgetModel(**budget.model_dump())
     db.add(db_budget)
     db.commit()
     db.refresh(db_budget)
@@ -64,7 +64,7 @@ def update_budget(budget_id: int, budget: BudgetUpdate, db: Session = Depends(ge
     if not db_budget:
         raise HTTPException(status_code=404, detail="Budget not found")
 
-    update_data = budget.dict(exclude_unset=True)
+    update_data = budget.model_dump(exclude_unset=True)
 
     # Check if updating would create a duplicate
     if "category_id" in update_data or "month" in update_data:

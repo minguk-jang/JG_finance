@@ -1,19 +1,21 @@
 import React, { useEffect, useImperativeHandle, useState, forwardRef } from 'react';
 import { Currency } from '../types';
 import Card from './ui/Card';
-import { USERS, USD_KRW_EXCHANGE_RATE } from '../constants';
+import { USERS, DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
 import { api } from '../lib/api';
 
 interface IncomeProps {
   currency: Currency;
+  exchangeRate: number;
 }
 
 export interface IncomeHandle {
   openAddModal: () => void;
 }
 
-const formatCurrency = (value: number, currency: Currency) => {
-  const amount = currency === 'USD' ? value / USD_KRW_EXCHANGE_RATE : value;
+const formatCurrency = (value: number, currency: Currency, exchangeRate: number) => {
+  const rate = exchangeRate > 0 ? exchangeRate : DEFAULT_USD_KRW_EXCHANGE_RATE;
+  const amount = currency === 'USD' ? value / rate : value;
   return new Intl.NumberFormat(currency === 'KRW' ? 'ko-KR' : 'en-US', {
     style: 'currency',
     currency: currency,
@@ -23,7 +25,7 @@ const formatCurrency = (value: number, currency: Currency) => {
 type SortKey = 'date' | 'category' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency }, ref) => {
+const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }, ref) => {
   const [incomes, setIncomes] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -327,19 +329,19 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency }, ref) => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card title="총 수익액" className="!p-4">
           <div className="text-3xl font-bold text-white">
-            {formatCurrency(stats.totalAmount, currency)}
+            {formatCurrency(stats.totalAmount, currency, exchangeRate)}
           </div>
           <div className="text-sm text-gray-400 mt-1">{incomes.length}개 항목</div>
         </Card>
         <Card title="평균 수익" className="!p-4">
           <div className="text-3xl font-bold text-emerald-400">
-            {formatCurrency(stats.averageAmount || 0, currency)}
+            {formatCurrency(stats.averageAmount || 0, currency, exchangeRate)}
           </div>
           <div className="text-sm text-gray-400 mt-1">건당 평균</div>
         </Card>
         <Card title="최대 수익" className="!p-4">
           <div className="text-3xl font-bold text-emerald-400">
-            {stats.largestIncome ? formatCurrency(stats.largestIncome.amount, currency) : formatCurrency(0, currency)}
+            {stats.largestIncome ? formatCurrency(stats.largestIncome.amount, currency, exchangeRate) : formatCurrency(0, currency, exchangeRate)}
           </div>
           <div className="text-sm text-gray-400 mt-1">
             {stats.largestIncome ? `${getCategoryName(stats.largestIncome.category_id)} · ${stats.largestIncome.memo}` : '데이터 없음'}
@@ -350,7 +352,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency }, ref) => {
             {stats.topCategory ? stats.topCategory.name : '데이터 없음'}
           </div>
           <div className="text-sm text-gray-400 mt-1">
-            {stats.topCategory ? formatCurrency(stats.topCategory.amount, currency) : ''}
+            {stats.topCategory ? formatCurrency(stats.topCategory.amount, currency, exchangeRate) : ''}
           </div>
         </Card>
       </div>
@@ -375,7 +377,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency }, ref) => {
                       <td className="p-3 font-medium">{category.name}</td>
                       <td className="p-3 text-gray-400">{category.count}개</td>
                       <td className="p-3 font-semibold text-emerald-400">
-                        {formatCurrency(category.amount, currency)}
+                        {formatCurrency(category.amount, currency, exchangeRate)}
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
@@ -448,7 +450,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency }, ref) => {
                       </span>
                     </td>
                     <td className="p-3 font-semibold text-emerald-400">
-                      {formatCurrency(income.amount, currency)}
+                      {formatCurrency(income.amount, currency, exchangeRate)}
                     </td>
                     <td className="p-3">{income.memo}</td>
                     <td className="p-3">{getUserName(income.created_by)}</td>

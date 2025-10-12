@@ -91,6 +91,28 @@ export const api = {
   updateInvestmentAccount: (id: number, data: any) => apiPut<any>(`/investments/accounts/${id}`, data),
   deleteInvestmentAccount: (id: number) => apiDelete(`/investments/accounts/${id}`),
 
+  // Investments - Transactions
+  getInvestmentTransactions: (params?: {
+    account_id?: number;
+    symbol?: string;
+    type?: 'BUY' | 'SELL';
+    start_date?: string;
+    end_date?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.append('account_id', params.account_id.toString());
+    if (params?.symbol) query.append('symbol', params.symbol);
+    if (params?.type) query.append('transaction_type', params.type);
+    if (params?.start_date) query.append('start_date', params.start_date);
+    if (params?.end_date) query.append('end_date', params.end_date);
+    const queryString = query.toString();
+    return apiGet<any[]>(`/investments/transactions${queryString ? `?${queryString}` : ''}`);
+  },
+  getInvestmentTransaction: (id: number) => apiGet<any>(`/investments/transactions/${id}`),
+  createInvestmentTransaction: (data: any) => apiPost<any>('/investments/transactions', data),
+  updateInvestmentTransaction: (id: number, data: any) => apiPut<any>(`/investments/transactions/${id}`, data),
+  deleteInvestmentTransaction: (id: number) => apiDelete(`/investments/transactions/${id}`),
+
   // Issues
   getIssues: (params?: { status?: string; assignee_id?: number }) => {
     const query = new URLSearchParams();

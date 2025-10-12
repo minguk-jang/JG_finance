@@ -107,7 +107,7 @@ def update_expense(expense_id: int, expense_update: ExpenseUpdate, db: Session =
     """
     db_expense = _get_expense_or_404(db, expense_id)
 
-    update_data = expense_update.dict(exclude_unset=True)
+    update_data = expense_update.model_dump(exclude_unset=True)
     if "category_id" in update_data:
         _ensure_category_exists(db, update_data["category_id"])
         db_expense.category_id = update_data["category_id"]

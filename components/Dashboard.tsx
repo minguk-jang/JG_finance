@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Currency } from '../types';
 import Card from './ui/Card';
-import { USD_KRW_EXCHANGE_RATE } from '../constants';
+import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
 import { api } from '../lib/api';
 
 interface DashboardProps {
   currency: Currency;
+  exchangeRate: number;
 }
 
-const formatCurrency = (value: number, currency: Currency) => {
-  const amount = currency === 'USD' ? value / USD_KRW_EXCHANGE_RATE : value;
+const formatCurrency = (value: number, currency: Currency, exchangeRate: number) => {
+  const rate = exchangeRate > 0 ? exchangeRate : DEFAULT_USD_KRW_EXCHANGE_RATE;
+  const amount = currency === 'USD' ? value / rate : value;
   return new Intl.NumberFormat(currency === 'KRW' ? 'ko-KR' : 'en-US', {
     style: 'currency',
     currency: currency,
@@ -17,11 +19,12 @@ const formatCurrency = (value: number, currency: Currency) => {
   }).format(amount);
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
+const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate }) => {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [budgets, setBudgets] = useState<any[]>([]);
   const [holdings, setHoldings] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
@@ -29,11 +32,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [expensesData, categoriesData, budgetsData, holdingsData] = await Promise.all([
+        const [expensesData, categoriesData, budgetsData, holdingsData, transactionsData] = await Promise.all([
           api.getExpenses(),
           api.getCategories(),
           api.getBudgets(),
           api.getHoldings(),
+          api.getInvestmentTransactions(),
         ]);
 
         setExpenses(Array.isArray(expensesData) ? expensesData : []);
@@ -48,6 +52,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
         setBudgets(normalizedBudgets);
 
         setHoldings(Array.isArray(holdingsData) ? holdingsData : []);
+        setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);
         setError('대시보드 데이터를 불러오지 못했습니다.');
@@ -69,7 +74,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
     const monthsFromBudgets = budgets
       .map((budget) => budget.month)
       .filter((month): month is string => Boolean(month));
-    const availableMonths = Array.from(new Set([...monthsFromExpenses, ...monthsFromBudgets])).sort(
+    const monthsFromTransactions = transactions
+      .map((transaction) =>
+        typeof transaction.trade_date === 'string' ? transaction.trade_date.slice(0, 7) : null
+      )
+      .filter((month): month is string => Boolean(month));
+    const availableMonths = Array.from(
+      new Set([...monthsFromExpenses, ...monthsFromBudgets, ...monthsFromTransactions])
+    ).sort(
       (a, b) => b.localeCompare(a)
     );
 
@@ -87,7 +99,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
     } else if (!availableMonths.includes(selectedMonth)) {
       setSelectedMonth(availableMonths[0]);
     }
-  }, [loading, expenses, budgets, selectedMonth]);
+  }, [loading, expenses, budgets, transactions, selectedMonth]);
 
   if (loading) {
     return (
@@ -141,13 +153,58 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
     return sum + price * qty;
   }, 0);
 
+  const getTransactionTotals = (list: any[]) =>
+    list.reduce(
+      (acc, transaction) => {
+        const fees = transaction.fees ?? 0;
+        const gross = (transaction.quantity ?? 0) * (transaction.price ?? 0);
+        if (transaction.type === 'BUY') {
+          acc.buyAmount += gross + fees;
+          acc.buyCount += 1;
+        } else if (transaction.type === 'SELL') {
+          acc.sellAmount += gross - fees;
+          acc.sellCount += 1;
+        }
+        return acc;
+      },
+      { buyAmount: 0, sellAmount: 0, buyCount: 0, sellCount: 0 }
+    );
+
+  const monthDate = new Date(`${activeMonth}-01T00:00:00`);
+  const endOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+  const endDateStr = endOfMonth.toISOString().slice(0, 10);
+
+  const cumulativeTransactions = transactions.filter(
+    (transaction: any) =>
+      typeof transaction.trade_date === 'string' && transaction.trade_date <= endDateStr
+  );
+  const monthlyTransactions = transactions.filter(
+    (transaction: any) =>
+      typeof transaction.trade_date === 'string' &&
+      transaction.trade_date.slice(0, 7) === activeMonth
+  );
+
+  const cumulativeTotals = getTransactionTotals(cumulativeTransactions);
+  const monthlyTotals = getTransactionTotals(monthlyTransactions);
+
+  const cumulativeNetCash = cumulativeTotals.sellAmount - cumulativeTotals.buyAmount;
+  const monthlyNetCash = monthlyTotals.sellAmount - monthlyTotals.buyAmount;
+  const monthlyTransactionCount = monthlyTransactions.length;
+
   const monthsFromExpenses = expenses
     .map((expense) => (typeof expense.date === 'string' ? expense.date.slice(0, 7) : null))
     .filter((month): month is string => Boolean(month));
   const monthsFromBudgets = budgets
     .map((budget) => budget.month)
     .filter((month): month is string => Boolean(month));
-  const availableMonths = Array.from(new Set([...monthsFromExpenses, ...monthsFromBudgets])).sort(
+  const monthsFromTransactions = transactions
+    .map((transaction) =>
+      typeof transaction.trade_date === 'string' ? transaction.trade_date.slice(0, 7) : null
+    )
+    .filter((month): month is string => Boolean(month));
+  const availableMonths = Array.from(
+    new Set([...monthsFromExpenses, ...monthsFromBudgets, ...monthsFromTransactions])
+  ).sort(
     (a, b) => b.localeCompare(a)
   );
 
@@ -188,21 +245,21 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card title="총 수입">
           <div className="text-3xl font-bold text-green-400">
-            {formatCurrency(totalIncome, currency)}
+            {formatCurrency(totalIncome, currency, exchangeRate)}
           </div>
           <p className="text-sm text-gray-400 mt-1">{monthlyIncomes.length}개 항목</p>
         </Card>
 
         <Card title="총 지출">
           <div className="text-3xl font-bold text-red-400">
-            {formatCurrency(totalExpense, currency)}
+            {formatCurrency(totalExpense, currency, exchangeRate)}
           </div>
           <p className="text-sm text-gray-400 mt-1">{monthlyExpenses.length}개 항목</p>
         </Card>
 
         <Card title="순수입">
           <div className="text-3xl font-bold text-sky-400">
-            {formatCurrency(netIncome, currency)}
+            {formatCurrency(netIncome, currency, exchangeRate)}
           </div>
           <p className="text-sm text-gray-400 mt-1">
             {netIncome >= 0 ? '흑자' : '적자'}
@@ -216,12 +273,49 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
                 {budgetUsage.toFixed(1)}%
               </div>
               <p className="text-sm text-gray-400 mt-1">
-                {formatCurrency(totalExpense, currency)} / {formatCurrency(totalBudgetLimit, currency)}
+                {formatCurrency(totalExpense, currency, exchangeRate)} / {formatCurrency(totalBudgetLimit, currency, exchangeRate)}
               </p>
             </>
           ) : (
             <div className="text-xl text-gray-400">예산 없음</div>
           )}
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Card title={`${activeMonth}까지 누적 투자 순현금`}>
+          <div
+            className={`text-2xl font-bold ${
+              cumulativeNetCash >= 0 ? 'text-emerald-400' : 'text-red-400'
+            }`}
+          >
+            {cumulativeNetCash >= 0 ? '+' : '-'}
+            {formatCurrency(Math.abs(cumulativeNetCash), currency, exchangeRate)}
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            누적 매수 {formatCurrency(cumulativeTotals.buyAmount, currency, exchangeRate)} · 누적 매도{' '}
+            {formatCurrency(cumulativeTotals.sellAmount, currency, exchangeRate)}
+          </p>
+        </Card>
+        <Card title={`${activeMonth} 월간 투자 현금 흐름`}>
+          <div
+            className={`text-2xl font-bold ${
+              monthlyNetCash >= 0 ? 'text-emerald-400' : 'text-red-400'
+            }`}
+          >
+            {monthlyNetCash >= 0 ? '+' : '-'}
+            {formatCurrency(Math.abs(monthlyNetCash), currency, exchangeRate)}
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            매수 {formatCurrency(monthlyTotals.buyAmount, currency, exchangeRate)} · 매도{' '}
+            {formatCurrency(monthlyTotals.sellAmount, currency, exchangeRate)}
+          </p>
+        </Card>
+        <Card title={`${activeMonth} 거래 요약`}>
+          <div className="text-2xl font-bold text-indigo-400">{monthlyTransactionCount}건</div>
+          <p className="text-xs text-gray-400 mt-2">
+            매수 {monthlyTotals.buyCount}건 · 매도 {monthlyTotals.sellCount}건
+          </p>
         </Card>
       </div>
 
@@ -243,7 +337,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
                     <div key={cat.id}>
                       <div className="flex justify-between text-sm mb-1">
                         <span>{cat.name}</span>
-                        <span className="text-red-400 font-semibold">{formatCurrency(catTotal, currency)}</span>
+                        <span className="text-red-400 font-semibold">{formatCurrency(catTotal, currency, exchangeRate)}</span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2.5">
                         <div
@@ -277,7 +371,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
                     <div key={cat.id}>
                       <div className="flex justify-between text-sm mb-1">
                         <span>{cat.name}</span>
-                        <span className="text-green-400 font-semibold">{formatCurrency(catTotal, currency)}</span>
+                        <span className="text-green-400 font-semibold">{formatCurrency(catTotal, currency, exchangeRate)}</span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2.5">
                         <div
@@ -330,7 +424,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
                     </div>
                   </div>
                   <p className="mt-2 text-xs text-gray-400 text-center">{category?.name || '미지정'}</p>
-                  <p className="text-xs text-gray-500">{formatCurrency(spent, currency)}</p>
+                  <p className="text-xs text-gray-500">{formatCurrency(spent, currency, exchangeRate)}</p>
                 </div>
               );
             })}
@@ -350,7 +444,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
                 <div key={holding.id}>
                   <div className="flex justify-between text-sm mb-1">
                     <span>{holding.name ?? holding.symbol ?? `Asset ${holding.id}`}</span>
-                    <span className="text-indigo-400 font-semibold">{formatCurrency(value, currency)}</span>
+                    <span className="text-indigo-400 font-semibold">{formatCurrency(value, currency, exchangeRate)}</span>
                   </div>
                   <div className="w-full bg-gray-700 rounded-full h-2.5">
                     <div
@@ -364,7 +458,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency }) => {
             }).filter(Boolean)}
             <div className="mt-4 pt-4 border-t border-gray-700 text-center">
               <p className="text-sm text-gray-400">총 평가액</p>
-              <p className="text-2xl font-bold text-indigo-400">{formatCurrency(totalHoldingsValue, currency)}</p>
+              <p className="text-2xl font-bold text-indigo-400">{formatCurrency(totalHoldingsValue, currency, exchangeRate)}</p>
             </div>
           </div>
         </Card>

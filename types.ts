@@ -54,6 +54,22 @@ export interface Holding {
   currentPrice: number;
 }
 
+export type InvestmentTransactionType = 'BUY' | 'SELL';
+
+export interface InvestmentTransaction {
+  id: number;
+  accountId: number;
+  symbol: string;
+  name?: string;
+  type: InvestmentTransactionType;
+  tradeDate: string;
+  quantity: number;
+  price: number;
+  fees: number;
+  memo?: string;
+  account?: InvestmentAccount;
+}
+
 export enum IssueStatus {
   Open = 'Open',
   InProgress = 'In Progress',

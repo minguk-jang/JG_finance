@@ -8,7 +8,12 @@ from app.core.database import Base, SessionLocal, engine
 from app.models.budget import Budget
 from app.models.category import Category, CategoryType
 from app.models.expense import Expense
-from app.models.investment import Holding, InvestmentAccount
+from app.models.investment import (
+    Holding,
+    InvestmentAccount,
+    InvestmentTransaction,
+    TransactionType,
+)
 from app.models.issue import Issue, IssuePriority, IssueStatus, Label
 from app.models.user import User, UserRole
 
@@ -101,6 +106,34 @@ def upsert_holding(
     )
     session.add(holding)
     return holding
+
+
+def create_transaction(
+    session: Session,
+    *,
+    account_id: int,
+    symbol: str,
+    name: str,
+    type_: TransactionType,
+    trade_date: date,
+    quantity: float,
+    price: float,
+    fees: float = 0.0,
+    memo: str | None = None,
+) -> InvestmentTransaction:
+    transaction = InvestmentTransaction(
+        account_id=account_id,
+        symbol=symbol,
+        name=name,
+        type=type_,
+        trade_date=trade_date,
+        quantity=quantity,
+        price=price,
+        fees=fees,
+        memo=memo,
+    )
+    session.add(transaction)
+    return transaction
 
 
 def upsert_label(session: Session, *, name: str, color: str) -> Label:
@@ -338,6 +371,60 @@ def seed():
             qty=120,
             avg_price=10_500,
             current_price=11_200,
+        )
+
+        # Investment transactions
+        create_transaction(
+            session,
+            account_id=accounts[0].id,
+            symbol="005930.KS",
+            name="삼성전자",
+            type_=TransactionType.BUY,
+            trade_date=date(2024, 1, 5),
+            quantity=10,
+            price=70_000,
+            memo="신년 매수",
+        )
+        create_transaction(
+            session,
+            account_id=accounts[0].id,
+            symbol="005930.KS",
+            name="삼성전자",
+            type_=TransactionType.SELL,
+            trade_date=date(2024, 3, 18),
+            quantity=5,
+            price=74_500,
+            memo="일부 차익 실현",
+        )
+        create_transaction(
+            session,
+            account_id=accounts[1].id,
+            symbol="TSLA",
+            name="Tesla Inc.",
+            type_=TransactionType.BUY,
+            trade_date=date(2024, 2, 24),
+            quantity=3,
+            price=210 * 1_350,
+        )
+        create_transaction(
+            session,
+            account_id=accounts[1].id,
+            symbol="AAPL",
+            name="Apple Inc.",
+            type_=TransactionType.BUY,
+            trade_date=date(2024, 5, 11),
+            quantity=4,
+            price=190 * 1_350,
+        )
+        create_transaction(
+            session,
+            account_id=accounts[2].id,
+            symbol="KOR_ETF",
+            name="국내 배당 ETF",
+            type_=TransactionType.BUY,
+            trade_date=date(2024, 6, 3),
+            quantity=60,
+            price=10_700,
         )
 
         # Labels

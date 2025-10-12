@@ -1,7 +1,7 @@
 
 import { User, UserRole, Category, Expense, Budget, InvestmentAccount, Holding, Issue, IssueStatus, IssuePriority } from './types';
 
-export const USD_KRW_EXCHANGE_RATE = 1350;
+export const DEFAULT_USD_KRW_EXCHANGE_RATE = 1350;
 
 export const USERS: User[] = [
   { id: 1, name: 'Kim Jjoogguk', email: 'jjoogguk@family.com', role: UserRole.Admin, avatar: 'https://i.pravatar.cc/150?u=1' },
@@ -49,8 +49,8 @@ export const INVESTMENT_ACCOUNTS: InvestmentAccount[] = [
 export const HOLDINGS: Holding[] = [
   { id: 1, accountId: 1, symbol: '005930.KS', name: 'Samsung Electronics', qty: 10, avgPrice: 80000, currentPrice: 83000 },
   { id: 2, accountId: 1, symbol: '035420.KS', name: 'NAVER', qty: 20, avgPrice: 170000, currentPrice: 165000 },
-  { id: 3, accountId: 2, symbol: 'AAPL', name: 'Apple Inc.', qty: 15, avgPrice: 180 * USD_KRW_EXCHANGE_RATE, currentPrice: 210 * USD_KRW_EXCHANGE_RATE },
-  { id: 4, accountId: 2, symbol: 'TSLA', name: 'Tesla Inc.', qty: 5, avgPrice: 175 * USD_KRW_EXCHANGE_RATE, currentPrice: 185 * USD_KRW_EXCHANGE_RATE },
+  { id: 3, accountId: 2, symbol: 'AAPL', name: 'Apple Inc.', qty: 15, avgPrice: 180 * DEFAULT_USD_KRW_EXCHANGE_RATE, currentPrice: 210 * DEFAULT_USD_KRW_EXCHANGE_RATE },
+  { id: 4, accountId: 2, symbol: 'TSLA', name: 'Tesla Inc.', qty: 5, avgPrice: 175 * DEFAULT_USD_KRW_EXCHANGE_RATE, currentPrice: 185 * DEFAULT_USD_KRW_EXCHANGE_RATE },
 ];
 
 export const ISSUES: Issue[] = [

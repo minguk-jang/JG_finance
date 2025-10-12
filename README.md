@@ -7,7 +7,7 @@ Jjoogguk Finance는 가계의 수입·지출, 예산, 투자 현황을 한 번�
 - **대시보드**: 월별 수입·지출, 예산 대비 지출, 투자 자산 배분을 실시간 API 데이터를 기반으로 시각화
 - **수익/지출 관리**: 카테고리 필터, 정렬, 모달 기반 CRUD / 수익과 지출을 별도 탭으로 분리
 - **예산 및 사용자 설정**: 설정 화면에서 카테고리·예산·사용자 관리 가능
-- **투자/이슈**: 투자 계좌와 보유 종목, 재무 관련 태스크를 한눈에 파악 (점진적 고도화 예정)
+- **투자/이슈**: 투자 계좌와 보유 종목, 매수·매도 거래 히스토리를 한눈에 파악하고 재무 관련 태스크를 관리
 - **백엔드 API**: FastAPI + SQLAlchemy 기반 REST API, Alembic 마이그레이션, Pytest로 주요 CRUD 검증
 
 ## 폴더 구조
@@ -92,12 +92,18 @@ VITE_GEMINI_API_KEY=your-google-gemini-api-key
 - 지출 내용을 텍스트로 입력한 뒤 Gemini 분석 버튼을 눌러 제안된 데이터를 검토하고 저장할 수 있습니다.
 - API 호출이 실패하면 오류 메시지가 표시되며, 사용자는 텍스트와 폼을 직접 수정해 지출을 저장할 수 있습니다.
 
+### 3-2. 환율 설정
+
+- `설정 → 환율 설정` 카드에서 USD → KRW 환율을 직접 입력해 통화 변환 값을 관리할 수 있습니다.
+- 입력한 값은 로컬 스토리지에 저장되며, 상단 통화 토글과 대시보드/지출/수익/투자 화면의 금액 변환에 즉시 적용됩니다.
+
 ## 대표 API 엔드포인트
 
 - `GET /api/categories` / `POST /api/categories` … 카테고리 CRUD
 - `GET /api/expenses` / `POST /api/expenses` … 지출/수익 CRUD + 필터 (from_date, to_date, category_id)
 - `GET /api/budgets` / `POST /api/budgets` … 예산 CRUD
 - `GET /api/investments/holdings` … 투자 내역 조회
+- `GET /api/investments/transactions` / `POST /api/investments/transactions` … 투자 거래 CRUD + 필터 (account_id, start_date, end_date, transaction_type)
 - `GET /api/issues` … 재무 태스크 관리
 
 ### 예시: 지출 생성

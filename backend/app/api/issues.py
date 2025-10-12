@@ -24,7 +24,7 @@ def create_label(label: LabelCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Label already exists")
 
-    db_label = LabelModel(**label.dict())
+    db_label = LabelModel(**label.model_dump())
     db.add(db_label)
     db.commit()
     db.refresh(db_label)
@@ -62,7 +62,7 @@ def get_issue(issue_id: int, db: Session = Depends(get_db)):
 def create_issue(issue: IssueCreate, db: Session = Depends(get_db)):
     """Create a new issue"""
     # Create issue without labels first
-    issue_data = issue.dict(exclude={'label_ids'})
+    issue_data = issue.model_dump(exclude={'label_ids'})
     db_issue = IssueModel(**issue_data)
 
     # Add labels if provided
@@ -84,7 +84,7 @@ def update_issue(issue_id: int, issue: IssueUpdate, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="Issue not found")
 
     # Update fields if provided
-    update_data = issue.dict(exclude_unset=True, exclude={'label_ids'})
+    update_data = issue.model_dump(exclude_unset=True, exclude={'label_ids'})
     for field, value in update_data.items():
         setattr(db_issue, field, value)
 

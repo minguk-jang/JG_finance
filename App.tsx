@@ -10,6 +10,7 @@ import Investments from './components/Investments';
 import Issues from './components/Issues';
 import Settings from './components/Settings';
 import QuickAddVoiceModal from './components/QuickAddVoiceModal';
+import { DEFAULT_USD_KRW_EXCHANGE_RATE } from './constants';
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('Dashboard');
@@ -18,12 +19,28 @@ const App: React.FC = () => {
   const expensesRef = useRef<ExpensesHandle>(null);
   const incomeRef = useRef<IncomeHandle>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState<number>(DEFAULT_USD_KRW_EXCHANGE_RATE);
 
   useEffect(() => {
     const body = document.body;
     body.classList.remove('theme-dark', 'theme-light');
     body.classList.add(theme === 'dark' ? 'theme-dark' : 'theme-light');
   }, [theme]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedRate = window.localStorage.getItem('usdKrwExchangeRate');
+    if (!storedRate) return;
+    const parsed = parseFloat(storedRate);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      setExchangeRate(parsed);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('usdKrwExchangeRate', exchangeRate.toString());
+  }, [exchangeRate]);
 
   const handleQuickAdd = () => {
     setIsQuickAddOpen(true);
@@ -40,22 +57,26 @@ const App: React.FC = () => {
     expensesRef.current?.refresh?.();
   };
 
+  const renderSettings = () => (
+    <Settings exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} />
+  );
+
   const renderContent = () => {
     switch (currentPage) {
       case 'Dashboard':
-        return <Dashboard currency={currency} />;
+        return <Dashboard currency={currency} exchangeRate={exchangeRate} />;
       case 'Expenses':
-        return <Expenses ref={expensesRef} currency={currency} />;
+        return <Expenses ref={expensesRef} currency={currency} exchangeRate={exchangeRate} />;
       case 'Income':
-        return <Income ref={incomeRef} currency={currency} />;
+        return <Income ref={incomeRef} currency={currency} exchangeRate={exchangeRate} />;
       case 'Investments':
-        return <Investments currency={currency} />;
+        return <Investments currency={currency} exchangeRate={exchangeRate} />;
       case 'Issues':
         return <Issues currency={currency} />;
       case 'Settings':
-        return <Settings />;
+        return renderSettings();
       default:
-        return <Dashboard currency={currency} />;
+        return <Dashboard currency={currency} exchangeRate={exchangeRate} />;
     }
   };
 

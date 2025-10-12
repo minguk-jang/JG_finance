@@ -3,11 +3,20 @@ import Card from './ui/Card';
 import { User, UserRole, Budget, Category } from '../types';
 import { api } from '../lib/api';
 
-const Settings: React.FC = () => {
+interface SettingsProps {
+  exchangeRate: number;
+  onExchangeRateChange: (value: number) => void;
+}
+
+const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exchangeRateInput, setExchangeRateInput] = useState<string>(exchangeRate.toString());
+  const [exchangeRateError, setExchangeRateError] = useState<string | null>(null);
+  const [exchangeRateMessage, setExchangeRateMessage] = useState<string | null>(null);
+  const [isSavingExchangeRate, setIsSavingExchangeRate] = useState<boolean>(false);
 
   // User modal state
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -41,6 +50,42 @@ const Settings: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    setExchangeRateInput(exchangeRate.toString());
+  }, [exchangeRate]);
+
+  const handleExchangeRateInputChange = (value: string) => {
+    setExchangeRateInput(value);
+    setExchangeRateError(null);
+    setExchangeRateMessage(null);
+  };
+
+  const handleExchangeRateSave = () => {
+    const parsed = parseFloat(exchangeRateInput);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setExchangeRateError('유효한 환율을 입력해주세요.');
+      setExchangeRateMessage(null);
+      return;
+    }
+
+    const normalized = Number(parsed.toFixed(4));
+
+    if (Math.abs(normalized - exchangeRate) < 0.0001) {
+      setExchangeRateMessage('이미 해당 환율이 적용 중입니다.');
+      setExchangeRateError(null);
+      return;
+    }
+
+    setIsSavingExchangeRate(true);
+    try {
+      onExchangeRateChange(normalized);
+      setExchangeRateMessage('환율이 업데이트되었습니다.');
+      setExchangeRateError(null);
+    } finally {
+      setIsSavingExchangeRate(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -438,6 +483,58 @@ const Settings: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </Card>
+
+      {/* Exchange Rate Settings */}
+      <Card title="환율 설정">
+        <p className="text-sm text-gray-400">
+          USD ↔ KRW 통화 변환에 사용할 환율을 입력하세요. 상단 통화 토글 및 대시보드, 지출/수익, 투자 화면에 즉시 반영됩니다.
+        </p>
+
+        {exchangeRateError && (
+          <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-300">
+            {exchangeRateError}
+          </div>
+        )}
+        {exchangeRateMessage && !exchangeRateError && (
+          <div className="mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200">
+            {exchangeRateMessage}
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-col md:flex-row md:items-end gap-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium mb-2 text-gray-300">USD → KRW 환율</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={exchangeRateInput}
+                onChange={(event) => handleExchangeRateInputChange(event.target.value)}
+                className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                placeholder="예: 1350.25"
+              />
+              <span className="text-sm text-gray-400 whitespace-nowrap">
+                현재 적용값: {exchangeRate.toLocaleString()}₩
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={handleExchangeRateSave}
+            disabled={isSavingExchangeRate}
+            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition ${
+              isSavingExchangeRate
+                ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+            }`}
+          >
+            {isSavingExchangeRate ? '저장 중...' : '환율 적용'}
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 mt-3">
+          예: 입력값이 1350이면 USD 1 = 1,350 KRW로 계산됩니다. 가장 최신 환율을 직접 입력하여 금액 계산을 정확히 유지하세요.
+        </p>
       </Card>
 
       {/* Category Modal */}

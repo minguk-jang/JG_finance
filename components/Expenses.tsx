@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Currency } from '../types';
 import Card from './ui/Card';
-import { USERS, USD_KRW_EXCHANGE_RATE } from '../constants';
+import { USERS, DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
 import { api } from '../lib/api';
 
 interface ExpensesProps {
   currency: Currency;
+  exchangeRate: number;
 }
 
 export interface ExpensesHandle {
@@ -13,8 +14,9 @@ export interface ExpensesHandle {
   refresh: () => Promise<void>;
 }
 
-const formatCurrency = (value: number, currency: Currency) => {
-  const amount = currency === 'USD' ? value / USD_KRW_EXCHANGE_RATE : value;
+const formatCurrency = (value: number, currency: Currency, exchangeRate: number) => {
+  const rate = exchangeRate > 0 ? exchangeRate : DEFAULT_USD_KRW_EXCHANGE_RATE;
+  const amount = currency === 'USD' ? value / rate : value;
   return new Intl.NumberFormat(currency === 'KRW' ? 'ko-KR' : 'en-US', {
     style: 'currency',
     currency: currency,
@@ -24,7 +26,7 @@ const formatCurrency = (value: number, currency: Currency) => {
 type SortKey = 'date' | 'category' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) => {
+const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchangeRate }, ref) => {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -331,19 +333,19 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card title="총 지출액" className="!p-4">
           <div className="text-3xl font-bold text-white">
-            {formatCurrency(stats.totalAmount, currency)}
+            {formatCurrency(stats.totalAmount, currency, exchangeRate)}
           </div>
           <div className="text-sm text-gray-400 mt-1">{expenses.length}개 항목</div>
         </Card>
         <Card title="평균 지출" className="!p-4">
           <div className="text-3xl font-bold text-red-400">
-            {formatCurrency(stats.averageAmount || 0, currency)}
+            {formatCurrency(stats.averageAmount || 0, currency, exchangeRate)}
           </div>
           <div className="text-sm text-gray-400 mt-1">건당 평균</div>
         </Card>
         <Card title="최대 지출" className="!p-4">
           <div className="text-3xl font-bold text-red-400">
-            {stats.largestExpense ? formatCurrency(stats.largestExpense.amount, currency) : formatCurrency(0, currency)}
+            {stats.largestExpense ? formatCurrency(stats.largestExpense.amount, currency, exchangeRate) : formatCurrency(0, currency, exchangeRate)}
           </div>
           <div className="text-sm text-gray-400 mt-1">
             {stats.largestExpense ? `${getCategoryName(stats.largestExpense.category_id)} · ${stats.largestExpense.memo}` : '데이터 없음'}
@@ -354,7 +356,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
             {stats.topCategory ? stats.topCategory.name : '데이터 없음'}
           </div>
           <div className="text-sm text-gray-400 mt-1">
-            {stats.topCategory ? formatCurrency(stats.topCategory.amount, currency) : ''}
+            {stats.topCategory ? formatCurrency(stats.topCategory.amount, currency, exchangeRate) : ''}
           </div>
         </Card>
       </div>
@@ -380,7 +382,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
                       <td className="p-3 font-medium">{cat.name}</td>
                       <td className="p-3 text-gray-400">{cat.count}개</td>
                       <td className="p-3 font-semibold text-red-400">
-                        {formatCurrency(cat.amount, currency)}
+                        {formatCurrency(cat.amount, currency, exchangeRate)}
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
@@ -454,7 +456,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
                       </span>
                     </td>
                     <td className="p-3 font-semibold text-red-400">
-                      {formatCurrency(expense.amount, currency)}
+                      {formatCurrency(expense.amount, currency, exchangeRate)}
                     </td>
                     <td className="p-3">{expense.memo}</td>
                     <td className="p-3">{getUserName(expense.created_by)}</td>

@@ -87,7 +87,7 @@ def update_category(category_id: int, category: CategoryUpdate, db: Session = De
     if not db_category:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    update_data = category.dict(exclude_unset=True)
+    update_data = category.model_dump(exclude_unset=True)
     if not update_data:
         return db_category
 
