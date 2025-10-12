@@ -1,5 +1,5 @@
 
-import { User, UserRole, Category, Expense, Budget, InvestmentAccount, Holding, Issue, IssueStatus } from './types';
+import { User, UserRole, Category, Expense, Budget, InvestmentAccount, Holding, Issue, IssueStatus, IssuePriority } from './types';
 
 export const USD_KRW_EXCHANGE_RATE = 1350;
 
@@ -54,8 +54,8 @@ export const HOLDINGS: Holding[] = [
 ];
 
 export const ISSUES: Issue[] = [
-  { id: 1, title: 'Plan summer vacation budget', status: IssueStatus.InProgress, assigneeId: 2, labels: [{name: 'Budgeting', color: 'bg-blue-500'}], body: 'Need to finalize the budget for the upcoming trip to Jeju Island.' },
-  { id: 2, title: 'Review investment portfolio', status: IssueStatus.Open, assigneeId: 1, labels: [{name: 'Investing', color: 'bg-green-500'}], body: 'Re-evaluate asset allocation for Q3.' },
-  { id: 3, title: 'Pay credit card bills', status: IssueStatus.Closed, assigneeId: 1, labels: [{name: 'Bills', color: 'bg-red-500'}], body: 'All credit card bills for June have been paid.' },
-  { id: 4, title: 'Research new savings account', status: IssueStatus.Open, assigneeId: 2, labels: [{name: 'Savings', color: 'bg-yellow-500'}], body: 'Look for high-yield savings account options.' },
+  { id: 1, title: 'Plan summer vacation budget', status: IssueStatus.InProgress, priority: IssuePriority.High, assigneeId: 2, labels: [{name: 'Budgeting', color: 'bg-blue-500'}], body: 'Need to finalize the budget for the upcoming trip to Jeju Island.' },
+  { id: 2, title: 'Review investment portfolio', status: IssueStatus.Open, priority: IssuePriority.Medium, assigneeId: 1, labels: [{name: 'Investing', color: 'bg-green-500'}], body: 'Re-evaluate asset allocation for Q3.' },
+  { id: 3, title: 'Pay credit card bills', status: IssueStatus.Closed, priority: IssuePriority.Critical, assigneeId: 1, labels: [{name: 'Bills', color: 'bg-red-500'}], body: 'All credit card bills for June have been paid.' },
+  { id: 4, title: 'Research new savings account', status: IssueStatus.Open, priority: IssuePriority.Low, assigneeId: 2, labels: [{name: 'Savings', color: 'bg-yellow-500'}], body: 'Look for high-yield savings account options.' },
 ];

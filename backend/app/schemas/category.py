@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Literal
+from typing import Literal, Optional
 
 
 class CategoryBase(BaseModel):
@@ -9,6 +9,11 @@ class CategoryBase(BaseModel):
 
 class CategoryCreate(CategoryBase):
     pass
+
+
+class CategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    type: Optional[Literal["income", "expense"]] = None
 
 
 class Category(CategoryBase):

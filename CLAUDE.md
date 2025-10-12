@@ -1,370 +1,88 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+이 문서는 Claude Code(claude.ai/code)가 이 리포지터리에서 작업할 때 알아야 할 핵심 정보를 제공합니다.
 
-## Project Overview
+## 프로젝트 개요
 
-Jjoogguk Finance is a **full-stack personal finance management application** with a React frontend and FastAPI backend. It provides tools for tracking expenses, investments, budgets, and financial planning tasks for households/families, with multi-currency support (KRW/USD).
+Jjoogguk Finance는 가계 재무 관리를 위한 풀스택 애플리케이션입니다. 프론트엔드는 **React 19 + TypeScript + Vite**, 백엔드는 **FastAPI + SQLAlchemy**로 구성되어 있으며 PostgreSQL을 기본 데이터베이스로 사용합니다. 현재 대시보드, 수익/지출 관리, 설정, 투자·이슈 요약 화면이 FastAPI API와 연동되어 동작하고 있습니다.
 
-**Current Status**: ✅ Fully functional with expense CRUD, dashboard, and real-time API integration.
-
-## Project Structure
+## 폴더 구조
 
 ```
 /
-├── backend/        # FastAPI (Python) — REST API, database, business logic
-├── components/     # React UI components
-├── lib/            # Frontend utilities (API client)
-├── docs/           # Detailed documentation
-└── (root files)    # Frontend app files (to be moved to /frontend)
+├── App.tsx, index.tsx          # Vite + React 엔트리
+├── components/                 # 페이지 및 UI 컴포넌트
+│   ├── Dashboard.tsx           # 대시보드 (API 기반)
+│   ├── Income.tsx              # 수익 CRUD + 통계
+│   ├── Expenses.tsx            # 지출 CRUD + 통계
+│   ├── Investments.tsx         # 투자 요약 (추후 백엔드 연동 예정)
+│   ├── Issues.tsx              # 이슈/태스크 보드 (추후 연동 예정)
+│   └── Settings.tsx            # 카테고리·예산·사용자 관리
+├── lib/api.ts                  # 프론트엔드 API 클라이언트
+├── types.ts                    # 도메인 타입 정의
+├── constants.ts                # 샘플 사용자·예산 등 (점진적 제거 예정)
+├── backend/                    # FastAPI 애플리케이션
+│   ├── app/main.py             # FastAPI 엔트리 + CORS + 라우터 등록
+│   ├── app/api/                # 라우터 (categories, expenses, budgets, ... )
+│   ├── app/models/             # SQLAlchemy 모델
+│   ├── app/schemas/            # Pydantic 스키마
+│   ├── app/core/               # 설정, 의존성(get_db 등)
+│   └── tests/                  # Pytest (현재 expenses CRUD 테스트 포함)
+├── docs/                       # 상세 문서 (frontend.md, backend.md 등)
+└── README.md, AGENTS.md        # 실행 가이드 및 기여자 지침
 ```
 
-**Note**: Frontend files are currently at the root level. Planned reorganization will move them to `/frontend` directory.
+## 실행/개발 명령
 
-## Development Commands
-
-### Frontend (Current: Root Level)
-
+### 프론트엔드 (루트에서)
 ```bash
-# Install dependencies
 npm install
-
-# Run development server (port 3000)
-npm run dev
-
-# Build for production
+npm run dev        # http://localhost:5173
 npm run build
-
-# Preview production build
 npm run preview
 ```
 
-### Backend (/backend Directory)
-
+### 백엔드 (`/backend`)
 ```bash
-cd backend
-
-# Create and activate virtual environment
 python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate      # Windows는 venv\Scripts\activate
 pip install -r requirements.txt
-
-# Run migrations
 alembic upgrade head
-
-# Create new migration after model changes
-alembic revision --autogenerate -m "description"
-
-# Start FastAPI server (port 8000)
-uvicorn app.main:app --reload
-
-# Access API docs
-# Swagger UI: http://localhost:8000/docs
-# ReDoc: http://localhost:8000/redoc
-# OpenAPI JSON: http://localhost:8000/openapi.json
+uvicorn app.main:app --reload  # http://localhost:8000
 ```
 
-### Database
+테스트는 `cd backend && pytest` 로 실행합니다. 현 개발 환경의 `.bash_profile` 오류로 실행이 막히면 `bash --noprofile -lc "cd backend && pytest"`처럼 호출하거나 해당 오류 라인을 임시 주석 처리하십시오.
 
-```bash
-# Start PostgreSQL (macOS with Homebrew)
-brew services start postgresql@14
+## 프론트엔드 구현 요약
 
-# Create database
-createdb jjoogguk_finance
+- **App.tsx**: `currentPage`와 통화 상태를 관리하며, Sidebar/헤더/각 페이지를 렌더링합니다.
+- **Sidebar.tsx**: `'Dashboard' | 'Income' | 'Expenses' | 'Investments' | 'Issues' | 'Settings'` 중 선택된 페이지를 전환합니다.
+- **Dashboard.tsx**: `/api/expenses`, `/api/categories`, `/api/budgets`, `/api/investments/holdings`를 호출해 월별 수입·지출, 예산 대비 지출, 투자 배분을 계산합니다.
+- **Income.tsx / Expenses.tsx**: 동일한 `/api/expenses` 엔드포인트를 사용하지만, 카테고리 타입(`income`/`expense`)으로 데이터를 구분합니다. 날짜/카테고리 필터, 정렬, 모달 기반 CRUD를 제공합니다.
+- **Settings.tsx**: 카테고리·예산·사용자 API에 연결되어 있으며, 카테고리 삭제 시 예산/지출 연관 관계를 검사합니다.
+- **lib/api.ts**: `/api` 프록시를 기준으로 CRUD 헬퍼(`apiGet`, `apiPost`, `apiPut`, `apiDelete`)와 도메인별 메서드를 제공합니다.
 
-# Connect to database
-psql -d jjoogguk_finance
+## 백엔드 구현 요약
 
-# List tables
-psql -d jjoogguk_finance -c "\dt"
-```
+- **app/api/expenses.py**: SQLAlchemy를 사용한 CRUD. 날짜/카테고리 필터를 지원하며, `created_by`가 비어 있으면 기본 사용자 ID(1)를 사용합니다.
+- **app/api/categories.py**: 카테고리 CRUD. 예산/지출이 연결된 경우 삭제를 차단합니다.
+- **app/core/deps.py**: `get_db` 의존성과 JWT 디코딩 유틸(추후 인증 강화 예정).
+- **app/models/**: `User`, `Category`, `Expense`, `Budget`, `Investment` 등 테이블 정의.
+- **tests/test_expenses_api.py**: FastAPI `TestClient` + 인메모리 SQLite로 지출 생성/조회·수정·삭제 흐름을 검증합니다.
 
-## Architecture
+## 작업 시 유의사항
 
-### Overall Architecture
+- 프론트엔드에서 새 엔드포인트를 사용하려면 `lib/api.ts`에 메서드를 추가하고, 컴포넌트에서 Promise.all로 데이터를 가져온 뒤 camelCase/snake_case 정규화를 맞춰 주세요.
+- 백엔드 작업은 모델 → 스키마 → 라우터 순으로 추가하고 `app/main.py`에 라우터를 등록합니다. Alembic 마이그레이션을 생성 후 `alembic upgrade head`로 반영합니다.
+- 테스트는 Pytest 패턴을 참고하여 `app.core.deps.get_db` 의존성을 override한 채 작성하세요.
+- `.env`(backend) / `.env.development`(frontend) 파일을 활용하여 DB, JWT, 프록시 설정을 관리합니다. 민감한 값은 커밋하지 마세요.
 
-The application follows a **modern client-server architecture**:
+## 향후 개선 항목
 
-```
-React Frontend (Vite) → Vite Proxy → FastAPI Backend → PostgreSQL
-     :3000              /api/*           :8000
-```
+- 투자·이슈 라우터를 실제 DB와 연결하고 프론트 데이터를 API 기반으로 전환
+- 사용자 인증/인가(JWT, 패스워드 해시) 및 권한 적용
+- 프론트엔드 Vitest/RTL 테스트 작성 및 CI 파이프라인 구축
+- `.bash_profile`에 남아 있는 syntax error 정리 (현재 테스트 실행 시 방해 요인)
+- 프로덕션 배포 시 HTTPS 및 신뢰할 수 있는 CORS 도메인만 허용
 
-- **Frontend**: React 19 + TypeScript SPA with Vite dev server
-- **Backend**: FastAPI serves REST endpoints under `/api/*`
-- **Database**: PostgreSQL 14 with SQLAlchemy ORM
-- **API Communication**: Vite proxies `/api` requests to backend (configured in vite.config.ts:11-16)
-
-### Frontend Architecture (React)
-
-**Current State**: Fully connected to backend with working CRUD operations.
-
-**Key Files**:
-- **App.tsx**: Root component managing global state (page navigation, currency selection)
-- **lib/api.ts**: API client with methods for all backend endpoints
-- **types.ts**: TypeScript type definitions for all domain entities
-- **constants.ts**: Fallback mock data for users/budgets (categories/expenses now from API)
-- **vite.config.ts**: Vite configuration with API proxy setup
-
-**Page Components** (`/components/`):
-- **Dashboard.tsx**: ✅ Connected to API - Shows financial summaries, charts, budget progress
-- **Expenses.tsx**: ✅ Connected to API - Full CRUD for expenses with modal form
-- **Investments.tsx**: 🚧 Uses mock data - Investment portfolio and holdings
-- **Issues.tsx**: 🚧 Uses mock data - Task/issue tracking for financial planning
-- **Settings.tsx**: Application settings
-
-**Navigation Pattern**:
-- `currentPage` state in App.tsx controls which page is rendered
-- Sidebar.tsx handles navigation via `setCurrentPage` callback
-- Page type: `'Dashboard' | 'Expenses' | 'Investments' | 'Issues' | 'Settings'`
-
-**Data Flow** (✅ Implemented):
-- **API Client**: `lib/api.ts` provides typed methods for all endpoints
-- **State Management**: React useState + useEffect hooks for data fetching
-- **Proxy**: Vite forwards `/api` requests to `http://localhost:8000`
-- **Loading States**: Components show "Loading..." while fetching
-- **Error Handling**: User-friendly alerts on API failures
-
-**Styling**:
-- Tailwind CSS utility classes
-- Dark theme by default (bg-gray-900, text-gray-200)
-- Custom Card component (`/components/ui/Card.tsx`)
-
-**Charts**:
-- Recharts library (v3.2.1): LineChart (net worth), PieChart (expenses), BarChart (available)
-- Custom SVG circles for budget progress indicators
-
-### Backend Architecture (FastAPI)
-
-**Implemented Structure**:
-```
-/backend
-└── app/
-    ├── main.py             # ✅ FastAPI app, CORS, router mounting
-    ├── api/                # ✅ API routers by domain
-    │   ├── categories.py   # ✅ Category CRUD
-    │   └── expenses.py     # ✅ Expense CRUD with filters
-    ├── models/             # ✅ SQLAlchemy models
-    │   ├── user.py         # ✅ User model with roles
-    │   ├── category.py     # ✅ Category model
-    │   ├── expense.py      # ✅ Expense model
-    │   ├── budget.py       # ✅ Budget model
-    │   ├── investment.py   # ✅ Investment models
-    │   └── issue.py        # ✅ Issue/Label models
-    ├── schemas/            # ✅ Pydantic request/response models
-    │   ├── category.py     # ✅ Category schemas
-    │   └── expense.py      # ✅ Expense schemas
-    ├── core/               # ✅ Configuration and dependencies
-    │   ├── config.py       # ✅ Settings from .env
-    │   ├── database.py     # ✅ SQLAlchemy engine, session
-    │   ├── security.py     # ✅ JWT, password hashing (not yet used)
-    │   └── deps.py         # ✅ FastAPI dependencies
-    └── migrations/         # ✅ Alembic migrations
-        └── versions/       # ✅ Migration files
-```
-
-**API Endpoints** (Implemented):
-
-*Categories*:
-- `GET /api/categories` - List all categories
-- `GET /api/categories/{id}` - Get category by ID
-- `POST /api/categories` - Create new category
-
-*Expenses*:
-- `GET /api/expenses` - List expenses (optional filters: from_date, to_date, category_id)
-- `GET /api/expenses/{id}` - Get expense by ID
-- `POST /api/expenses` - Create new expense
-- `PUT /api/expenses/{id}` - Update expense
-- `DELETE /api/expenses/{id}` - Delete expense
-
-**Database Tables** (All Created):
-- `users` - User accounts with roles (Admin/Editor/Viewer)
-- `categories` - Income/expense categories
-- `expenses` - Expense transactions with timestamps
-- `budgets` - Budget limits per category/month
-- `investment_accounts` - Investment account info
-- `holdings` - Stock/asset holdings
-- `issues` - Financial planning tasks
-- `labels` - Tags for issues
-- `issue_labels` - Many-to-many junction table
-
-**Authentication** (Implemented but not yet wired):
-- JWT utilities in `core/security.py`
-- Password hashing with bcrypt
-- Role-based access control models defined
-- Protected routes pattern ready in `core/deps.py`
-
-### Currency Handling
-
-- All financial data stored in **KRW** (base currency)
-- USD conversion uses fixed exchange rate: `USD_KRW_EXCHANGE_RATE = 1350` (constants.ts:4)
-- Currency toggle in Header component switches display format
-- `formatCurrency()` utility in components converts values before rendering
-
-### Data Relationships
-
-- Expenses → Categories (via `category_id` foreign key)
-- Expenses → Users (via `created_by` foreign key)
-- Budgets → Categories (via `categoryId`), month-specific (YYYY-MM)
-- Holdings → InvestmentAccounts (via `account_id`)
-- Issues → Users (via `assignee_id`)
-- Issues ↔ Labels (many-to-many via `issue_labels`)
-
-### Date Handling
-
-- Dates stored as ISO strings (YYYY-MM-DD) in database
-- Date columns indexed for performance
-- Budget months use YYYY-MM format
-- Dashboard currently filters by `'2024-07'` (hardcoded, should be dynamic)
-
-## Development Workflow
-
-### Starting the Application
-
-1. **Start PostgreSQL**: `brew services start postgresql@14`
-2. **Start Backend**: `cd backend && uvicorn app.main:app --reload` (port 8000)
-3. **Start Frontend**: `npm run dev` (port 3000)
-4. **Access**:
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000/api/*
-   - API Docs: http://localhost:8000/docs
-
-### Adding New Features
-
-**Backend (FastAPI)**:
-1. Create SQLAlchemy model in `backend/app/models/`
-2. Create Pydantic schemas in `backend/app/schemas/`
-3. Create API router in `backend/app/api/`
-4. Mount router in `backend/app/main.py`
-5. Generate migration: `alembic revision --autogenerate -m "description"`
-6. Apply migration: `alembic upgrade head`
-
-**Frontend (React)**:
-1. Add API methods to `lib/api.ts` (e.g., `api.getInvestments()`)
-2. Update component to use API (useState + useEffect pattern)
-3. Handle loading states and errors
-4. Vite will hot-reload automatically
-
-### Common Patterns
-
-**API Client Usage**:
-```typescript
-// lib/api.ts
-import { api } from '../lib/api';
-
-// In component:
-const [data, setData] = useState([]);
-const [loading, setLoading] = useState(true);
-
-useEffect(() => {
-  const fetchData = async () => {
-    try {
-      const result = await api.getExpenses();
-      setData(result);
-    } catch (error) {
-      console.error('Failed:', error);
-      alert('Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
-  fetchData();
-}, []);
-```
-
-**Backend Router Pattern**:
-```python
-# app/api/resource.py
-from fastapi import APIRouter
-router = APIRouter()
-
-@router.get("")
-def list_items():
-    return mock_data  # Replace with DB query
-
-@router.post("")
-def create_item(item: ItemCreate):
-    # Save to database
-    return new_item
-```
-
-## Key Implementation Details
-
-### API Client (lib/api.ts:1-75)
-
-Provides typed methods for all backend endpoints:
-- Base URL: `/api` (proxied to backend)
-- Error handling with `ApiError` class
-- Methods: `apiGet`, `apiPost`, `apiPut`, `apiDelete`
-- Structured API object with domain-specific methods
-
-### Vite Proxy (vite.config.ts:11-16)
-
-```typescript
-server: {
-  proxy: {
-    '/api': {
-      target: 'http://localhost:8000',
-      changeOrigin: true,
-    }
-  }
-}
-```
-
-### Database Connection (backend/app/core/database.py:7-8)
-
-```python
-engine = create_engine(settings.DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-```
-
-### Current Limitations
-
-1. **Mock Data**: Budgets, investments, issues still use constants.ts
-2. **Authentication**: JWT setup exists but not enforced on routes
-3. **User Management**: No UI for user CRUD operations
-4. **Real-time Updates**: No WebSocket support for live data
-5. **File Uploads**: No support for receipts/attachments
-
-### Next Steps (Prioritized)
-
-1. ✅ Expense CRUD - **DONE**
-2. ✅ Dashboard API integration - **DONE**
-3. 🔄 Add real categories to database (seed data)
-4. 🔄 Connect Investments page to API
-5. 🔄 Connect Issues page to API
-6. 🔄 Implement user authentication
-7. 🔄 Add budget management UI
-
-## Troubleshooting
-
-**Frontend can't connect to backend**:
-- Ensure backend is running: `curl http://localhost:8000/api/health`
-- Check Vite proxy in browser network tab
-- Verify CORS settings in `backend/app/main.py:8-14`
-
-**Database connection error**:
-- Check PostgreSQL is running: `brew services list`
-- Verify DATABASE_URL in `backend/.env`
-- Test connection: `psql -d jjoogguk_finance`
-
-**Migration issues**:
-- Check all models imported in `backend/app/migrations/env.py:13-22`
-- Delete bad migration and regenerate
-- Manually edit migration file if needed
-
-**Hot reload not working**:
-- Frontend: Check Vite dev server is running
-- Backend: Ensure `--reload` flag is passed to uvicorn
-
-## Documentation
-
-For detailed information, see:
-- [`docs/README.md`](./docs/README.md) - Project overview
-- [`docs/frontend.md`](./docs/frontend.md) - React app structure and API integration
-- [`docs/backend.md`](./docs/backend.md) - FastAPI structure and endpoints
-- [`docs/workflow.md`](./docs/workflow.md) - Development workflow and deployment
-- [`README.md`](./README.md) - Quick start guide with all commands
+추가 정보는 `README.md`, `AGENTS.md`, `docs/` 폴더 문서를 참조하세요. 문제가 발생하면 GitHub Issue 또는 `docs/workflow.md` 절차에 따라 대응합니다.

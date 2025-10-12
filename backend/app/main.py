@@ -27,7 +27,7 @@ def health_check():
 
 
 # Import routers
-from app.api import categories, expenses
+from app.api import categories, expenses, investments, issues, users, budgets
 
 # Mount routers
 app.include_router(
@@ -40,10 +40,27 @@ app.include_router(
     prefix="/api/expenses",
     tags=["expenses"]
 )
+app.include_router(
+    investments.router,
+    prefix="/api/investments",
+    tags=["investments"]
+)
+app.include_router(
+    issues.router,
+    prefix="/api/issues",
+    tags=["issues"]
+)
+app.include_router(
+    users.router,
+    prefix="/api/users",
+    tags=["users"]
+)
+app.include_router(
+    budgets.router,
+    prefix="/api/budgets",
+    tags=["budgets"]
+)
 
 # TODO: Add more routers
-# from app.api import auth, users, budgets, issues
+# from app.api import auth
 # app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
-# app.include_router(users.router, prefix="/api/users", tags=["users"])
-# app.include_router(budgets.router, prefix="/api/budgets", tags=["budgets"])
-# app.include_router(issues.router, prefix="/api/issues", tags=["issues"])

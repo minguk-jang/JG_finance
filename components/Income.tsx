@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import React, { useEffect, useImperativeHandle, useState, forwardRef } from 'react';
 import { Currency } from '../types';
 import Card from './ui/Card';
 import { USERS, USD_KRW_EXCHANGE_RATE } from '../constants';
 import { api } from '../lib/api';
 
-interface ExpensesProps {
+interface IncomeProps {
   currency: Currency;
 }
 
-export interface ExpensesHandle {
+export interface IncomeHandle {
   openAddModal: () => void;
 }
 
@@ -23,21 +23,19 @@ const formatCurrency = (value: number, currency: Currency) => {
 type SortKey = 'date' | 'category' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) => {
-  const [expenses, setExpenses] = useState<any[]>([]);
+const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency }, ref) => {
+  const [incomes, setIncomes] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingExpense, setEditingExpense] = useState<any>(null);
+  const [editingIncome, setEditingIncome] = useState<any>(null);
 
-  // Filter states
   const [filters, setFilters] = useState({
     fromDate: '',
     toDate: '',
     categoryId: ''
   });
 
-  // Sort states
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'date',
     direction: 'desc'
@@ -56,20 +54,22 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
       const params: any = {};
       if (filters.fromDate) params.from_date = filters.fromDate;
       if (filters.toDate) params.to_date = filters.toDate;
-      if (filters.categoryId) params.category_id = parseInt(filters.categoryId);
+      if (filters.categoryId) params.category_id = parseInt(filters.categoryId, 10);
 
       const [expensesData, categoriesData] = await Promise.all([
         api.getExpenses(params),
         api.getCategories()
       ]);
-      const expenseCategories = (categoriesData as any[]).filter((category) => category.type === 'expense');
-      const expenseCategoryIds = new Set(expenseCategories.map((category) => category.id));
-      const filteredExpenses = (expensesData as any[]).filter((expense) => expenseCategoryIds.has(expense.category_id));
-      setExpenses(filteredExpenses);
-      setCategories(expenseCategories);
+
+      const incomeCategories = (categoriesData as any[]).filter((category) => category.type === 'income');
+      const incomeCategoryIds = new Set(incomeCategories.map((category) => category.id));
+      const filteredIncomes = (expensesData as any[]).filter((expense) => incomeCategoryIds.has(expense.category_id));
+
+      setIncomes(filteredIncomes);
+      setCategories(incomeCategories);
     } catch (error) {
-      console.error('Failed to fetch data:', error);
-      alert('지출 내역을 불러오는데 실패했습니다. 백엔드가 실행 중인지 확인하세요.');
+      console.error('Failed to fetch income data:', error);
+      alert('수익 내역을 불러오는데 실패했습니다. 백엔드가 실행 중인지 확인하세요.');
     } finally {
       setLoading(false);
     }
@@ -79,30 +79,29 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
     fetchData();
   }, [filters]);
 
-  const getCategoryName = (id: number) => categories.find(c => c.id === id)?.name || 'N/A';
-  const getUserName = (id: number) => USERS.find(u => u.id === id)?.name || 'N/A';
+  const getCategoryName = (id: number) => categories.find((category) => category.id === id)?.name || 'N/A';
+  const getUserName = (id: number) => USERS.find((user) => user.id === id)?.name || 'N/A';
 
-  // Statistics calculation
   const calculateStatistics = () => {
-    const totalAmount = expenses.reduce((sum, exp) => sum + (exp.amount ?? 0), 0);
-    const count = expenses.length;
+    const totalAmount = incomes.reduce((sum, income) => sum + (income.amount ?? 0), 0);
+    const count = incomes.length;
     const averageAmount = count > 0 ? totalAmount / count : 0;
 
     const byCategoryMap = new Map<number, { name: string; amount: number; count: number }>();
-    expenses.forEach(exp => {
-      const categoryId = exp.category_id;
+    incomes.forEach((income) => {
+      const categoryId = income.category_id;
       const categoryName = getCategoryName(categoryId);
       const current = byCategoryMap.get(categoryId) ?? { name: categoryName, amount: 0, count: 0 };
-      current.amount += exp.amount ?? 0;
+      current.amount += income.amount ?? 0;
       current.count += 1;
       byCategoryMap.set(categoryId, current);
     });
 
     const byCategory = Array.from(byCategoryMap.values()).sort((a, b) => b.amount - a.amount);
     const topCategory = byCategory.length > 0 ? byCategory[0] : null;
-    const largestExpense = expenses.reduce((max, exp) => {
-      if (!max || (exp.amount ?? 0) > (max.amount ?? 0)) {
-        return exp;
+    const largestIncome = incomes.reduce((max, income) => {
+      if (!max || (income.amount ?? 0) > (max.amount ?? 0)) {
+        return income;
       }
       return max;
     }, null as any);
@@ -113,22 +112,21 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
       averageAmount,
       byCategory,
       topCategory,
-      largestExpense
+      largestIncome
     };
   };
 
   const stats = calculateStatistics();
 
-  // Sorting function
   const handleSort = (key: SortKey) => {
-    setSortConfig(prev => ({
+    setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
     }));
   };
 
-  const getSortedExpenses = () => {
-    const sorted = [...expenses];
+  const getSortedIncomes = () => {
+    const sorted = [...incomes];
     sorted.sort((a, b) => {
       let aValue: any;
       let bValue: any;
@@ -176,17 +174,17 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
     );
   };
 
-  const handleOpenModal = (expense?: any) => {
-    if (expense) {
-      setEditingExpense(expense);
+  const handleOpenModal = (income?: any) => {
+    if (income) {
+      setEditingIncome(income);
       setFormData({
-        category_id: expense.category_id.toString(),
-        date: expense.date,
-        amount: expense.amount.toString(),
-        memo: expense.memo
+        category_id: income.category_id.toString(),
+        date: income.date,
+        amount: income.amount.toString(),
+        memo: income.memo
       });
     } else {
-      setEditingExpense(null);
+      setEditingIncome(null);
       setFormData({
         category_id: '',
         date: new Date().toISOString().split('T')[0],
@@ -203,21 +201,21 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
 
   const handleCloseModal = () => {
     setShowModal(false);
-    setEditingExpense(null);
+    setEditingIncome(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     try {
       const data = {
-        category_id: parseInt(formData.category_id),
+        category_id: parseInt(formData.category_id, 10),
         date: formData.date,
         amount: parseFloat(formData.amount),
         memo: formData.memo
       };
 
-      if (editingExpense) {
-        await api.updateExpense(editingExpense.id, data);
+      if (editingIncome) {
+        await api.updateExpense(editingIncome.id, data);
       } else {
         await api.createExpense(data);
       }
@@ -225,13 +223,13 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
       await fetchData();
       handleCloseModal();
     } catch (error) {
-      console.error('Failed to save expense:', error);
-      alert('지출을 저장하는데 실패했습니다. 다시 시도해주세요.');
+      console.error('Failed to save income:', error);
+      alert('수익을 저장하는데 실패했습니다. 다시 시도해주세요.');
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('정말 이 지출을 삭제하시겠습니까?')) {
+    if (!confirm('정말 이 수익을 삭제하시겠습니까?')) {
       return;
     }
 
@@ -239,8 +237,8 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
       await api.deleteExpense(id);
       await fetchData();
     } catch (error) {
-      console.error('Failed to delete expense:', error);
-      alert('지출을 삭제하는데 실패했습니다. 다시 시도해주세요.');
+      console.error('Failed to delete income:', error);
+      alert('수익을 삭제하는데 실패했습니다. 다시 시도해주세요.');
     }
   };
 
@@ -251,7 +249,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
   if (loading) {
     return (
       <div className="space-y-6">
-        <h2 className="text-3xl font-bold">지출 관리</h2>
+        <h2 className="text-3xl font-bold">수익 관리</h2>
         <Card title="">
           <div className="text-center text-gray-400 p-8">로딩중...</div>
         </Card>
@@ -259,21 +257,20 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
     );
   }
 
-  const sortedExpenses = getSortedExpenses();
+  const sortedIncomes = getSortedIncomes();
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold">지출 관리</h2>
+        <h2 className="text-3xl font-bold">수익 관리</h2>
         <button
           onClick={() => handleOpenModal()}
-          className="bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition"
+          className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition"
         >
-          지출 추가
+          수익 추가
         </button>
       </div>
 
-      {/* Filter Section */}
       <Card title="필터">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
@@ -282,7 +279,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
               type="date"
               value={filters.fromDate}
               onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
-              className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+              className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
             />
           </div>
           <div>
@@ -291,7 +288,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
               type="date"
               value={filters.toDate}
               onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
-              className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+              className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
             />
           </div>
           <div>
@@ -300,11 +297,13 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
               <select
                 value={filters.categoryId}
                 onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })}
-                className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
               >
                 <option value="" className="bg-gray-800">전체</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id} className="bg-gray-800">{cat.name}</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id} className="bg-gray-800">
+                    {category.name}
+                  </option>
                 ))}
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
@@ -325,30 +324,29 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
         </div>
       </Card>
 
-      {/* Statistics Section */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card title="총 지출액" className="!p-4">
+        <Card title="총 수익액" className="!p-4">
           <div className="text-3xl font-bold text-white">
             {formatCurrency(stats.totalAmount, currency)}
           </div>
-          <div className="text-sm text-gray-400 mt-1">{expenses.length}개 항목</div>
+          <div className="text-sm text-gray-400 mt-1">{incomes.length}개 항목</div>
         </Card>
-        <Card title="평균 지출" className="!p-4">
-          <div className="text-3xl font-bold text-red-400">
+        <Card title="평균 수익" className="!p-4">
+          <div className="text-3xl font-bold text-emerald-400">
             {formatCurrency(stats.averageAmount || 0, currency)}
           </div>
           <div className="text-sm text-gray-400 mt-1">건당 평균</div>
         </Card>
-        <Card title="최대 지출" className="!p-4">
-          <div className="text-3xl font-bold text-red-400">
-            {stats.largestExpense ? formatCurrency(stats.largestExpense.amount, currency) : formatCurrency(0, currency)}
+        <Card title="최대 수익" className="!p-4">
+          <div className="text-3xl font-bold text-emerald-400">
+            {stats.largestIncome ? formatCurrency(stats.largestIncome.amount, currency) : formatCurrency(0, currency)}
           </div>
           <div className="text-sm text-gray-400 mt-1">
-            {stats.largestExpense ? `${getCategoryName(stats.largestExpense.category_id)} · ${stats.largestExpense.memo}` : '데이터 없음'}
+            {stats.largestIncome ? `${getCategoryName(stats.largestIncome.category_id)} · ${stats.largestIncome.memo}` : '데이터 없음'}
           </div>
         </Card>
-        <Card title="최다 지출 카테고리" className="!p-4">
-          <div className="text-3xl font-bold text-red-300">
+        <Card title="최다 수익 카테고리" className="!p-4">
+          <div className="text-3xl font-bold text-emerald-300">
             {stats.topCategory ? stats.topCategory.name : '데이터 없음'}
           </div>
           <div className="text-sm text-gray-400 mt-1">
@@ -357,7 +355,6 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
         </Card>
       </div>
 
-      {/* Category Statistics */}
       {stats.byCategory.length > 0 && (
         <Card title="카테고리별 통계">
           <div className="overflow-x-auto">
@@ -371,19 +368,19 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
                 </tr>
               </thead>
               <tbody>
-                {stats.byCategory.map((cat, idx) => {
-                  const percentage = stats.totalAmount > 0 ? ((cat.amount / stats.totalAmount) * 100).toFixed(1) : '0.0';
+                {stats.byCategory.map((category, index) => {
+                  const percentage = stats.totalAmount > 0 ? ((category.amount / stats.totalAmount) * 100).toFixed(1) : '0.0';
                   return (
-                    <tr key={idx} className="border-b border-gray-700 hover:bg-gray-600/20">
-                      <td className="p-3 font-medium">{cat.name}</td>
-                      <td className="p-3 text-gray-400">{cat.count}개</td>
-                      <td className="p-3 font-semibold text-red-400">
-                        {formatCurrency(cat.amount, currency)}
+                    <tr key={index} className="border-b border-gray-700 hover:bg-gray-600/20">
+                      <td className="p-3 font-medium">{category.name}</td>
+                      <td className="p-3 text-gray-400">{category.count}개</td>
+                      <td className="p-3 font-semibold text-emerald-400">
+                        {formatCurrency(category.amount, currency)}
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 bg-gray-700 rounded-full h-2 overflow-hidden">
-                            <div className="h-full bg-red-500" style={{ width: `${percentage}%` }} />
+                            <div className="h-full bg-emerald-500" style={{ width: `${percentage}%` }} />
                           </div>
                           <span className="text-sm text-gray-400 w-12">{percentage}%</span>
                         </div>
@@ -397,8 +394,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
         </Card>
       )}
 
-      {/* Expenses Table */}
-      <Card title="지출 내역">
+      <Card title="수익 내역">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-700">
@@ -436,35 +432,35 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
               </tr>
             </thead>
             <tbody>
-              {sortedExpenses.length === 0 ? (
+              {sortedIncomes.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-gray-400">
-                    지출 내역이 없습니다. "지출 추가"를 클릭하여 생성하세요.
+                    수익 내역이 없습니다. "수익 추가"를 클릭하여 생성하세요.
                   </td>
                 </tr>
               ) : (
-                sortedExpenses.map((expense) => (
-                  <tr key={expense.id} className="border-b border-gray-700 hover:bg-gray-600/20">
-                    <td className="p-3">{expense.date}</td>
+                sortedIncomes.map((income) => (
+                  <tr key={income.id} className="border-b border-gray-700 hover:bg-gray-600/20">
+                    <td className="p-3">{income.date}</td>
                     <td className="p-3">
-                      <span className="px-2 py-1 text-xs font-semibold rounded bg-red-500/20 text-red-400">
-                        {getCategoryName(expense.category_id)}
+                      <span className="px-2 py-1 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400">
+                        {getCategoryName(income.category_id)}
                       </span>
                     </td>
-                    <td className="p-3 font-semibold text-red-400">
-                      {formatCurrency(expense.amount, currency)}
+                    <td className="p-3 font-semibold text-emerald-400">
+                      {formatCurrency(income.amount, currency)}
                     </td>
-                    <td className="p-3">{expense.memo}</td>
-                    <td className="p-3">{getUserName(expense.created_by)}</td>
+                    <td className="p-3">{income.memo}</td>
+                    <td className="p-3">{getUserName(income.created_by)}</td>
                     <td className="p-3">
                       <button
-                        onClick={() => handleOpenModal(expense)}
+                        onClick={() => handleOpenModal(income)}
                         className="text-sky-400 hover:text-sky-300 mr-2"
                       >
                         수정
                       </button>
                       <button
-                        onClick={() => handleDelete(expense.id)}
+                        onClick={() => handleDelete(income.id)}
                         className="text-red-400 hover:text-red-300"
                       >
                         삭제
@@ -478,12 +474,11 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
         </div>
       </Card>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">
-              {editingExpense ? '지출 수정' : '지출 추가'}
+              {editingIncome ? '수익 수정' : '수익 추가'}
             </h2>
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
@@ -492,12 +487,14 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
                   <select
                     value={formData.category_id}
                     onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                     required
                   >
                     <option value="" className="bg-gray-800">카테고리 선택</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id} className="bg-gray-800">{cat.name}</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id} className="bg-gray-800">
+                        {category.name}
+                      </option>
                     ))}
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
@@ -514,7 +511,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
                   type="date"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                   required
                 />
               </div>
@@ -525,8 +522,9 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
                   type="number"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                   placeholder="0"
+                  min="0"
                   required
                 />
               </div>
@@ -537,7 +535,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
                   type="text"
                   value={formData.memo}
                   onChange={(e) => setFormData({ ...formData, memo: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                   placeholder="설명 입력"
                   required
                 />
@@ -553,9 +551,9 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-sky-600 text-white rounded hover:bg-sky-700 transition"
+                  className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
                 >
-                  {editingExpense ? '수정' : '생성'}
+                  {editingIncome ? '수정' : '생성'}
                 </button>
               </div>
             </form>
@@ -566,6 +564,6 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency }, ref) =
   );
 });
 
-Expenses.displayName = 'Expenses';
+Income.displayName = 'Income';
 
-export default Expenses;
+export default Income;

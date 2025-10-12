@@ -11,7 +11,7 @@ class ExpenseBase(BaseModel):
 
 
 class ExpenseCreate(ExpenseBase):
-    pass
+    created_by: Optional[int] = None
 
 
 class ExpenseUpdate(BaseModel):
@@ -19,6 +19,7 @@ class ExpenseUpdate(BaseModel):
     date: Optional[date] = None
     amount: Optional[float] = None
     memo: Optional[str] = None
+    created_by: Optional[int] = None
 
 
 class Expense(ExpenseBase):

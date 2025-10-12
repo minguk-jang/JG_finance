@@ -1,6 +1,6 @@
 
 export type Currency = 'KRW' | 'USD';
-export type Page = 'Dashboard' | 'Expenses' | 'Investments' | 'Issues' | 'Settings';
+export type Page = 'Dashboard' | 'Expenses' | 'Income' | 'Investments' | 'Issues' | 'Settings';
 
 export enum UserRole {
   Admin = 'Admin',
@@ -60,6 +60,13 @@ export enum IssueStatus {
   Closed = 'Closed'
 }
 
+export enum IssuePriority {
+  Low = 'Low',
+  Medium = 'Medium',
+  High = 'High',
+  Critical = 'Critical'
+}
+
 export interface IssueLabel {
   name: string;
   color: string;
@@ -69,6 +76,7 @@ export interface Issue {
   id: number;
   title: string;
   status: IssueStatus;
+  priority: IssuePriority;
   assigneeId: number;
   labels: IssueLabel[];
   body: string;

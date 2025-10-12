@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import Expenses, { ExpensesHandle } from './components/Expenses';
+import Income, { IncomeHandle } from './components/Income';
 import Investments from './components/Investments';
 import Issues from './components/Issues';
 import Settings from './components/Settings';
@@ -13,17 +14,24 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('Dashboard');
   const [currency, setCurrency] = useState<Currency>('KRW');
   const expensesRef = useRef<ExpensesHandle>(null);
+  const incomeRef = useRef<IncomeHandle>(null);
 
   const handleQuickAdd = () => {
-    if (currentPage !== 'Expenses') {
-      setCurrentPage('Expenses');
-      // Wait for the component to mount before opening modal
-      setTimeout(() => {
-        expensesRef.current?.openAddModal();
-      }, 100);
-    } else {
-      expensesRef.current?.openAddModal();
+    const openExpenseModal = () => expensesRef.current?.openAddModal();
+    const openIncomeModal = () => incomeRef.current?.openAddModal();
+
+    if (currentPage === 'Income') {
+      openIncomeModal();
+      return;
     }
+
+    if (currentPage === 'Expenses') {
+      openExpenseModal();
+      return;
+    }
+
+    setCurrentPage('Expenses');
+    setTimeout(openExpenseModal, 100);
   };
 
   const renderContent = () => {
@@ -32,6 +40,8 @@ const App: React.FC = () => {
         return <Dashboard currency={currency} />;
       case 'Expenses':
         return <Expenses ref={expensesRef} currency={currency} />;
+      case 'Income':
+        return <Income ref={incomeRef} currency={currency} />;
       case 'Investments':
         return <Investments currency={currency} />;
       case 'Issues':

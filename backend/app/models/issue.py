@@ -10,6 +10,13 @@ class IssueStatus(str, enum.Enum):
     CLOSED = "Closed"
 
 
+class IssuePriority(str, enum.Enum):
+    LOW = "Low"
+    MEDIUM = "Medium"
+    HIGH = "High"
+    CRITICAL = "Critical"
+
+
 # Association table for many-to-many relationship between issues and labels
 issue_labels = Table(
     'issue_labels',
@@ -33,6 +40,7 @@ class Issue(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     status = Column(Enum(IssueStatus), nullable=False, default=IssueStatus.OPEN)
+    priority = Column(Enum(IssuePriority), nullable=False, default=IssuePriority.MEDIUM)
     assignee_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     body = Column(Text, nullable=False)
 

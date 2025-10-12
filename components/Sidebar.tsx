@@ -35,29 +35,32 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage }) => {
   
   return (
     <aside className="w-64 bg-gray-800 p-4 flex flex-col flex-shrink-0">
-      <div className="flex items-center mb-8">
-        <span className="text-2xl font-bold text-white">Jjoogguk Finance</span>
+      <div className="flex items-center mb-8 cursor-pointer" onClick={() => setCurrentPage('Dashboard')}>
+        <span className="text-2xl font-bold text-white hover:text-sky-400 transition-colors">쭈꾹 금융</span>
       </div>
       <nav>
         <ul>
           <NavItem pageName="Dashboard" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<DashboardIcon className={iconClasses} />}>
-            Dashboard
+            대시보드
+          </NavItem>
+          <NavItem pageName="Income" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<IncomeIcon className={iconClasses} />}>
+            수익
           </NavItem>
           <NavItem pageName="Expenses" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<ExpensesIcon className={iconClasses} />}>
-            Expenses
+            지출
           </NavItem>
           <NavItem pageName="Investments" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<InvestmentsIcon className={iconClasses} />}>
-            Investments
+            투자
           </NavItem>
           <NavItem pageName="Issues" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<IssuesIcon className={iconClasses} />}>
-            Issues
+            이슈
           </NavItem>
         </ul>
       </nav>
       <div className="mt-auto">
         <ul>
         <NavItem pageName="Settings" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<SettingsIcon className={iconClasses} />}>
-            Settings
+            설정
           </NavItem>
         </ul>
       </div>
@@ -69,6 +72,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage }) => {
 const DashboardIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+  </svg>
+);
+
+const IncomeIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19V6m0 0l-4 4m4-4l4 4M5 19h14" />
   </svg>
 );
 

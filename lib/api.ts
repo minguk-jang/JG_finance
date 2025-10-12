@@ -60,6 +60,8 @@ export const api = {
   getCategories: () => apiGet<any[]>('/categories'),
   getCategory: (id: number) => apiGet<any>(`/categories/${id}`),
   createCategory: (data: any) => apiPost<any>('/categories', data),
+  updateCategory: (id: number, data: any) => apiPut<any>(`/categories/${id}`, data),
+  deleteCategory: (id: number) => apiDelete(`/categories/${id}`),
 
   // Expenses
   getExpenses: (params?: { from_date?: string; to_date?: string; category_id?: number }) => {
@@ -74,4 +76,55 @@ export const api = {
   createExpense: (data: any) => apiPost<any>('/expenses', data),
   updateExpense: (id: number, data: any) => apiPut<any>(`/expenses/${id}`, data),
   deleteExpense: (id: number) => apiDelete(`/expenses/${id}`),
+
+  // Investments - Holdings
+  getHoldings: () => apiGet<any[]>('/investments/holdings'),
+  getHolding: (id: number) => apiGet<any>(`/investments/holdings/${id}`),
+  createHolding: (data: any) => apiPost<any>('/investments/holdings', data),
+  updateHolding: (id: number, data: any) => apiPut<any>(`/investments/holdings/${id}`, data),
+  deleteHolding: (id: number) => apiDelete(`/investments/holdings/${id}`),
+
+  // Investments - Accounts
+  getInvestmentAccounts: () => apiGet<any[]>('/investments/accounts'),
+  getInvestmentAccount: (id: number) => apiGet<any>(`/investments/accounts/${id}`),
+  createInvestmentAccount: (data: any) => apiPost<any>('/investments/accounts', data),
+  updateInvestmentAccount: (id: number, data: any) => apiPut<any>(`/investments/accounts/${id}`, data),
+  deleteInvestmentAccount: (id: number) => apiDelete(`/investments/accounts/${id}`),
+
+  // Issues
+  getIssues: (params?: { status?: string; assignee_id?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.assignee_id) query.append('assignee_id', params.assignee_id.toString());
+    const queryString = query.toString();
+    return apiGet<any[]>(`/issues${queryString ? `?${queryString}` : ''}`);
+  },
+  getIssue: (id: number) => apiGet<any>(`/issues/${id}`),
+  createIssue: (data: any) => apiPost<any>('/issues', data),
+  updateIssue: (id: number, data: any) => apiPut<any>(`/issues/${id}`, data),
+  deleteIssue: (id: number) => apiDelete(`/issues/${id}`),
+
+  // Labels
+  getLabels: () => apiGet<any[]>('/issues/labels'),
+  createLabel: (data: any) => apiPost<any>('/issues/labels', data),
+
+  // Users
+  getUsers: () => apiGet<any[]>('/users'),
+  getUser: (id: number) => apiGet<any>(`/users/${id}`),
+  createUser: (data: any) => apiPost<any>('/users', data),
+  updateUser: (id: number, data: any) => apiPut<any>(`/users/${id}`, data),
+  deleteUser: (id: number) => apiDelete(`/users/${id}`),
+
+  // Budgets
+  getBudgets: (params?: { month?: string; category_id?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.month) query.append('month', params.month);
+    if (params?.category_id) query.append('category_id', params.category_id.toString());
+    const queryString = query.toString();
+    return apiGet<any[]>(`/budgets${queryString ? `?${queryString}` : ''}`);
+  },
+  getBudget: (id: number) => apiGet<any>(`/budgets/${id}`),
+  createBudget: (data: any) => apiPost<any>('/budgets', data),
+  updateBudget: (id: number, data: any) => apiPut<any>(`/budgets/${id}`, data),
+  deleteBudget: (id: number) => apiDelete(`/budgets/${id}`),
 };
