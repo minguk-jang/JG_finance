@@ -293,7 +293,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
               type="date"
               value={filters.fromDate}
               onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
-              className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+              className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
             />
           </div>
           <div>
@@ -302,7 +302,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
               type="date"
               value={filters.toDate}
               onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
-              className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+            className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
             />
           </div>
           <div>
@@ -311,7 +311,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
               <select
                 value={filters.categoryId}
                 onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })}
-                className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
               >
                 <option value="" className="bg-gray-800">전체</option>
                 {categories.map(cat => (
@@ -339,7 +339,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
       {/* Statistics Section */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card title="총 지출액" className="!p-4">
-          <div className="text-3xl font-bold text-white">
+          <div className="text-3xl font-bold surface-text">
             {formatCurrency(stats.totalAmount, currency, exchangeRate)}
           </div>
           <div className="text-sm text-gray-400 mt-1">{expenses.length}개 항목</div>
@@ -503,7 +503,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
                   <select
                     value={formData.category_id}
                     onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                    className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                     required
                   >
                     <option value="" className="bg-gray-800">카테고리 선택</option>
@@ -525,7 +525,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
                   type="date"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                   required
                 />
               </div>
@@ -536,7 +536,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
                   type="number"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                   placeholder="0"
                   required
                 />
@@ -548,7 +548,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
                   type="text"
                   value={formData.memo}
                   onChange={(e) => setFormData({ ...formData, memo: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                   placeholder="설명 입력"
                   required
                 />

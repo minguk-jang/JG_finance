@@ -216,7 +216,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate }) => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold text-white">대시보드</h2>
+          <h2 className="text-3xl font-bold surface-text">대시보드</h2>
           <p className="text-gray-400 mt-2">재무 현황을 한눈에 확인하세요</p>
         </div>
         <div className="flex flex-col items-end">
@@ -226,7 +226,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate }) => {
               id="month-select"
               value={activeMonth}
               onChange={handleMonthChange}
-              className="w-40 md:w-48 bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-sm text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+              className="w-40 md:w-48 theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-sm appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
             >
               {availableMonths.length === 0 && <option value={nowMonth} className="bg-gray-800">{nowMonth}</option>}
               {availableMonths.map((month) => (

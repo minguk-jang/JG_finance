@@ -50,7 +50,7 @@ const IssueCard: React.FC<IssueCardProps> = ({ issue, users, onEdit, onDelete })
       onClick={() => onEdit(issue)}
     >
       <div className="flex items-start justify-between">
-        <h4 className="font-bold text-white flex-1">{issue.title}</h4>
+        <h4 className="font-bold surface-text flex-1">{issue.title}</h4>
         {showActions && (
           <div className="flex gap-1 ml-2">
             <button

@@ -34,6 +34,56 @@
       background-color: #f3f4f6;
       color: #111827;
     }
+    .surface-card {
+      background-color: #1f2937;
+      color: #f8fafc;
+      transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+    .surface-text {
+      color: #f8fafc;
+      transition: color 0.25s ease;
+    }
+    body.theme-dark .surface-card {
+      border: 1px solid rgba(148, 163, 184, 0.08);
+    }
+    body.theme-light .surface-card {
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 10px 15px -3px rgba(100, 116, 139, 0.15), 0 4px 6px -4px rgba(100, 116, 139, 0.12);
+    }
+    body.theme-light .surface-text {
+      color: #0f172a !important;
+    }
+    .theme-field {
+      color: #f8fafc;
+      transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+    .theme-field::placeholder {
+      color: rgba(226, 232, 240, 0.75);
+    }
+    select.theme-field option {
+      color: #f8fafc;
+      background-color: #1f2937;
+    }
+    body.theme-light .theme-field {
+      color: #0f172a !important;
+    }
+    body.theme-light .theme-field::placeholder {
+      color: #64748b !important;
+    }
+    body.theme-light select.theme-field option {
+      color: #0f172a !important;
+      background-color: #ffffff !important;
+    }
+    body.theme-light select,
+    body.theme-light select.text-white {
+      color: #0f172a !important;
+    }
+    body.theme-light input,
+    body.theme-light textarea {
+      color: #0f172a !important;
+    }
     body.theme-light .bg-gray-900 { background-color: #f9fafb !important; }
     body.theme-light .bg-gray-800 { background-color: #ffffff !important; }
     body.theme-light .bg-gray-700 { background-color: #f1f5f9 !important; }

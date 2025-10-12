@@ -288,7 +288,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
               type="date"
               value={filters.fromDate}
               onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
-              className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+            className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
             />
           </div>
           <div>
@@ -297,7 +297,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
               type="date"
               value={filters.toDate}
               onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
-              className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+              className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
             />
           </div>
           <div>
@@ -306,7 +306,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
               <select
                 value={filters.categoryId}
                 onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })}
-                className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
               >
                 <option value="" className="bg-gray-800">전체</option>
                 {categories.map((category) => (
@@ -335,7 +335,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card title="총 수익액" className="!p-4">
-          <div className="text-3xl font-bold text-white">
+          <div className="text-3xl font-bold surface-text">
             {formatCurrency(stats.totalAmount, currency, exchangeRate)}
           </div>
           <div className="text-sm text-gray-400 mt-1">{incomes.length}개 항목</div>
@@ -496,7 +496,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                   <select
                     value={formData.category_id}
                     onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                    className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                     required
                   >
                     <option value="" className="bg-gray-800">카테고리 선택</option>
@@ -520,7 +520,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                   type="date"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                   required
                 />
               </div>
@@ -531,7 +531,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                   type="number"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                   placeholder="0"
                   min="0"
                   required
@@ -544,7 +544,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                   type="text"
                   value={formData.memo}
                   onChange={(e) => setFormData({ ...formData, memo: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                   placeholder="설명 입력"
                   required
                 />
