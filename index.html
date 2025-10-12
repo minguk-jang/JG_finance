@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF--8" />
+  <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Jjoogguk Finance</title>
@@ -25,18 +25,34 @@
       }
     }
   </script>
-<script type="importmap">
-{
-  "imports": {
-    "recharts": "https://aistudiocdn.com/recharts@^3.2.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/"
-  }
-}
-</script>
+  <style>
+    body.theme-dark {
+      background-color: #111827;
+      color: #e5e7eb;
+    }
+    body.theme-light {
+      background-color: #f3f4f6;
+      color: #111827;
+    }
+    body.theme-light .bg-gray-900 { background-color: #f9fafb !important; }
+    body.theme-light .bg-gray-800 { background-color: #ffffff !important; }
+    body.theme-light .bg-gray-700 { background-color: #f1f5f9 !important; }
+    body.theme-light .bg-gray-600 { background-color: #e2e8f0 !important; }
+    body.theme-light .text-gray-200 { color: #1f2937 !important; }
+    body.theme-light .text-gray-300 { color: #334155 !important; }
+    body.theme-light .text-gray-400 { color: #475569 !important; }
+    body.theme-light .text-gray-500 { color: #64748b !important; }
+    body.theme-light .shadow-md { box-shadow: 0 10px 15px -3px rgba(100, 116, 139, 0.3), 0 4px 6px -4px rgba(100, 116, 139, 0.3) !important; }
+    body.theme-light .bg-gray-700 input,
+    body.theme-light .bg-gray-700 select,
+    body.theme-light .bg-gray-700 textarea {
+      color: #1f2937 !important;
+    }
+    body.theme-light .text-sky-400 { color: #0284c7 !important; }
+    body.theme-light .bg-gray-700 .text-gray-400 { color: #475569 !important; }
+  </style>
 </head>
-<body class="bg-gray-900 text-gray-200">
+<body class="bg-gray-900 text-gray-200 theme-dark">
   <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
 </body>

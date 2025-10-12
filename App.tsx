@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Currency, Page } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -13,8 +13,15 @@ import Settings from './components/Settings';
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('Dashboard');
   const [currency, setCurrency] = useState<Currency>('KRW');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const expensesRef = useRef<ExpensesHandle>(null);
   const incomeRef = useRef<IncomeHandle>(null);
+
+  useEffect(() => {
+    const body = document.body;
+    body.classList.remove('theme-dark', 'theme-light');
+    body.classList.add(theme === 'dark' ? 'theme-dark' : 'theme-light');
+  }, [theme]);
 
   const handleQuickAdd = () => {
     const openExpenseModal = () => expensesRef.current?.openAddModal();
@@ -54,11 +61,17 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-900 text-gray-200">
-      <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} />
+    <div className={`flex h-screen ${theme === 'dark' ? 'bg-gray-900 text-gray-200' : 'bg-gray-100 text-gray-900'}`}>
+      <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} theme={theme} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header currency={currency} setCurrency={setCurrency} onQuickAdd={handleQuickAdd} />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-900 p-6">
+        <Header
+          currency={currency}
+          setCurrency={setCurrency}
+          theme={theme}
+          setTheme={setTheme}
+          onQuickAdd={handleQuickAdd}
+        />
+        <main className={`flex-1 overflow-x-hidden overflow-y-auto p-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
           {renderContent()}
         </main>
       </div>

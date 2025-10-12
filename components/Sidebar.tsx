@@ -4,6 +4,7 @@ import { Page } from '../types';
 interface SidebarProps {
   currentPage: Page;
   setCurrentPage: (page: Page) => void;
+  theme: 'dark' | 'light';
 }
 
 // FIX: Changed type of 'icon' prop from JSX.Element to React.ReactElement to resolve "Cannot find namespace 'JSX'".
@@ -12,15 +13,19 @@ const NavItem: React.FC<{
   currentPage: Page;
   setCurrentPage: (page: Page) => void;
   icon: React.ReactElement;
+  theme: 'dark' | 'light';
   children: React.ReactNode;
-}> = ({ pageName, currentPage, setCurrentPage, icon, children }) => {
+}> = ({ pageName, currentPage, setCurrentPage, icon, children, theme }) => {
   const isActive = currentPage === pageName;
+  const activeClass = theme === 'dark' ? 'bg-sky-600 text-white' : 'bg-sky-500 text-white';
+  const inactiveClass =
+    theme === 'dark'
+      ? 'text-gray-400 hover:bg-gray-700 hover:text-white'
+      : 'text-gray-600 hover:bg-slate-100 hover:text-sky-600';
   return (
     <li
       className={`flex items-center p-3 my-1 rounded-lg cursor-pointer transition-colors ${
-        isActive
-          ? 'bg-sky-600 text-white'
-          : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+        isActive ? activeClass : inactiveClass
       }`}
       onClick={() => setCurrentPage(pageName)}
     >
@@ -30,36 +35,42 @@ const NavItem: React.FC<{
   );
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, theme }) => {
   const iconClasses = "w-6 h-6";
-  
+  const asideClass =
+    theme === 'dark'
+      ? 'bg-gray-800 text-gray-200'
+      : 'bg-white text-gray-700 border-r border-slate-200';
+
   return (
-    <aside className="w-64 bg-gray-800 p-4 flex flex-col flex-shrink-0">
+    <aside className={`w-64 p-4 flex flex-col flex-shrink-0 ${asideClass}`}>
       <div className="flex items-center mb-8 cursor-pointer" onClick={() => setCurrentPage('Dashboard')}>
-        <span className="text-2xl font-bold text-white hover:text-sky-400 transition-colors">쭈꾹 금융</span>
+        <span className="text-2xl font-bold hover:text-sky-400 transition-colors">
+          쭈꾹 금융
+        </span>
       </div>
       <nav>
         <ul>
-          <NavItem pageName="Dashboard" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<DashboardIcon className={iconClasses} />}>
+          <NavItem pageName="Dashboard" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<DashboardIcon className={iconClasses} />} theme={theme}>
             대시보드
           </NavItem>
-          <NavItem pageName="Income" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<IncomeIcon className={iconClasses} />}>
+          <NavItem pageName="Income" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<IncomeIcon className={iconClasses} />} theme={theme}>
             수익
           </NavItem>
-          <NavItem pageName="Expenses" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<ExpensesIcon className={iconClasses} />}>
+          <NavItem pageName="Expenses" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<ExpensesIcon className={iconClasses} />} theme={theme}>
             지출
           </NavItem>
-          <NavItem pageName="Investments" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<InvestmentsIcon className={iconClasses} />}>
+          <NavItem pageName="Investments" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<InvestmentsIcon className={iconClasses} />} theme={theme}>
             투자
           </NavItem>
-          <NavItem pageName="Issues" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<IssuesIcon className={iconClasses} />}>
+          <NavItem pageName="Issues" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<IssuesIcon className={iconClasses} />} theme={theme}>
             이슈
           </NavItem>
         </ul>
       </nav>
       <div className="mt-auto">
         <ul>
-        <NavItem pageName="Settings" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<SettingsIcon className={iconClasses} />}>
+        <NavItem pageName="Settings" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<SettingsIcon className={iconClasses} />} theme={theme}>
             설정
           </NavItem>
         </ul>
