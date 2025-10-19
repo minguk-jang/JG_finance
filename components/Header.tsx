@@ -11,6 +11,7 @@ interface HeaderProps {
   activeMemberId: number;
   onActiveMemberChange: (memberId: number) => void;
   onQuickAdd?: () => void;
+  onMenuToggle?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -22,6 +23,7 @@ const Header: React.FC<HeaderProps> = ({
   activeMemberId,
   onActiveMemberChange,
   onQuickAdd,
+  onMenuToggle,
 }) => {
   const toggleCurrency = () => {
     setCurrency(currency === 'KRW' ? 'USD' : 'KRW');
@@ -47,14 +49,41 @@ const Header: React.FC<HeaderProps> = ({
       : 'bg-white text-gray-700 border-b border-slate-200';
   const selectBgClass = theme === 'dark' ? 'bg-gray-800 border-gray-700 text-gray-100' : 'bg-white border-slate-300 text-gray-700';
 
+  // SVG Icons
+  const MenuIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="w-6 h-6">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  );
+
+  // SVG Plus Icon for Quick Add button
+  const PlusIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="w-5 h-5">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    </svg>
+  );
+
   return (
-    <header className={`${headerBgClass} p-4 flex justify-end items-center shadow-md`}>
-      <div className="flex items-center space-x-6">
-        <div className="flex items-center space-x-2">
-          <span className={labelColor}>테마</span>
+    <header className={`${headerBgClass} p-2 sm:p-3 md:p-4 flex justify-between md:justify-end items-center shadow-md overflow-x-auto`}>
+      {onMenuToggle && (
+        <button
+          onClick={onMenuToggle}
+          className="md:hidden p-2 rounded hover:bg-gray-700 transition-colors flex-shrink-0"
+          aria-label="Toggle menu"
+        >
+          <MenuIcon className="w-5 h-5" />
+        </button>
+      )}
+      <div className="flex items-center gap-2 sm:gap-3 md:gap-6 flex-1 md:flex-none md:justify-end">
+        {/* Theme Toggle */}
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          <span className={`${labelColor} hidden sm:inline text-xs md:text-sm`}>테마</span>
           <div
             onClick={toggleTheme}
-            className={`relative flex items-center w-24 h-8 rounded-full px-1 cursor-pointer select-none ${trackBaseClass}`}
+            className={`relative flex items-center w-14 sm:w-18 md:w-24 h-7 sm:h-8 md:h-8 rounded-full px-1 cursor-pointer select-none flex-shrink-0 transition-colors ${trackBaseClass}`}
+            role="switch"
+            aria-checked={theme === 'dark'}
+            aria-label="테마 토글 (다크/라이트)"
           >
             <div
               className={`absolute top-1 bottom-1 w-1/2 rounded-full bg-amber-400 transition-transform duration-300 ease-in-out ${
@@ -66,23 +95,27 @@ const Header: React.FC<HeaderProps> = ({
                 theme === 'dark' ? 'text-gray-900' : 'text-gray-400'
               }`}
             >
-              Dark
+              D
             </span>
             <span
               className={`relative flex-1 text-center text-xs font-semibold transition-colors ${
                 theme === 'light' ? 'text-gray-900' : 'text-gray-400'
               }`}
             >
-              Light
+              L
             </span>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <span className={labelColor}>통화</span>
+        {/* Currency Toggle */}
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          <span className={`${labelColor} hidden sm:inline text-xs md:text-sm`}>통화</span>
           <div
             onClick={toggleCurrency}
-            className={`relative flex items-center w-24 h-8 rounded-full px-1 cursor-pointer select-none ${trackBaseClass}`}
+            className={`relative flex items-center w-14 sm:w-18 md:w-24 h-7 sm:h-8 md:h-8 rounded-full px-1 cursor-pointer select-none flex-shrink-0 transition-colors ${trackBaseClass}`}
+            role="switch"
+            aria-checked={currency === 'USD'}
+            aria-label="통화 토글 (KRW/USD)"
           >
             <div
               className={`absolute top-1 bottom-1 w-1/2 rounded-full bg-sky-500 transition-transform duration-300 ease-in-out ${
@@ -106,20 +139,21 @@ const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <span className={labelColor}>작업자</span>
+        {/* Member Selection */}
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          <span className={`${labelColor} hidden sm:inline text-xs md:text-sm`}>작업자</span>
           <div className="relative">
             <select
               value={members.length > 0 && activeMemberId > 0 ? activeMemberId : ''}
               onChange={handleMemberChange}
               disabled={members.length === 0}
-              className={`appearance-none rounded-lg px-3 py-2 border focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition ${selectBgClass} ${
+              className={`appearance-none rounded-lg px-2 sm:px-3 md:px-3 py-1.5 sm:py-1.5 md:py-2 border text-xs sm:text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition flex-shrink-0 min-h-8 sm:min-h-9 ${selectBgClass} ${
                 members.length === 0 ? 'opacity-60 cursor-not-allowed' : ''
               }`}
             >
               {members.length === 0 ? (
                 <option value="" className={theme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-500'}>
-                  구성원을 추가하세요
+                  구성원
                 </option>
               ) : (
                 members.map((member) => (
@@ -133,20 +167,27 @@ const Header: React.FC<HeaderProps> = ({
                 ))
               )}
             </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 sm:px-2 md:px-2 text-gray-400">
+              <svg className="h-4 w-4 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
           </div>
         </div>
 
+        {/* Quick Add Button - Positioned at the end */}
         {onQuickAdd && (
           <button
             onClick={onQuickAdd}
-            className="bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition"
+            className="ml-auto bg-sky-600 text-white p-1.5 sm:px-2.5 sm:py-1.5 md:px-4 md:py-2 rounded-lg hover:bg-sky-700 active:bg-sky-800 transition text-xs sm:text-sm md:text-base font-medium flex-shrink-0 whitespace-nowrap flex items-center justify-center gap-1 min-h-8 sm:min-h-9"
+            aria-label="Quick add"
+            title="빠른 추가"
           >
-            빠른 추가
+            <span className="sm:hidden">
+              <PlusIcon />
+            </span>
+            <span className="hidden sm:inline lg:hidden">추가</span>
+            <span className="hidden lg:inline">빠른추가</span>
           </button>
         )}
       </div>

@@ -542,51 +542,53 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange,
 
       {/* Category Modal */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">
-              {editingCategory ? '카테고리 수정' : '카테고리 추가'}
-            </h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-t-lg sm:rounded-lg p-4 sm:p-6 w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-inherit -mx-4 sm:-mx-6 px-4 sm:px-6 pb-3 sm:pb-4 mb-3 sm:mb-4">
+              <h3 className="text-lg sm:text-xl font-bold">
+                {editingCategory ? '카테고리 수정' : '카테고리 추가'}
+              </h3>
+            </div>
+            <div className="space-y-3 sm:space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-300">카테고리명</label>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-1 text-gray-300">카테고리명</label>
                 <input
                   type="text"
                   value={categoryFormData.name}
                   onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                   placeholder="예: 식비, 교통비"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-300">유형</label>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-1 text-gray-300">유형</label>
                 <div className="relative">
                   <select
                     value={categoryFormData.type}
                     onChange={(e) => setCategoryFormData({ ...categoryFormData, type: e.target.value as 'income' | 'expense' })}
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                   >
                     <option value="expense" className="bg-gray-800">지출</option>
                     <option value="income" className="bg-gray-800">수입</option>
                   </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
+                    <svg className="h-4 sm:h-5 w-4 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2 mt-6">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 sticky bottom-0 bg-inherit -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 pb-4 -mb-4 sm:-mb-6">
               <button
                 onClick={() => setIsCategoryModalOpen(false)}
-                className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700 transition"
+                className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-gray-600 rounded hover:bg-gray-700 transition"
               >
                 취소
               </button>
               <button
                 onClick={handleSaveCategory}
-                className="px-4 py-2 bg-sky-600 rounded hover:bg-sky-700 transition"
+                className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-sky-600 rounded hover:bg-sky-700 transition"
               >
                 저장
               </button>
@@ -597,74 +599,76 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange,
 
       {/* User Modal */}
       {isUserModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">
-              {editingUser ? '구성원 수정' : '구성원 초대'}
-            </h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-t-lg sm:rounded-lg p-4 sm:p-6 w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-inherit -mx-4 sm:-mx-6 px-4 sm:px-6 pb-3 sm:pb-4 mb-3 sm:mb-4">
+              <h3 className="text-lg sm:text-xl font-bold">
+                {editingUser ? '구성원 수정' : '구성원 초대'}
+              </h3>
+            </div>
+            <div className="space-y-3 sm:space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-300">이름</label>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-1 text-gray-300">이름</label>
                 <input
                   type="text"
                   value={userFormData.name}
                   onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                   placeholder="이름을 입력하세요"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-300">이메일</label>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-1 text-gray-300">이메일</label>
                 <input
                   type="email"
                   value={userFormData.email}
                   onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                   placeholder="email@example.com"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-300">역할</label>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-1 text-gray-300">역할</label>
                 <div className="relative">
                   <select
                     value={userFormData.role}
                     onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value as UserRole })}
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                   >
                     <option value={UserRole.Admin} className="bg-gray-800">Admin</option>
                     <option value={UserRole.Editor} className="bg-gray-800">Editor</option>
                     <option value={UserRole.Viewer} className="bg-gray-800">Viewer</option>
                   </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
+                    <svg className="h-4 sm:h-5 w-4 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-300">
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-1 text-gray-300">
                   {editingUser ? '비밀번호 (변경하려면 입력)' : '비밀번호'}
                 </label>
                 <input
                   type="password"
                   value={userFormData.password}
                   onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                   placeholder={editingUser ? '변경하지 않으려면 비워두세요' : '비밀번호를 입력하세요'}
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2 mt-6">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 sticky bottom-0 bg-inherit -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 pb-4 -mb-4 sm:-mb-6">
               <button
                 onClick={() => setIsUserModalOpen(false)}
-                className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700 transition"
+                className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-gray-600 rounded hover:bg-gray-700 transition"
               >
                 취소
               </button>
               <button
                 onClick={handleSaveUser}
-                className="px-4 py-2 bg-sky-600 rounded hover:bg-sky-700 transition"
+                className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-sky-600 rounded hover:bg-sky-700 transition"
               >
                 저장
               </button>
@@ -675,19 +679,21 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange,
 
       {/* Budget Modal */}
       {isBudgetModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">
-              {editingBudget ? '예산 수정' : '예산 추가'}
-            </h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-t-lg sm:rounded-lg p-4 sm:p-6 w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-inherit -mx-4 sm:-mx-6 px-4 sm:px-6 pb-3 sm:pb-4 mb-3 sm:mb-4">
+              <h3 className="text-lg sm:text-xl font-bold">
+                {editingBudget ? '예산 수정' : '예산 추가'}
+              </h3>
+            </div>
+            <div className="space-y-3 sm:space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-300">카테고리</label>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-1 text-gray-300">카테고리</label>
                 <div className="relative">
                   <select
                     value={budgetFormData.categoryId}
                     onChange={(e) => setBudgetFormData({ ...budgetFormData, categoryId: Number(e.target.value) })}
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                   >
                     <option value={0} className="bg-gray-800">카테고리 선택</option>
                     {categories
@@ -698,43 +704,43 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange,
                         </option>
                       ))}
                   </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
+                    <svg className="h-4 sm:h-5 w-4 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-300">월 (YYYY-MM)</label>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-1 text-gray-300">월 (YYYY-MM)</label>
                 <input
                   type="month"
                   value={budgetFormData.month}
                   onChange={(e) => setBudgetFormData({ ...budgetFormData, month: e.target.value })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-300">예산 한도 (₩)</label>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-1 text-gray-300">예산 한도 (₩)</label>
                 <input
                   type="number"
                   value={budgetFormData.limitAmount}
                   onChange={(e) => setBudgetFormData({ ...budgetFormData, limitAmount: Number(e.target.value) })}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                   placeholder="1000000"
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2 mt-6">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 sticky bottom-0 bg-inherit -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 pb-4 -mb-4 sm:-mb-6">
               <button
                 onClick={() => setIsBudgetModalOpen(false)}
-                className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700 transition"
+                className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-gray-600 rounded hover:bg-gray-700 transition"
               >
                 취소
               </button>
               <button
                 onClick={handleSaveBudget}
-                className="px-4 py-2 bg-sky-600 rounded hover:bg-sky-700 transition"
+                className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-sky-600 rounded hover:bg-sky-700 transition"
               >
                 저장
               </button>

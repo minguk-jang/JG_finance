@@ -421,54 +421,54 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
         <Card>
-          <p className="text-gray-400">총 포트폴리오 가치</p>
-          <p className="text-3xl font-bold text-sky-400">
+          <p className="text-xs sm:text-sm text-gray-400">총 포트폴리오 가치</p>
+          <p className="text-2xl sm:text-3xl md:text-3xl font-bold text-sky-400 mt-2">
             {formatCurrency(totalValue, currency, exchangeRate)}
           </p>
         </Card>
         <Card>
-          <p className="text-gray-400">총 손익</p>
-          <p className={`text-3xl font-bold ${totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <p className="text-xs sm:text-sm text-gray-400">총 손익</p>
+          <p className={`text-2xl sm:text-3xl md:text-3xl font-bold mt-2 ${totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {formatCurrency(totalProfit, currency, exchangeRate)}
           </p>
         </Card>
         <Card>
-          <p className="text-gray-400">총 수익률</p>
-          <p className={`text-3xl font-bold ${profitPercentage >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <p className="text-xs sm:text-sm text-gray-400">총 수익률</p>
+          <p className={`text-2xl sm:text-3xl md:text-3xl font-bold mt-2 ${profitPercentage >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {profitPercentage.toFixed(2)}%
           </p>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
         <Card title="총 매수금액 (필터 적용)">
-          <div className="text-2xl font-bold text-red-400">
+          <div className="text-xl sm:text-2xl font-bold text-red-400">
             {formatCurrency(transactionSummary.buyAmount, currency, exchangeRate)}
           </div>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-xs sm:text-sm text-gray-400 mt-2">
             {transactionSummary.buyCount}건 · 수수료 포함
           </p>
         </Card>
         <Card title="총 매도금액 (필터 적용)">
-          <div className="text-2xl font-bold text-green-400">
+          <div className="text-xl sm:text-2xl font-bold text-green-400">
             {formatCurrency(transactionSummary.sellAmount, currency, exchangeRate)}
           </div>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-xs sm:text-sm text-gray-400 mt-2">
             {transactionSummary.sellCount}건 · 수수료 차감
           </p>
         </Card>
         <Card title="순현금 흐름">
           <div
-            className={`text-2xl font-bold ${
+            className={`text-xl sm:text-2xl font-bold ${
               transactionSummary.netCashFlow >= 0 ? 'text-emerald-400' : 'text-red-400'
             }`}
           >
             {transactionSummary.netCashFlow >= 0 ? '+' : '-'}
             {formatCurrency(Math.abs(transactionSummary.netCashFlow), currency, exchangeRate)}
           </div>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-xs sm:text-sm text-gray-400 mt-2">
             매도 금액 - 매수 금액 (필터 조건 적용)
           </p>
         </Card>
@@ -479,80 +479,170 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
           <div className="mb-4 flex justify-end">
             <button
               onClick={() => handleOpenHoldingModal()}
-              className="bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition"
+              className="bg-sky-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-sky-700 transition text-xs sm:text-sm md:text-base"
             >
               자산 추가
             </button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-gray-700">
-                <tr>
-                  <th className="p-3">자산</th>
-                  <th className="p-3">계좌</th>
-                  <th className="p-3">수량</th>
-                  <th className="p-3">평균 단가</th>
-                  <th className="p-3">현재 가격</th>
-                  <th className="p-3">시장 가치</th>
-                  <th className="p-3">손익</th>
-                  <th className="p-3">작업</th>
-                </tr>
-              </thead>
-              <tbody>
-                {holdings.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="p-8 text-center text-gray-400">
-                      보유 자산이 없습니다. &quot;자산 추가&quot;를 클릭하여 생성하세요.
-                    </td>
-                  </tr>
-                ) : (
-                  holdings.map((holding) => {
-                    const marketValue = (holding.qty ?? 0) * (holding.current_price ?? 0);
-                    const profit = (holding.current_price ?? 0 - (holding.avg_price ?? 0)) * (holding.qty ?? 0);
-                    return (
-                      <tr key={holding.id} className="border-b border-gray-700 hover:bg-gray-600/20">
-                        <td className="p-3 font-semibold">
-                          {holding.name ?? holding.symbol} ({holding.symbol})
-                        </td>
-                        <td className="p-3">{getAccountName(holding.account_id)}</td>
-                        <td className="p-3">{holding.qty}</td>
-                        <td className="p-3">
-                          {formatCurrency(holding.avg_price ?? 0, currency, exchangeRate)}
-                        </td>
-                        <td className="p-3">
-                          {formatCurrency(holding.current_price ?? 0, currency, exchangeRate)}
-                        </td>
-                        <td className="p-3">
-                          {formatCurrency(marketValue, currency, exchangeRate)}
-                        </td>
-                        <td
-                          className={`p-3 font-semibold ${
-                            profit >= 0 ? 'text-green-400' : 'text-red-400'
-                          }`}
-                        >
-                          {formatCurrency(profit, currency, exchangeRate)}
-                        </td>
-                        <td className="p-3">
+          {holdings.length === 0 ? (
+            <div className="p-8 text-center text-gray-400">
+              보유 자산이 없습니다. &quot;자산 추가&quot;를 클릭하여 생성하세요.
+            </div>
+          ) : (
+            <>
+              {/* Desktop Table (md 이상) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs md:text-sm">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="p-3 font-semibold">자산</th>
+                      <th className="p-3 font-semibold">계좌</th>
+                      <th className="p-3 font-semibold">수량</th>
+                      <th className="p-3 font-semibold">평균 단가</th>
+                      <th className="p-3 font-semibold">현재 가격</th>
+                      <th className="p-3 font-semibold">시장 가치</th>
+                      <th className="p-3 font-semibold">손익</th>
+                      <th className="p-3 font-semibold">작업</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {holdings.map((holding) => {
+                      const marketValue = (holding.qty ?? 0) * (holding.current_price ?? 0);
+                      const profit = (holding.current_price ?? 0 - (holding.avg_price ?? 0)) * (holding.qty ?? 0);
+                      return (
+                        <tr key={holding.id} className="border-b border-gray-700 hover:bg-gray-600/20 transition-colors">
+                          <td className="p-3 font-semibold">
+                            {holding.name ?? holding.symbol} ({holding.symbol})
+                          </td>
+                          <td className="p-3">{getAccountName(holding.account_id)}</td>
+                          <td className="p-3">{holding.qty}</td>
+                          <td className="p-3">
+                            {formatCurrency(holding.avg_price ?? 0, currency, exchangeRate)}
+                          </td>
+                          <td className="p-3">
+                            {formatCurrency(holding.current_price ?? 0, currency, exchangeRate)}
+                          </td>
+                          <td className="p-3">
+                            {formatCurrency(marketValue, currency, exchangeRate)}
+                          </td>
+                          <td
+                            className={`p-3 font-semibold ${
+                              profit >= 0 ? 'text-green-400' : 'text-red-400'
+                            }`}
+                          >
+                            {formatCurrency(profit, currency, exchangeRate)}
+                          </td>
+                          <td className="p-3 whitespace-nowrap space-x-2">
+                            <button
+                              onClick={() => handleOpenHoldingModal(holding)}
+                              className="text-sky-400 hover:text-sky-300 transition-colors text-xs sm:text-sm"
+                            >
+                              수정
+                            </button>
+                            <button
+                              onClick={() => handleDeleteHolding(holding.id)}
+                              className="text-red-400 hover:text-red-300 transition-colors text-xs sm:text-sm"
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card Layout (md 미만) */}
+              <div className="md:hidden space-y-3">
+                {holdings.map((holding) => {
+                  const marketValue = (holding.qty ?? 0) * (holding.current_price ?? 0);
+                  const profit = (holding.current_price ?? 0 - (holding.avg_price ?? 0)) * (holding.qty ?? 0);
+                  return (
+                    <div
+                      key={holding.id}
+                      className="bg-gray-700 rounded-lg p-3 sm:p-4 relative hover:bg-gray-600/50 transition-colors"
+                    >
+                      {/* Card Header with Actions */}
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1 pr-2">
+                          <h3 className="font-semibold text-sm sm:text-base text-white">
+                            {holding.symbol}
+                          </h3>
+                          <p className="text-xs sm:text-xs text-gray-400 mt-0.5">
+                            {holding.name || 'N/A'}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            계좌: {getAccountName(holding.account_id)}
+                          </p>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
                           <button
                             onClick={() => handleOpenHoldingModal(holding)}
-                            className="text-sky-400 hover:text-sky-300 mr-2"
+                            className="text-sky-400 hover:text-sky-300 p-1.5 transition-colors"
+                            title="수정"
+                            aria-label="수정"
                           >
-                            수정
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
                           </button>
                           <button
                             onClick={() => handleDeleteHolding(holding.id)}
-                            className="text-red-400 hover:text-red-300"
+                            className="text-red-400 hover:text-red-300 p-1.5 transition-colors"
+                            title="삭제"
+                            aria-label="삭제"
                           >
-                            삭제
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
+                            </svg>
                           </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                        </div>
+                      </div>
+
+                      {/* Main Info - Market Value */}
+                      <div className="mb-3 pb-3 border-b border-gray-600">
+                        <p className="text-xs text-gray-400 mb-1">시장 가치</p>
+                        <div className="text-base sm:text-lg font-bold text-sky-400 mb-2">
+                          {formatCurrency(marketValue, currency, exchangeRate)}
+                        </div>
+                        <div className="flex justify-between text-xs sm:text-sm text-gray-300">
+                          <span className="font-medium">{holding.qty} 주</span>
+                          <span>현가: {formatCurrency(holding.current_price ?? 0, currency, exchangeRate)}</span>
+                        </div>
+                      </div>
+
+                      {/* Secondary Info */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-gray-400 mb-1">평균 단가</p>
+                          <p className="text-xs sm:text-sm font-semibold text-gray-200">
+                            {formatCurrency(holding.avg_price ?? 0, currency, exchangeRate)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-400 mb-1">손익</p>
+                          <p className={`text-xs sm:text-sm font-semibold ${profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {formatCurrency(profit, currency, exchangeRate)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </Card>
         <Card title="자산 배분" className="h-96">
           {assetAllocationData.length === 0 || totalValue === 0 ? (
@@ -585,38 +675,38 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
       </div>
 
       <Card title="투자 거래 내역">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-end lg:justify-between mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3 flex-1">
             <div>
-              <label className="block text-xs font-medium mb-1 text-gray-400">시작일</label>
+              <label className="block text-xs font-medium mb-1.5 text-gray-400">시작일</label>
               <input
                 type="date"
                 value={transactionFilters.fromDate}
                 onChange={(event) =>
                   setTransactionFilters((prev) => ({ ...prev, fromDate: event.target.value }))
                 }
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1 text-gray-400">종료일</label>
+              <label className="block text-xs font-medium mb-1.5 text-gray-400">종료일</label>
               <input
                 type="date"
                 value={transactionFilters.toDate}
                 onChange={(event) =>
                   setTransactionFilters((prev) => ({ ...prev, toDate: event.target.value }))
                 }
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1 text-gray-400">계좌</label>
+              <label className="block text-xs font-medium mb-1.5 text-gray-400">계좌</label>
               <select
                 value={transactionFilters.accountId}
                 onChange={(event) =>
                   setTransactionFilters((prev) => ({ ...prev, accountId: event.target.value }))
                 }
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-xs sm:text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all"
               >
                 <option value="">전체</option>
                 {accounts.map((account) => (
@@ -627,23 +717,23 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1 text-gray-400">유형</label>
+              <label className="block text-xs font-medium mb-1.5 text-gray-400">유형</label>
               <select
                 value={transactionFilters.type}
                 onChange={(event) =>
                   setTransactionFilters((prev) => ({ ...prev, type: event.target.value }))
                 }
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-xs sm:text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all"
               >
                 <option value="">전체</option>
                 <option value="BUY">매수</option>
                 <option value="SELL">매도</option>
               </select>
             </div>
-            <div className="flex gap-2">
+            <div>
               <button
                 onClick={handleTransactionFilterReset}
-                className="flex-1 bg-gray-600 text-white px-3 py-2 rounded-lg text-sm hover:bg-gray-700 transition"
+                className="w-full bg-gray-600 text-white px-3 py-2 rounded-lg text-xs sm:text-sm hover:bg-gray-700 transition-colors"
               >
                 필터 초기화
               </button>
@@ -651,7 +741,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
           </div>
           <button
             onClick={() => handleOpenTransactionModal()}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition"
+            className="w-full sm:w-auto bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors text-xs sm:text-sm md:text-base whitespace-nowrap"
           >
             거래 추가
           </button>
@@ -664,35 +754,102 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
             조건에 해당하는 거래가 없습니다. 거래를 추가하거나 필터를 조정해보세요.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-gray-700">
-                <tr>
-                  <th className="p-3">거래일</th>
-                  <th className="p-3">유형</th>
-                  <th className="p-3">계좌</th>
-                  <th className="p-3">티커</th>
-                  <th className="p-3">종목명</th>
-                  <th className="p-3">수량</th>
-                  <th className="p-3">단가</th>
-                  <th className="p-3">수수료</th>
-                  <th className="p-3">금액</th>
-                  <th className="p-3">메모</th>
-                  <th className="p-3">작업</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((transaction) => {
-                  const amount = calculateTransactionAmount(transaction);
-                  const amountClass =
-                    amount >= 0 ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold';
+          <>
+            {/* Desktop Table (lg 이상) */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full text-left text-xs lg:text-sm">
+                <thead className="bg-gray-700 sticky top-0">
+                  <tr>
+                    <th className="p-3 font-semibold">거래일</th>
+                    <th className="p-3 font-semibold">유형</th>
+                    <th className="p-3 font-semibold">계좌</th>
+                    <th className="p-3 font-semibold">티커</th>
+                    <th className="p-3 font-semibold">종목명</th>
+                    <th className="p-3 font-semibold">수량</th>
+                    <th className="p-3 font-semibold">단가</th>
+                    <th className="p-3 font-semibold">수수료</th>
+                    <th className="p-3 font-semibold">금액</th>
+                    <th className="p-3 font-semibold">메모</th>
+                    <th className="p-3 font-semibold">작업</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map((transaction) => {
+                    const amount = calculateTransactionAmount(transaction);
+                    const amountClass =
+                      amount >= 0 ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold';
 
-                  return (
-                    <tr key={transaction.id} className="border-b border-gray-700 hover:bg-gray-600/20">
-                      <td className="p-3">{formatDate(transaction.trade_date)}</td>
-                      <td className="p-3">
+                    return (
+                      <tr key={transaction.id} className="border-b border-gray-700 hover:bg-gray-600/20 transition-colors">
+                        <td className="p-3">{formatDate(transaction.trade_date)}</td>
+                        <td className="p-3">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-semibold inline-block ${
+                              transaction.type === 'BUY'
+                                ? 'bg-rose-500/20 text-rose-300'
+                                : 'bg-emerald-500/20 text-emerald-300'
+                            }`}
+                          >
+                            {transaction.type === 'BUY' ? '매수' : '매도'}
+                          </span>
+                        </td>
+                        <td className="p-3">{getAccountName(transaction.account_id)}</td>
+                        <td className="p-3 font-semibold">{transaction.symbol}</td>
+                        <td className="p-3 max-w-[100px] truncate">{transaction.name || '-'}</td>
+                        <td className="p-3">{transaction.quantity}</td>
+                        <td className="p-3">
+                          {formatCurrency(transaction.price ?? 0, currency, exchangeRate)}
+                        </td>
+                        <td className="p-3 text-gray-400">
+                          {formatCurrency(transaction.fees ?? 0, currency, exchangeRate)}
+                        </td>
+                        <td className={`p-3 ${amountClass}`}>
+                          {amount >= 0 ? '+' : '-'}
+                          {formatCurrency(Math.abs(amount), currency, exchangeRate)}
+                        </td>
+                        <td className="p-3 text-gray-400 max-w-[120px] truncate text-xs">
+                          {transaction.memo || '-'}
+                        </td>
+                        <td className="p-3 whitespace-nowrap space-x-2">
+                          <button
+                            onClick={() => handleOpenTransactionModal(transaction)}
+                            className="text-sky-400 hover:text-sky-300 transition-colors text-xs lg:text-sm"
+                          >
+                            수정
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTransaction(transaction.id)}
+                            className="text-red-400 hover:text-red-300 transition-colors text-xs lg:text-sm"
+                          >
+                            삭제
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card Layout (lg 미만) */}
+            <div className="lg:hidden space-y-3">
+              {transactions.map((transaction) => {
+                const amount = calculateTransactionAmount(transaction);
+                const amountClass = amount >= 0 ? 'text-emerald-400' : 'text-red-400';
+
+                return (
+                  <div
+                    key={transaction.id}
+                    className="bg-gray-700 rounded-lg p-3 sm:p-4 relative hover:bg-gray-600/50 transition-colors"
+                  >
+                    {/* Card Header */}
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1 pr-2">
+                        <p className="text-xs sm:text-sm text-gray-400 mb-1 font-medium">
+                          {formatDate(transaction.trade_date)}
+                        </p>
                         <span
-                          className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
                             transaction.type === 'BUY'
                               ? 'bg-rose-500/20 text-rose-300'
                               : 'bg-emerald-500/20 text-emerald-300'
@@ -700,44 +857,91 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
                         >
                           {transaction.type === 'BUY' ? '매수' : '매도'}
                         </span>
-                      </td>
-                      <td className="p-3">{getAccountName(transaction.account_id)}</td>
-                      <td className="p-3 font-semibold">{transaction.symbol}</td>
-                      <td className="p-3">{transaction.name || '-'}</td>
-                      <td className="p-3">{transaction.quantity}</td>
-                      <td className="p-3">
-                        {formatCurrency(transaction.price ?? 0, currency, exchangeRate)}
-                      </td>
-                      <td className="p-3 text-gray-300">
-                        {formatCurrency(transaction.fees ?? 0, currency, exchangeRate)}
-                      </td>
-                      <td className={`p-3 ${amountClass}`}>
-                        {amount >= 0 ? '+' : '-'}
-                        {formatCurrency(Math.abs(amount), currency, exchangeRate)}
-                      </td>
-                      <td className="p-3 text-gray-300 whitespace-nowrap max-w-xs truncate">
-                        {transaction.memo || '-'}
-                      </td>
-                      <td className="p-3 whitespace-nowrap">
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
                         <button
                           onClick={() => handleOpenTransactionModal(transaction)}
-                          className="text-sky-400 hover:text-sky-300 mr-2"
+                          className="text-sky-400 hover:text-sky-300 p-1.5 transition-colors"
+                          title="수정"
+                          aria-label="수정"
                         >
-                          수정
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
+                          </svg>
                         </button>
                         <button
                           onClick={() => handleDeleteTransaction(transaction.id)}
-                          className="text-red-400 hover:text-red-300"
+                          className="text-red-400 hover:text-red-300 p-1.5 transition-colors"
+                          title="삭제"
+                          aria-label="삭제"
                         >
-                          삭제
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
                         </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-3 pb-3 border-b border-gray-600">
+                      <div className="col-span-1">
+                        <p className="text-xs text-gray-400 mb-1 font-medium">종목</p>
+                        <p className="font-semibold text-xs sm:text-sm text-white">{transaction.symbol}</p>
+                        <p className="text-xs text-gray-400">{transaction.name || '-'}</p>
+                      </div>
+                      <div className="col-span-1">
+                        <p className="text-xs text-gray-400 mb-1 font-medium">계좌</p>
+                        <p className="text-xs sm:text-sm text-gray-200">
+                          {getAccountName(transaction.account_id)}
+                        </p>
+                      </div>
+                      <div className="col-span-1 text-right">
+                        <p className="text-xs text-gray-400 mb-1 font-medium">금액</p>
+                        <p className={`text-base sm:text-lg font-bold ${amountClass}`}>
+                          {amount >= 0 ? '+' : '-'}
+                          {formatCurrency(Math.abs(amount), currency, exchangeRate)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Secondary Info */}
+                    <div className="grid grid-cols-2 gap-3 mb-3 text-xs sm:text-sm">
+                      <div>
+                        <p className="text-gray-400 mb-1 font-medium">수량 × 단가</p>
+                        <p className="text-gray-200">
+                          {transaction.quantity} × {formatCurrency(transaction.price ?? 0, currency, exchangeRate)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-gray-400 mb-1 font-medium">수수료</p>
+                        <p className="text-gray-300">
+                          {formatCurrency(transaction.fees ?? 0, currency, exchangeRate)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Memo */}
+                    {transaction.memo && (
+                      <div className="pt-3 border-t border-gray-600">
+                        <p className="text-xs text-gray-400 mb-1 font-medium">메모</p>
+                        <p className="text-xs text-gray-400 line-clamp-2">{transaction.memo}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </Card>
 
@@ -745,52 +949,100 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
         <div className="mb-4 flex justify-end">
           <button
             onClick={() => handleOpenAccountModal()}
-            className="bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition"
+            className="bg-sky-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-sky-700 transition-colors text-xs sm:text-sm md:text-base"
           >
             계좌 추가
           </button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-700">
-              <tr>
-                <th className="p-3">계좌명</th>
-                <th className="p-3">증권사</th>
-                <th className="p-3">작업</th>
-              </tr>
-            </thead>
-            <tbody>
-              {accounts.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="p-8 text-center text-gray-400">
-                    투자 계좌가 없습니다. &quot;계좌 추가&quot;를 클릭하여 생성하세요.
-                  </td>
-                </tr>
-              ) : (
-                accounts.map((account) => (
-                  <tr key={account.id} className="border-b border-gray-700 hover:bg-gray-600/20">
-                    <td className="p-3 font-semibold">{account.name}</td>
-                    <td className="p-3">{account.broker}</td>
-                    <td className="p-3">
-                      <button
-                        onClick={() => handleOpenAccountModal(account)}
-                        className="text-sky-400 hover:text-sky-300 mr-2"
-                      >
-                        수정
-                      </button>
-                      <button
-                        onClick={() => handleDeleteAccount(account.id)}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        삭제
-                      </button>
-                    </td>
+        {accounts.length === 0 ? (
+          <div className="p-6 sm:p-8 text-center text-gray-400 text-sm">
+            투자 계좌가 없습니다. &quot;계좌 추가&quot;를 클릭하여 생성하세요.
+          </div>
+        ) : (
+          <>
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs md:text-sm">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="p-3 font-semibold">계좌명</th>
+                    <th className="p-3 font-semibold">증권사</th>
+                    <th className="p-3 font-semibold">작업</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {accounts.map((account) => (
+                    <tr key={account.id} className="border-b border-gray-700 hover:bg-gray-600/20 transition-colors">
+                      <td className="p-3 font-semibold">{account.name}</td>
+                      <td className="p-3">{account.broker}</td>
+                      <td className="p-3 whitespace-nowrap space-x-2">
+                        <button
+                          onClick={() => handleOpenAccountModal(account)}
+                          className="text-sky-400 hover:text-sky-300 transition-colors text-xs md:text-sm"
+                        >
+                          수정
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAccount(account.id)}
+                          className="text-red-400 hover:text-red-300 transition-colors text-xs md:text-sm"
+                        >
+                          삭제
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card Layout */}
+            <div className="md:hidden space-y-3">
+              {accounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="bg-gray-700 rounded-lg p-3 sm:p-4 flex justify-between items-start hover:bg-gray-600/50 transition-colors"
+                >
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-sm sm:text-base text-white">{account.name}</h3>
+                    <p className="text-xs sm:text-sm text-gray-400 mt-1">증권사: {account.broker}</p>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => handleOpenAccountModal(account)}
+                      className="text-sky-400 hover:text-sky-300 p-1.5 transition-colors"
+                      title="수정"
+                      aria-label="수정"
+                    >
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAccount(account.id)}
+                      className="text-red-400 hover:text-red-300 p-1.5 transition-colors"
+                      title="삭제"
+                      aria-label="삭제"
+                    >
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </Card>
 
       {showHoldingModal && (

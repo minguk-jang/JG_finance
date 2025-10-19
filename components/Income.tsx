@@ -296,8 +296,8 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <h2 className="text-3xl font-bold">수익 관리</h2>
+      <div className="space-y-3 sm:space-y-4 md:space-y-6">
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">수익 관리</h2>
         <Card title="">
           <div className="text-center text-gray-400 p-8">로딩중...</div>
         </Card>
@@ -308,44 +308,44 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
   const sortedIncomes = getSortedIncomes();
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold">수익 관리</h2>
+    <div className="space-y-3 sm:space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-3 md:gap-4">
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">수익 관리</h2>
         <button
           onClick={() => handleOpenModal()}
-          className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition"
+          className="w-full sm:w-auto bg-emerald-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-emerald-700 transition text-sm sm:text-base font-medium"
         >
           수익 추가
         </button>
       </div>
 
       <Card title="필터">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-300">시작 날짜</label>
+            <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">시작 날짜</label>
             <input
               type="date"
               value={filters.fromDate}
               onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
-            className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+            className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-300">종료 날짜</label>
+            <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">종료 날짜</label>
             <input
               type="date"
               value={filters.toDate}
               onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
-              className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+              className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-300">카테고리</label>
+            <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">카테고리</label>
             <div className="relative">
               <select
                 value={filters.categoryId}
                 onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })}
-                className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
               >
                 <option value="" className="bg-gray-800">전체</option>
                 {categories.map((category) => (
@@ -354,8 +354,8 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                   </option>
                 ))}
               </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
+                <svg className="h-4 sm:h-5 w-4 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
@@ -364,7 +364,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
           <div className="flex items-end">
             <button
               onClick={handleFilterReset}
-              className="w-full bg-gray-600 text-white px-4 py-2.5 rounded-lg hover:bg-gray-700 transition"
+              className="w-full bg-gray-600 text-white px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 rounded-lg hover:bg-gray-700 transition text-xs sm:text-sm font-medium"
             >
               초기화
             </button>
@@ -372,32 +372,32 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card title="총 수익액" className="!p-4">
-          <div className="text-3xl font-bold surface-text">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+        <Card title="총 수익액" className="!p-2 sm:!p-3 md:!p-4">
+          <div className="text-base sm:text-2xl md:text-3xl font-bold surface-text">
             {formatCurrency(stats.totalAmount, currency, exchangeRate)}
           </div>
-          <div className="text-sm text-gray-400 mt-1">{incomes.length}개 항목</div>
+          <div className="text-xs sm:text-sm text-gray-400 mt-1">{incomes.length}개 항목</div>
         </Card>
-        <Card title="평균 수익" className="!p-4">
-          <div className="text-3xl font-bold text-emerald-400">
+        <Card title="평균 수익" className="!p-2 sm:!p-3 md:!p-4">
+          <div className="text-base sm:text-2xl md:text-3xl font-bold text-emerald-400">
             {formatCurrency(stats.averageAmount || 0, currency, exchangeRate)}
           </div>
-          <div className="text-sm text-gray-400 mt-1">건당 평균</div>
+          <div className="text-xs sm:text-sm text-gray-400 mt-1">건당 평균</div>
         </Card>
-        <Card title="최대 수익" className="!p-4">
-          <div className="text-3xl font-bold text-emerald-400">
+        <Card title="최대 수익" className="!p-2 sm:!p-3 md:!p-4">
+          <div className="text-base sm:text-2xl md:text-3xl font-bold text-emerald-400">
             {stats.largestIncome ? formatCurrency(stats.largestIncome.amount, currency, exchangeRate) : formatCurrency(0, currency, exchangeRate)}
           </div>
-          <div className="text-sm text-gray-400 mt-1">
-            {stats.largestIncome ? `${getCategoryName(stats.largestIncome.category_id)} · ${stats.largestIncome.memo}` : '데이터 없음'}
+          <div className="text-xs sm:text-sm text-gray-400 mt-1">
+            {stats.largestIncome ? `${getCategoryName(stats.largestIncome.category_id)}` : '데이터 없음'}
           </div>
         </Card>
-        <Card title="최다 수익 카테고리" className="!p-4">
-          <div className="text-3xl font-bold text-emerald-300">
+        <Card title="최다 수익 카테고리" className="!p-2 sm:!p-3 md:!p-4">
+          <div className="text-base sm:text-xl md:text-2xl font-bold text-emerald-300">
             {stats.topCategory ? stats.topCategory.name : '데이터 없음'}
           </div>
-          <div className="text-sm text-gray-400 mt-1">
+          <div className="text-xs sm:text-sm text-gray-400 mt-1">
             {stats.topCategory ? formatCurrency(stats.topCategory.amount, currency, exchangeRate) : ''}
           </div>
         </Card>
@@ -405,14 +405,15 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
 
       {stats.byCategory.length > 0 && (
         <Card title="카테고리별 통계">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-gray-700">
                 <tr>
-                  <th className="p-3">카테고리</th>
-                  <th className="p-3">항목 수</th>
-                  <th className="p-3">금액</th>
-                  <th className="p-3">비율</th>
+                  <th className="p-3 text-xs sm:text-sm md:text-base">카테고리</th>
+                  <th className="p-3 text-xs sm:text-sm md:text-base">항목 수</th>
+                  <th className="p-3 text-xs sm:text-sm md:text-base">금액</th>
+                  <th className="p-3 text-xs sm:text-sm md:text-base">비율</th>
                 </tr>
               </thead>
               <tbody>
@@ -420,9 +421,9 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                   const percentage = stats.totalAmount > 0 ? ((category.amount / stats.totalAmount) * 100).toFixed(1) : '0.0';
                   return (
                     <tr key={index} className="border-b border-gray-700 hover:bg-gray-600/20">
-                      <td className="p-3 font-medium">{category.name}</td>
-                      <td className="p-3 text-gray-400">{category.count}개</td>
-                      <td className="p-3 font-semibold text-emerald-400">
+                      <td className="p-3 font-medium text-sm">{category.name}</td>
+                      <td className="p-3 text-gray-400 text-sm">{category.count}개</td>
+                      <td className="p-3 font-semibold text-emerald-400 text-sm">
                         {formatCurrency(category.amount, currency, exchangeRate)}
                       </td>
                       <td className="p-3">
@@ -430,7 +431,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                           <div className="flex-1 bg-gray-700 rounded-full h-2 overflow-hidden">
                             <div className="h-full bg-emerald-500" style={{ width: `${percentage}%` }} />
                           </div>
-                          <span className="text-sm text-gray-400 w-12">{percentage}%</span>
+                          <span className="text-xs sm:text-sm text-gray-400 w-12">{percentage}%</span>
                         </div>
                       </td>
                     </tr>
@@ -439,16 +440,48 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Card View */}
+          <div className="block md:hidden space-y-2">
+            {stats.byCategory.map((category, index) => {
+              const percentage = stats.totalAmount > 0 ? ((category.amount / stats.totalAmount) * 100).toFixed(1) : '0.0';
+              return (
+                <div key={index} className="bg-gray-700/50 rounded-lg p-3 border border-gray-600">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="text-sm sm:text-base font-semibold text-emerald-300">{category.name}</h4>
+                    <span className="text-xs sm:text-sm font-medium text-gray-300 bg-gray-600 px-2 py-1 rounded">
+                      {percentage}%
+                    </span>
+                  </div>
+                  <div className="mb-3">
+                    <div className="w-full bg-gray-600 rounded-full h-2 overflow-hidden">
+                      <div className="h-full bg-emerald-500" style={{ width: `${percentage}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center text-xs sm:text-sm">
+                    <div>
+                      <span className="text-gray-400">항목:</span>
+                      <span className="ml-2 font-medium text-gray-200">{category.count}개</span>
+                    </div>
+                    <div className="font-semibold text-emerald-400">
+                      {formatCurrency(category.amount, currency, exchangeRate)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </Card>
       )}
 
       <Card title="수익 내역">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-700">
               <tr>
                 <th
-                  className="p-3 cursor-pointer hover:bg-gray-600 transition select-none"
+                  className="p-3 cursor-pointer hover:bg-gray-600 transition select-none text-xs sm:text-sm md:text-base"
                   onClick={() => handleSort('date')}
                 >
                   <div className="flex items-center">
@@ -457,7 +490,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                   </div>
                 </th>
                 <th
-                  className="p-3 cursor-pointer hover:bg-gray-600 transition select-none"
+                  className="p-3 cursor-pointer hover:bg-gray-600 transition select-none text-xs sm:text-sm md:text-base"
                   onClick={() => handleSort('category')}
                 >
                   <div className="flex items-center">
@@ -466,7 +499,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                   </div>
                 </th>
                 <th
-                  className="p-3 cursor-pointer hover:bg-gray-600 transition select-none"
+                  className="p-3 cursor-pointer hover:bg-gray-600 transition select-none text-xs sm:text-sm md:text-base"
                   onClick={() => handleSort('amount')}
                 >
                   <div className="flex items-center">
@@ -474,9 +507,9 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                     <SortIcon columnKey="amount" />
                   </div>
                 </th>
-                <th className="p-3">메모</th>
-                <th className="p-3">작성자</th>
-                <th className="p-3">작업</th>
+                <th className="p-3 text-xs sm:text-sm md:text-base">메모</th>
+                <th className="p-3 text-xs sm:text-sm md:text-base">작성자</th>
+                <th className="p-3 text-xs sm:text-sm md:text-base">작업</th>
               </tr>
             </thead>
             <tbody>
@@ -489,27 +522,27 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
               ) : (
                 sortedIncomes.map((income) => (
                   <tr key={income.id} className="border-b border-gray-700 hover:bg-gray-600/20">
-                    <td className="p-3">{income.date}</td>
+                    <td className="p-3 text-sm">{income.date}</td>
                     <td className="p-3">
                       <span className="px-2 py-1 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400">
                         {getCategoryName(income.category_id)}
                       </span>
                     </td>
-                    <td className="p-3 font-semibold text-emerald-400">
+                    <td className="p-3 font-semibold text-emerald-400 text-sm">
                       {formatCurrency(income.amount, currency, exchangeRate)}
                     </td>
-                    <td className="p-3">{income.memo}</td>
-                    <td className="p-3">{getUserName(income.created_by)}</td>
+                    <td className="p-3 text-sm">{income.memo}</td>
+                    <td className="p-3 text-sm">{getUserName(income.created_by)}</td>
                     <td className="p-3">
                       <button
                         onClick={() => handleOpenModal(income)}
-                        className="text-sky-400 hover:text-sky-300 mr-2"
+                        className="text-sky-400 hover:text-sky-300 mr-2 text-sm"
                       >
                         수정
                       </button>
                       <button
                         onClick={() => handleDelete(income.id)}
-                        className="text-red-400 hover:text-red-300"
+                        className="text-red-400 hover:text-red-300 text-sm"
                       >
                         삭제
                       </button>
@@ -520,22 +553,89 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Card View */}
+        <div className="block md:hidden space-y-2">
+          {sortedIncomes.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">
+              수익 내역이 없습니다. "수익 추가"를 클릭하여 생성하세요.
+            </div>
+          ) : (
+            sortedIncomes.map((income) => (
+              <div
+                key={income.id}
+                className="bg-gray-700/50 rounded-lg p-3 border border-gray-600"
+              >
+                {/* Header: Date and Actions */}
+                <div className="flex justify-between items-start mb-2">
+                  <div className="text-xs sm:text-sm text-gray-400">{income.date}</div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleOpenModal(income)}
+                      className="text-sky-400 hover:text-sky-300 transition p-1"
+                      title="수정"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(income.id)}
+                      className="text-red-400 hover:text-red-300 transition p-1"
+                      title="삭제"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Category Badge */}
+                <div className="mb-2">
+                  <span className="px-2 py-1 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400 inline-block">
+                    {getCategoryName(income.category_id)}
+                  </span>
+                </div>
+
+                {/* Amount - Large Font */}
+                <div className="mb-2">
+                  <div className="text-lg sm:text-xl font-bold text-emerald-400">
+                    {formatCurrency(income.amount, currency, exchangeRate)}
+                  </div>
+                </div>
+
+                {/* Memo and Author - Small Text */}
+                {income.memo && (
+                  <div className="mb-1 text-xs sm:text-sm text-gray-400">
+                    메모: {income.memo}
+                  </div>
+                )}
+                <div className="text-xs sm:text-sm text-gray-500">
+                  작성자: {getUserName(income.created_by)}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </Card>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">
-              {editingIncome ? '수익 수정' : '수익 추가'}
-            </h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-t-lg sm:rounded-lg p-4 sm:p-6 w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-inherit -mx-4 sm:-mx-6 px-4 sm:px-6 pb-3 sm:pb-4 mb-3 sm:mb-4">
+              <h2 className="text-lg sm:text-xl font-bold">
+                {editingIncome ? '수익 수정' : '수익 추가'}
+              </h2>
+            </div>
             <form onSubmit={handleSubmit}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2 text-gray-300">카테고리</label>
+              <div className="mb-3 sm:mb-4">
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-300">카테고리</label>
                 <div className="relative">
                   <select
                     value={formData.category_id}
                     onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                    className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                    className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                     required
                   >
                     <option value="" className="bg-gray-800">카테고리 선택</option>
@@ -545,61 +645,61 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                       </option>
                     ))}
                   </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
+                    <svg className="h-4 sm:h-5 w-4 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
                 </div>
               </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2 text-gray-300">날짜</label>
+              <div className="mb-3 sm:mb-4">
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-300">날짜</label>
                 <input
                   type="date"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                   required
                 />
               </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2 text-gray-300">금액 (원)</label>
+              <div className="mb-3 sm:mb-4">
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-300">금액 (원)</label>
                 <input
                   type="number"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                   placeholder="0"
                   min="0"
                   required
                 />
               </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2 text-gray-300">메모</label>
+              <div className="mb-4 sm:mb-6">
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-300">메모</label>
                 <input
                   type="text"
                   value={formData.memo}
                   onChange={(e) => setFormData({ ...formData, memo: e.target.value })}
-                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
                   placeholder="설명 입력"
                   required
                 />
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 sticky bottom-0 bg-inherit -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 pb-4 -mb-4 sm:-mb-6">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition"
+                  className="px-3 sm:px-4 py-2 bg-gray-600 text-white rounded text-xs sm:text-sm font-medium hover:bg-gray-700 transition"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition"
+                  className="px-3 sm:px-4 py-2 bg-emerald-600 text-white rounded text-xs sm:text-sm font-medium hover:bg-emerald-700 transition"
                 >
                   {editingIncome ? '수정' : '생성'}
                 </button>

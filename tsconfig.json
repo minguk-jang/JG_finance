@@ -1,29 +1,87 @@
 {
   "compilerOptions": {
+    /* Language and Environment */
     "target": "ES2022",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
-    "module": "ESNext",
     "lib": [
       "ES2022",
       "DOM",
-      "DOM.Iterable"
+      "DOM.Iterable",
+      "WebWorker"
     ],
-    "skipLibCheck": true,
-    "types": [
-      "node"
-    ],
+    "jsx": "react-jsx",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+
+    /* Modules */
+    "module": "ESNext",
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+
+    /* JavaScript Support */
+    "allowJs": true,
+    "allowImportingTsExtensions": true,
+    "checkJs": false,
+
+    /* Emit */
+    "noEmit": true,
+    "sourceMap": true,
+    "declarationMap": true,
+    "declaration": true,
+    "declarationDir": "./dist/types",
+    "removeComments": false,
+    "importHelpers": true,
+
+    /* Interop Constraints */
     "isolatedModules": true,
     "moduleDetection": "force",
-    "allowJs": true,
-    "jsx": "react-jsx",
+    "importsNotUsedAsValues": "remove",
+    "preserveConstEnums": true,
+
+    /* Type Checking */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "useUnknownInCatchVariables": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+
+    /* Completeness */
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Path Mapping */
+    "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"],
+      "@/types/*": ["./types/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/components/*": ["./components/*"]
     },
-    "allowImportingTsExtensions": true,
-    "noEmit": true
-  }
+
+    /* PWA and Service Worker - Types auto-discovered from node_modules/@types */
+    "types": []
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.d.ts",
+    "types/pwa.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "backend"
+  ]
 }

@@ -5,6 +5,8 @@ interface SidebarProps {
   currentPage: Page;
   setCurrentPage: (page: Page) => void;
   theme: 'dark' | 'light';
+  isOpen?: boolean;
+  onToggle?: () => void;
 }
 
 // FIX: Changed type of 'icon' prop from JSX.Element to React.ReactElement to resolve "Cannot find namespace 'JSX'".
@@ -24,18 +26,18 @@ const NavItem: React.FC<{
       : 'text-gray-600 hover:bg-slate-100 hover:text-sky-600';
   return (
     <li
-      className={`flex items-center p-3 my-1 rounded-lg cursor-pointer transition-colors ${
+      className={`flex items-center p-2 sm:p-3 my-1 rounded-lg cursor-pointer transition-colors ${
         isActive ? activeClass : inactiveClass
       }`}
       onClick={() => setCurrentPage(pageName)}
     >
       {icon}
-      <span className="ml-3">{children}</span>
+      <span className="ml-2 sm:ml-3 text-sm sm:text-base">{children}</span>
     </li>
   );
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, theme }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, theme, isOpen = false, onToggle }) => {
   const iconClasses = "w-6 h-6";
   const asideClass =
     theme === 'dark'
@@ -43,13 +45,29 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, theme })
       : 'bg-white text-gray-700 border-r border-slate-200';
 
   return (
-    <aside className={`w-64 p-4 flex flex-col flex-shrink-0 ${asideClass}`}>
-      <div className="flex items-center mb-8 cursor-pointer" onClick={() => setCurrentPage('Dashboard')}>
-        <span className="text-2xl font-bold hover:text-sky-400 transition-colors">
-          쭈꾹 금융
-        </span>
+    <aside
+      className={`fixed md:static w-64 h-screen md:h-auto p-3 sm:p-4 flex flex-col flex-shrink-0 z-40 transition-transform duration-300 ease-in-out ${asideClass} ${
+        isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      }`}
+      style={{ top: 0, left: 0 }}
+    >
+      <div className="flex items-center justify-between mb-4 sm:mb-6 md:mb-8">
+        <div className="flex items-center cursor-pointer flex-1" onClick={() => setCurrentPage('Dashboard')}>
+          <span className="text-lg sm:text-xl md:text-2xl font-bold hover:text-sky-400 transition-colors truncate">
+            쭈꾹 금융
+          </span>
+        </div>
+        {onToggle && (
+          <button
+            onClick={onToggle}
+            className="md:hidden ml-2 p-1.5 sm:p-2 rounded hover:bg-gray-700 transition-colors flex-shrink-0"
+            aria-label="Close menu"
+          >
+            <CloseIcon className="w-5 sm:w-6 h-5 sm:h-6" />
+          </button>
+        )}
       </div>
-      <nav>
+      <nav className="flex-1 overflow-y-auto">
         <ul>
           <NavItem pageName="Dashboard" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<DashboardIcon className={iconClasses} />} theme={theme}>
             대시보드
@@ -66,20 +84,25 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, theme })
           <NavItem pageName="Issues" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<IssuesIcon className={iconClasses} />} theme={theme}>
             이슈
           </NavItem>
-        </ul>
-      </nav>
-      <div className="mt-auto">
-        <ul>
-        <NavItem pageName="Settings" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<SettingsIcon className={iconClasses} />} theme={theme}>
+          <li
+            className={`my-2 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-slate-200'}`}
+          ></li>
+          <NavItem pageName="Settings" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<SettingsIcon className={iconClasses} />} theme={theme}>
             설정
           </NavItem>
         </ul>
-      </div>
+      </nav>
     </aside>
   );
 };
 
 // SVG Icons
+const CloseIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
 const DashboardIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />

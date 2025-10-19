@@ -242,29 +242,29 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] px-4">
+    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[60] px-4">
       <div
-        className={`${modalBgClass} w-full max-w-2xl rounded-2xl shadow-xl border ${
+        className={`${modalBgClass} w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-xl border max-h-[90vh] overflow-y-auto ${
           isDark ? 'border-gray-700' : 'border-gray-200'
         }`}
       >
-        <div className="flex items-start justify-between p-6 border-b border-gray-600/40">
+        <div className="flex items-start justify-between p-4 sm:p-6 border-b border-gray-600/40 sticky top-0 bg-inherit">
           <div>
-            <h2 className="text-2xl font-semibold">지출 빠른 추가</h2>
-            <p className="text-sm text-gray-400 mt-1">
+            <h2 className="text-xl sm:text-2xl font-semibold">지출 빠른 추가</h2>
+            <p className="text-xs sm:text-sm text-gray-400 mt-1">
               지출 내용을 자유롭게 입력하고 Gemini의 제안을 바탕으로 세부 정보를 확인하세요.
             </p>
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-200 transition"
+            className="text-gray-400 hover:text-gray-200 transition flex-shrink-0 ml-4"
             aria-label="닫기"
           >
             ✕
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-5">
           {error && <div className="rounded-lg bg-red-500/10 border border-red-500/40 px-4 py-2 text-red-300 text-sm">{error}</div>}
           {notice && !error && (
             <div className="rounded-lg bg-sky-500/10 border border-sky-500/40 px-4 py-2 text-sky-300 text-sm">
@@ -284,10 +284,10 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
           <div
             className={`rounded-xl border ${
               isDark ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'
-            } p-5 space-y-4`}
+            } p-4 sm:p-5 space-y-4`}
           >
             <div className="space-y-2">
-              <label htmlFor="quick-add-transcript" className="text-sm font-medium text-gray-300">
+              <label htmlFor="quick-add-transcript" className="text-xs sm:text-sm font-medium text-gray-300">
                 지출 내용 설명
               </label>
               <textarea
@@ -296,15 +296,15 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
                 value={transcript}
                 onChange={(event) => setTranscript(event.target.value)}
                 placeholder={transcriptPlaceholder}
-                className={`w-full rounded-xl border px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-sky-500/50 ${
+                className={`w-full rounded-xl border px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm resize-none focus:outline-none focus:ring-2 focus:ring-sky-500/50 ${
                   textareaBgClass
                 }`}
               />
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-2 sm:gap-3">
                 <button
                   onClick={handleProcessTranscript}
                   disabled={isProcessing}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                  className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition ${
                     isProcessing
                       ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
                       : 'bg-emerald-600 hover:bg-emerald-700 text-white'
@@ -326,7 +326,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
                       memo: '',
                     });
                   }}
-                  className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-500/40 text-gray-300 hover:border-gray-400/80 transition"
+                  className="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium border border-gray-500/40 text-gray-300 hover:border-gray-400/80 transition"
                 >
                   초기화
                 </button>
@@ -335,9 +335,9 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
           </div>
 
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               <div className="flex flex-col gap-2">
-                <label htmlFor="quick-add-amount" className="text-sm font-medium text-gray-300">
+                <label htmlFor="quick-add-amount" className="text-xs sm:text-sm font-medium text-gray-300">
                   금액
                 </label>
                 <div className="relative">
@@ -348,16 +348,16 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
                     step="0.01"
                     value={formData.amount}
                     onChange={(event) => setFormData((prev) => ({ ...prev, amount: event.target.value }))}
-                    className={`w-full rounded-lg border px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500/40 ${fieldBgClass}`}
+                    className={`w-full rounded-lg border px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/40 ${fieldBgClass}`}
                     placeholder="예: 58000"
                   />
-                  <span className="absolute inset-y-0 right-3 flex items-center text-sm text-gray-400">
+                  <span className="absolute inset-y-0 right-3 flex items-center text-xs sm:text-sm text-gray-400">
                     {currency}
                   </span>
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <label htmlFor="quick-add-date" className="text-sm font-medium text-gray-300">
+                <label htmlFor="quick-add-date" className="text-xs sm:text-sm font-medium text-gray-300">
                   날짜
                 </label>
                 <input
@@ -365,18 +365,18 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
                   type="date"
                   value={formData.date}
                   onChange={(event) => setFormData((prev) => ({ ...prev, date: event.target.value }))}
-                  className={`w-full rounded-lg border px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500/40 ${fieldBgClass}`}
+                  className={`w-full rounded-lg border px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/40 ${fieldBgClass}`}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label htmlFor="quick-add-category" className="text-sm font-medium text-gray-300">
+                <label htmlFor="quick-add-category" className="text-xs sm:text-sm font-medium text-gray-300">
                   카테고리
                 </label>
                 <select
                   id="quick-add-category"
                   value={formData.categoryId}
                   onChange={(event) => setFormData((prev) => ({ ...prev, categoryId: event.target.value }))}
-                  className={`w-full rounded-lg border px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500/40 appearance-none cursor-pointer ${fieldBgClass}`}
+                  className={`w-full rounded-lg border px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/40 appearance-none cursor-pointer ${fieldBgClass}`}
                   disabled={categoriesLoading}
                 >
                   <option value="">{categoriesLoading ? '불러오는 중...' : '카테고리 선택'}</option>
@@ -393,7 +393,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
                 )}
               </div>
               <div className="flex flex-col gap-2">
-                <label htmlFor="quick-add-memo" className="text-sm font-medium text-gray-300">
+                <label htmlFor="quick-add-memo" className="text-xs sm:text-sm font-medium text-gray-300">
                   메모 (선택)
                 </label>
                 <input
@@ -401,24 +401,24 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
                   type="text"
                   value={formData.memo}
                   onChange={(event) => setFormData((prev) => ({ ...prev, memo: event.target.value }))}
-                  className={`w-full rounded-lg border px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500/40 ${fieldBgClass}`}
+                  className={`w-full rounded-lg border px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/40 ${fieldBgClass}`}
                   placeholder="예: 마트 장보기, 주유 등"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end items-center gap-3">
+            <div className="flex flex-col-reverse sm:flex-row justify-end items-stretch sm:items-center gap-2 sm:gap-3 sticky bottom-0 bg-inherit pt-4 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-4">
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-500/40 text-gray-300 hover:border-gray-400/80 transition"
+                className="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium border border-gray-500/40 text-gray-300 hover:border-gray-400/80 transition"
               >
                 닫기
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition ${
+                className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition ${
                   isSubmitting
                     ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
                     : 'bg-emerald-600 hover:bg-emerald-700 text-white'

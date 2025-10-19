@@ -3,9 +3,33 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jjoogguk Finance</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="/components/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/components/icons/icon-512.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+  <!-- iOS: 홈화면 아이콘 (다양한 크기 지원) -->
+  <link rel="apple-touch-icon" href="/components/icons/icon-180.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/components/icons/icon-180.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="/components/icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="/components/icons/icon-512.png">
+
+  <!-- iOS: 전체화면 및 상태바 설정 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="쭈꾹">
+
+  <!-- PWA 매니페스트는 vite-plugin-pwa가 자동 주입 -->
+
+  <!-- 브라우저 테마 색 -->
+  <meta name="theme-color" content="#0ea5e9">
+  <meta name="msapplication-TileColor" content="#0ea5e9">
+  <meta name="msapplication-TileImage" content="/components/icons/icon-512.png">
+
+  <!-- 앱 정보 -->
+  <meta name="description" content="쭈꾹 가계부 - 가계 재무 관리 애플리케이션">
+  <meta name="application-name" content="쭈꾹 가계부">
+
+  <title>쭈꾹 가계부</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
