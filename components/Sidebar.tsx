@@ -54,7 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, theme, i
       <div className="flex items-center justify-between mb-4 sm:mb-6 md:mb-8">
         <div className="flex items-center cursor-pointer flex-1" onClick={() => setCurrentPage('Dashboard')}>
           <span className="text-lg sm:text-xl md:text-2xl font-bold hover:text-sky-400 transition-colors truncate">
-            쭈꾹 금융
+            JG 가계부
           </span>
         </div>
         {onToggle && (

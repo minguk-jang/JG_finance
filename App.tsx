@@ -293,8 +293,6 @@ const App: React.FC = () => {
         onClose={handleCloseQuickAdd}
         currency={currency}
         theme={theme}
-        activeMemberId={activeMemberId}
-        isActiveMemberValid={activeMemberValid}
         onExpenseCreated={handleExpenseCreated}
       />
 

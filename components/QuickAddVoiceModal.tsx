@@ -2,14 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Currency, Category } from '../types';
 import { api } from '../lib/api';
 import { generateExpenseSuggestion, GeminiExpenseSuggestion } from '../lib/gemini';
+import { useAuth } from '../lib/auth';
 
 interface QuickAddVoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
   currency: Currency;
   theme: 'dark' | 'light';
-  activeMemberId: number;
-  isActiveMemberValid: boolean;
   onExpenseCreated?: (expense: any) => void;
 }
 
@@ -32,10 +31,9 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
   onClose,
   currency,
   theme,
-  activeMemberId,
-  isActiveMemberValid,
   onExpenseCreated,
 }) => {
+  const { user } = useAuth();
   const [transcript, setTranscript] = useState<string>('');
   const [suggestion, setSuggestion] = useState<GeminiExpenseSuggestion | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -162,14 +160,11 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
       event.preventDefault();
       setError(null);
 
-      if (activeMemberId <= 0) {
-        setError('작업자를 먼저 선택해주세요.');
+      if (!user) {
+        setError('로그인이 필요합니다.');
         return;
       }
-      if (!isActiveMemberValid) {
-        setError('작업자 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
-        return;
-      }
+
       const amount = parseFloat(formData.amount);
       if (!Number.isFinite(amount) || amount <= 0) {
         setError('금액을 확인해주세요.');
@@ -198,7 +193,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
         date: normalizedDate.toISOString().split('T')[0],
         amount,
         memo: formData.memo,
-        created_by: activeMemberId,
+        // created_by는 api.createExpense에서 자동으로 설정됨
       };
 
       setIsSubmitting(true);
@@ -222,7 +217,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
         setIsSubmitting(false);
       }
     },
-    [activeMemberId, formData, isActiveMemberValid, onExpenseCreated]
+    [user, formData, onExpenseCreated]
   );
 
   const handleClose = useCallback(() => {
