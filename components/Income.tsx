@@ -9,6 +9,7 @@ interface IncomeProps {
   exchangeRate: number;
   activeMemberId: number;
   members: User[];
+  activeMemberValid: boolean;
 }
 
 export interface IncomeHandle {
@@ -27,7 +28,7 @@ const formatCurrency = (value: number, currency: Currency, exchangeRate: number)
 type SortKey = 'date' | 'category' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, activeMemberId, members }, ref) => {
+const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, activeMemberId, members, activeMemberValid }, ref) => {
   const [incomes, setIncomes] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,7 +184,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
       setEditingIncome(income);
       setFormData({
         category_id: income.category_id.toString(),
-        date: income.date,
+        date: (income.date ?? '').slice(0, 10),
         amount: income.amount.toString(),
         memo: income.memo
       });
@@ -211,17 +212,55 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
-      if (activeMemberId <= 0) {
-        alert('먼저 작업자를 선택해주세요.');
+      const categoryId = Number.parseInt(formData.category_id, 10);
+      if (!Number.isInteger(categoryId)) {
+        alert('카테고리를 선택해주세요.');
         return;
       }
-      const data = {
-        category_id: parseInt(formData.category_id, 10),
-        date: formData.date,
-        amount: parseFloat(formData.amount),
-        memo: formData.memo,
-        created_by: activeMemberId
+
+      const amountValue = Number.parseFloat(formData.amount);
+      if (!Number.isFinite(amountValue) || amountValue <= 0) {
+        alert('유효한 금액을 입력해주세요.');
+        return;
+      }
+
+      if (!formData.date) {
+        alert('날짜를 선택해주세요.');
+        return;
+      }
+
+      const normalizedDate = new Date(`${formData.date}T00:00:00`);
+      if (Number.isNaN(normalizedDate.getTime())) {
+        alert('유효한 날짜를 선택해주세요.');
+        return;
+      }
+
+      const isoDate = normalizedDate.toISOString().split('T')[0];
+
+      const data: Record<string, any> = {
+        category_id: categoryId,
+        date: isoDate,
+        amount: amountValue,
+        memo: formData.memo
       };
+
+      const creatorId = activeMemberValid && activeMemberId > 0
+        ? activeMemberId
+        : editingIncome?.created_by;
+
+      if (editingIncome) {
+        if (!creatorId || creatorId <= 0) {
+          alert('유효한 작업자를 찾을 수 없습니다. 구성원 목록을 다시 확인해주세요.');
+          return;
+        }
+        data.created_by = creatorId;
+      } else {
+        if (!creatorId || creatorId <= 0) {
+          alert('먼저 작업자를 선택해주세요.');
+          return;
+        }
+        data.created_by = creatorId;
+      }
 
       if (editingIncome) {
         await api.updateExpense(editingIncome.id, data);

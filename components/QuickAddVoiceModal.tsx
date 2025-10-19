@@ -9,6 +9,7 @@ interface QuickAddVoiceModalProps {
   currency: Currency;
   theme: 'dark' | 'light';
   activeMemberId: number;
+  isActiveMemberValid: boolean;
   onExpenseCreated?: (expense: any) => void;
 }
 
@@ -32,6 +33,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
   currency,
   theme,
   activeMemberId,
+  isActiveMemberValid,
   onExpenseCreated,
 }) => {
   const [transcript, setTranscript] = useState<string>('');
@@ -164,6 +166,10 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
         setError('작업자를 먼저 선택해주세요.');
         return;
       }
+      if (!isActiveMemberValid) {
+        setError('작업자 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+        return;
+      }
       const amount = parseFloat(formData.amount);
       if (!Number.isFinite(amount) || amount <= 0) {
         setError('금액을 확인해주세요.');
@@ -181,9 +187,15 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
         return;
       }
 
+      const normalizedDate = new Date(`${formData.date}T00:00:00`);
+      if (Number.isNaN(normalizedDate.getTime())) {
+        setError('유효한 날짜를 선택해주세요.');
+        return;
+      }
+
       const payload = {
         category_id: categoryId,
-        date: formData.date,
+        date: normalizedDate.toISOString().split('T')[0],
         amount,
         memo: formData.memo,
         created_by: activeMemberId,
@@ -210,7 +222,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
         setIsSubmitting(false);
       }
     },
-    [activeMemberId, formData, onExpenseCreated]
+    [activeMemberId, formData, isActiveMemberValid, onExpenseCreated]
   );
 
   const handleClose = useCallback(() => {

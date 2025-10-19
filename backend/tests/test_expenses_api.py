@@ -8,6 +8,7 @@ from app.core.deps import get_db
 from app.main import app
 from app.models.category import Category, CategoryType
 from app.models.user import User, UserRole
+from app.schemas.expense import ExpenseUpdate
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
@@ -102,14 +103,25 @@ def test_update_expense(client, db_session):
     update_resp = client.put(
         f"/api/expenses/{expense_id}",
         json={
+            "date": "2024-07-11",
             "amount": 6500,
             "memo": "지하철 (왕복)",
         },
     )
     assert update_resp.status_code == 200
     updated = update_resp.json()
+    assert updated["date"] == "2024-07-11"
     assert updated["amount"] == 6500
     assert updated["memo"] == "지하철 (왕복)"
+
+
+def test_expense_update_schema_allows_date_string():
+    schema = ExpenseUpdate.model_json_schema()
+    date_schema = schema["properties"]["date"]
+    assert any(
+        option.get("type") == "string" and option.get("format") == "date"
+        for option in date_schema.get("anyOf", [])
+    ), "Expected date field to allow ISO date strings in schema"
 
 
 def test_delete_expense(client, db_session):

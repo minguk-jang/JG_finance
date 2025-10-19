@@ -29,7 +29,8 @@ const App: React.FC = () => {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<number>(DEFAULT_USD_KRW_EXCHANGE_RATE);
   const [members, setMembers] = useState<User[]>([]);
-  const [activeMemberId, setActiveMemberId] = useState<number>(() => resolveStoredMemberId());
+  const storedMemberIdRef = useRef<number>(resolveStoredMemberId());
+  const [activeMemberId, setActiveMemberId] = useState<number>(() => -1);
 
   useEffect(() => {
     const body = document.body;
@@ -57,13 +58,23 @@ const App: React.FC = () => {
       const data = await api.getUsers();
       setMembers(data);
       setActiveMemberId(prev => {
-        if (data.length === 0) {
+        if (!Array.isArray(data) || data.length === 0) {
+          storedMemberIdRef.current = -1;
           return -1;
         }
-        if (data.some(user => user.id === prev && prev > 0)) {
-          return prev;
-        }
-        return data[0].id;
+
+        const candidateIds = [
+          storedMemberIdRef.current,
+          prev,
+        ].filter((id): id is number => Number.isFinite(id) && id > 0);
+
+        const matchedId = candidateIds.find(id =>
+          data.some(user => user.id === id)
+        );
+
+        const nextId = matchedId ?? data[0].id;
+        storedMemberIdRef.current = nextId;
+        return nextId;
       });
     } catch (error) {
       console.error('Failed to load members:', error);
@@ -77,8 +88,10 @@ const App: React.FC = () => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (activeMemberId > 0) {
+      storedMemberIdRef.current = activeMemberId;
       window.localStorage.setItem('activeMemberId', activeMemberId.toString());
     } else {
+      storedMemberIdRef.current = -1;
       window.localStorage.removeItem('activeMemberId');
     }
   }, [activeMemberId]);
@@ -106,6 +119,8 @@ const App: React.FC = () => {
     />
   );
 
+  const activeMemberValid = activeMemberId > 0 && members.some(member => member.id === activeMemberId);
+
   const renderContent = () => {
     switch (currentPage) {
       case 'Dashboard':
@@ -118,6 +133,7 @@ const App: React.FC = () => {
             exchangeRate={exchangeRate}
             activeMemberId={activeMemberId}
             members={members}
+            activeMemberValid={activeMemberValid}
           />
         );
       case 'Income':
@@ -128,6 +144,7 @@ const App: React.FC = () => {
             exchangeRate={exchangeRate}
             activeMemberId={activeMemberId}
             members={members}
+            activeMemberValid={activeMemberValid}
           />
         );
       case 'Investments':
@@ -165,6 +182,7 @@ const App: React.FC = () => {
         currency={currency}
         theme={theme}
         activeMemberId={activeMemberId}
+        isActiveMemberValid={activeMemberValid}
         onExpenseCreated={handleExpenseCreated}
       />
     </div>
