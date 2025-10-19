@@ -10,8 +10,10 @@ import Issues from './components/Issues';
 import Settings from './components/Settings';
 import QuickAddVoiceModal from './components/QuickAddVoiceModal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
+import AuthModal from './components/AuthModal';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from './constants';
 import { api } from './lib/api';
+import { useAuth } from './lib/auth';
 
 const resolveStoredMemberId = (): number => {
   if (typeof window === 'undefined') return -1;
@@ -22,6 +24,8 @@ const resolveStoredMemberId = (): number => {
 };
 
 const App: React.FC = () => {
+  const { user, loading } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>('Dashboard');
   const [currency, setCurrency] = useState<Currency>('KRW');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -35,6 +39,16 @@ const App: React.FC = () => {
   const [activeMemberId, setActiveMemberId] = useState<number>(() => -1);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const swRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
+
+  // Show auth modal if user is not authenticated (after loading completes)
+  useEffect(() => {
+    if (!loading && !user) {
+      setShowAuthModal(true);
+    } else if (user) {
+      // User is logged in, close modal
+      setShowAuthModal(false);
+    }
+  }, [loading, user]);
 
   // Register Service Worker
   useEffect(() => {
@@ -225,6 +239,18 @@ const App: React.FC = () => {
     }
   };
 
+  // Show loading screen while checking authentication
+  if (loading) {
+    return (
+      <div className={`flex h-screen items-center justify-center ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-100'}`}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex h-screen ${theme === 'dark' ? 'bg-gray-900 text-gray-200' : 'bg-gray-100 text-gray-900'}`}>
       {/* Mobile Backdrop */}
@@ -331,6 +357,11 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} />
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ServiceWorkerManager, isServiceWorkerSupported } from './lib/sw-utils';
+import { AuthProvider } from './lib/auth';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -74,7 +75,9 @@ async function startApp(): Promise<void> {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </React.StrictMode>
   );
 }

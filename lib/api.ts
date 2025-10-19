@@ -1,152 +1,388 @@
-const API_BASE = '/api';
+import { supabase, handleSupabaseError } from './supabase';
+import { toCamelCase, toSnakeCase } from './database';
 
-class ApiError extends Error {
-  constructor(public status: number, message: string) {
-    super(message);
-    this.name = 'ApiError';
+// Error handling wrapper
+async function handleRequest<T>(request: Promise<{ data: T | null; error: any }>): Promise<T> {
+  const { data, error } = await request;
+  if (error) {
+    throw new Error(handleSupabaseError(error));
   }
-}
-
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const text = await response.text();
-    throw new ApiError(response.status, text || response.statusText);
+  if (!data) {
+    throw new Error('No data returned');
   }
-
-  if (response.status === 204) {
-    return null as T;
-  }
-
-  return response.json();
+  return data;
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`);
-  return handleResponse<T>(response);
-}
-
-export async function apiPost<T>(path: string, data: any): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  });
-  return handleResponse<T>(response);
-}
-
-export async function apiPut<T>(path: string, data: any): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  });
-  return handleResponse<T>(response);
-}
-
-export async function apiDelete(path: string): Promise<void> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'DELETE',
-  });
-  await handleResponse<void>(response);
-}
-
-// API endpoints
 export const api = {
+  // ============================================
   // Categories
-  getCategories: () => apiGet<any[]>('/categories'),
-  getCategory: (id: number) => apiGet<any>(`/categories/${id}`),
-  createCategory: (data: any) => apiPost<any>('/categories', data),
-  updateCategory: (id: number, data: any) => apiPut<any>(`/categories/${id}`, data),
-  deleteCategory: (id: number) => apiDelete(`/categories/${id}`),
-
-  // Expenses
-  getExpenses: (params?: { from_date?: string; to_date?: string; category_id?: number }) => {
-    const query = new URLSearchParams();
-    if (params?.from_date) query.append('from_date', params.from_date);
-    if (params?.to_date) query.append('to_date', params.to_date);
-    if (params?.category_id) query.append('category_id', params.category_id.toString());
-    const queryString = query.toString();
-    return apiGet<any[]>(`/expenses${queryString ? `?${queryString}` : ''}`);
+  // ============================================
+  getCategories: async () => {
+    const data = await handleRequest(
+      supabase.from('categories').select('*').order('id')
+    );
+    return toCamelCase(data);
   },
-  getExpense: (id: number) => apiGet<any>(`/expenses/${id}`),
-  createExpense: (data: any) => apiPost<any>('/expenses', data),
-  updateExpense: (id: number, data: any) => apiPut<any>(`/expenses/${id}`, data),
-  deleteExpense: (id: number) => apiDelete(`/expenses/${id}`),
 
+  getCategory: async (id: number) => {
+    const data = await handleRequest(
+      supabase.from('categories').select('*').eq('id', id).single()
+    );
+    return toCamelCase(data);
+  },
+
+  createCategory: async (categoryData: any) => {
+    const snakeData = toSnakeCase(categoryData);
+    const data = await handleRequest(
+      supabase.from('categories').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateCategory: async (id: number, categoryData: any) => {
+    const snakeData = toSnakeCase(categoryData);
+    const data = await handleRequest(
+      supabase.from('categories').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteCategory: async (id: number) => {
+    await handleRequest(supabase.from('categories').delete().eq('id', id));
+  },
+
+  // ============================================
+  // Expenses
+  // ============================================
+  getExpenses: async (params?: {
+    from_date?: string;
+    to_date?: string;
+    category_id?: number;
+  }) => {
+    let query = supabase.from('expenses').select('*').order('date', { ascending: false });
+
+    if (params?.from_date) {
+      query = query.gte('date', params.from_date);
+    }
+    if (params?.to_date) {
+      query = query.lte('date', params.to_date);
+    }
+    if (params?.category_id) {
+      query = query.eq('category_id', params.category_id);
+    }
+
+    const data = await handleRequest(query);
+    return toCamelCase(data);
+  },
+
+  getExpense: async (id: number) => {
+    const data = await handleRequest(
+      supabase.from('expenses').select('*').eq('id', id).single()
+    );
+    return toCamelCase(data);
+  },
+
+  createExpense: async (expenseData: any) => {
+    const snakeData = toSnakeCase(expenseData);
+    // Ensure created_by is set from current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      snakeData.created_by = user.id;
+    }
+    const data = await handleRequest(
+      supabase.from('expenses').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateExpense: async (id: number, expenseData: any) => {
+    const snakeData = toSnakeCase(expenseData);
+    const data = await handleRequest(
+      supabase.from('expenses').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteExpense: async (id: number) => {
+    await handleRequest(supabase.from('expenses').delete().eq('id', id));
+  },
+
+  // ============================================
   // Investments - Holdings
-  getHoldings: () => apiGet<any[]>('/investments/holdings'),
-  getHolding: (id: number) => apiGet<any>(`/investments/holdings/${id}`),
-  createHolding: (data: any) => apiPost<any>('/investments/holdings', data),
-  updateHolding: (id: number, data: any) => apiPut<any>(`/investments/holdings/${id}`, data),
-  deleteHolding: (id: number) => apiDelete(`/investments/holdings/${id}`),
+  // ============================================
+  getHoldings: async () => {
+    const data = await handleRequest(
+      supabase.from('holdings').select('*').order('id')
+    );
+    return toCamelCase(data);
+  },
 
+  getHolding: async (id: number) => {
+    const data = await handleRequest(
+      supabase.from('holdings').select('*').eq('id', id).single()
+    );
+    return toCamelCase(data);
+  },
+
+  createHolding: async (holdingData: any) => {
+    const snakeData = toSnakeCase(holdingData);
+    const data = await handleRequest(
+      supabase.from('holdings').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateHolding: async (id: number, holdingData: any) => {
+    const snakeData = toSnakeCase(holdingData);
+    const data = await handleRequest(
+      supabase.from('holdings').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteHolding: async (id: number) => {
+    await handleRequest(supabase.from('holdings').delete().eq('id', id));
+  },
+
+  // ============================================
   // Investments - Accounts
-  getInvestmentAccounts: () => apiGet<any[]>('/investments/accounts'),
-  getInvestmentAccount: (id: number) => apiGet<any>(`/investments/accounts/${id}`),
-  createInvestmentAccount: (data: any) => apiPost<any>('/investments/accounts', data),
-  updateInvestmentAccount: (id: number, data: any) => apiPut<any>(`/investments/accounts/${id}`, data),
-  deleteInvestmentAccount: (id: number) => apiDelete(`/investments/accounts/${id}`),
+  // ============================================
+  getInvestmentAccounts: async () => {
+    const data = await handleRequest(
+      supabase.from('investment_accounts').select('*').order('id')
+    );
+    return toCamelCase(data);
+  },
 
+  getInvestmentAccount: async (id: number) => {
+    const data = await handleRequest(
+      supabase.from('investment_accounts').select('*').eq('id', id).single()
+    );
+    return toCamelCase(data);
+  },
+
+  createInvestmentAccount: async (accountData: any) => {
+    const snakeData = toSnakeCase(accountData);
+    const data = await handleRequest(
+      supabase.from('investment_accounts').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateInvestmentAccount: async (id: number, accountData: any) => {
+    const snakeData = toSnakeCase(accountData);
+    const data = await handleRequest(
+      supabase.from('investment_accounts').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteInvestmentAccount: async (id: number) => {
+    await handleRequest(supabase.from('investment_accounts').delete().eq('id', id));
+  },
+
+  // ============================================
   // Investments - Transactions
-  getInvestmentTransactions: (params?: {
+  // ============================================
+  getInvestmentTransactions: async (params?: {
     account_id?: number;
     symbol?: string;
     type?: 'BUY' | 'SELL';
     start_date?: string;
     end_date?: string;
   }) => {
-    const query = new URLSearchParams();
-    if (params?.account_id) query.append('account_id', params.account_id.toString());
-    if (params?.symbol) query.append('symbol', params.symbol);
-    if (params?.type) query.append('transaction_type', params.type);
-    if (params?.start_date) query.append('start_date', params.start_date);
-    if (params?.end_date) query.append('end_date', params.end_date);
-    const queryString = query.toString();
-    return apiGet<any[]>(`/investments/transactions${queryString ? `?${queryString}` : ''}`);
-  },
-  getInvestmentTransaction: (id: number) => apiGet<any>(`/investments/transactions/${id}`),
-  createInvestmentTransaction: (data: any) => apiPost<any>('/investments/transactions', data),
-  updateInvestmentTransaction: (id: number, data: any) => apiPut<any>(`/investments/transactions/${id}`, data),
-  deleteInvestmentTransaction: (id: number) => apiDelete(`/investments/transactions/${id}`),
+    let query = supabase
+      .from('investment_transactions')
+      .select('*')
+      .order('trade_date', { ascending: false });
 
+    if (params?.account_id) {
+      query = query.eq('account_id', params.account_id);
+    }
+    if (params?.symbol) {
+      query = query.eq('symbol', params.symbol);
+    }
+    if (params?.type) {
+      query = query.eq('type', params.type);
+    }
+    if (params?.start_date) {
+      query = query.gte('trade_date', params.start_date);
+    }
+    if (params?.end_date) {
+      query = query.lte('trade_date', params.end_date);
+    }
+
+    const data = await handleRequest(query);
+    return toCamelCase(data);
+  },
+
+  getInvestmentTransaction: async (id: number) => {
+    const data = await handleRequest(
+      supabase.from('investment_transactions').select('*').eq('id', id).single()
+    );
+    return toCamelCase(data);
+  },
+
+  createInvestmentTransaction: async (transactionData: any) => {
+    const snakeData = toSnakeCase(transactionData);
+    const data = await handleRequest(
+      supabase.from('investment_transactions').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateInvestmentTransaction: async (id: number, transactionData: any) => {
+    const snakeData = toSnakeCase(transactionData);
+    const data = await handleRequest(
+      supabase.from('investment_transactions').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteInvestmentTransaction: async (id: number) => {
+    await handleRequest(supabase.from('investment_transactions').delete().eq('id', id));
+  },
+
+  // ============================================
   // Issues
-  getIssues: (params?: { status?: string; assignee_id?: number }) => {
-    const query = new URLSearchParams();
-    if (params?.status) query.append('status', params.status);
-    if (params?.assignee_id) query.append('assignee_id', params.assignee_id.toString());
-    const queryString = query.toString();
-    return apiGet<any[]>(`/issues${queryString ? `?${queryString}` : ''}`);
-  },
-  getIssue: (id: number) => apiGet<any>(`/issues/${id}`),
-  createIssue: (data: any) => apiPost<any>('/issues', data),
-  updateIssue: (id: number, data: any) => apiPut<any>(`/issues/${id}`, data),
-  deleteIssue: (id: number) => apiDelete(`/issues/${id}`),
+  // ============================================
+  getIssues: async (params?: { status?: string; assignee_id?: string }) => {
+    let query = supabase.from('issues').select('*').order('id', { ascending: false });
 
+    if (params?.status) {
+      query = query.eq('status', params.status);
+    }
+    if (params?.assignee_id) {
+      query = query.eq('assignee_id', params.assignee_id);
+    }
+
+    const data = await handleRequest(query);
+    return toCamelCase(data);
+  },
+
+  getIssue: async (id: number) => {
+    const data = await handleRequest(
+      supabase.from('issues').select('*, labels(*)').eq('id', id).single()
+    );
+    return toCamelCase(data);
+  },
+
+  createIssue: async (issueData: any) => {
+    const snakeData = toSnakeCase(issueData);
+    const data = await handleRequest(
+      supabase.from('issues').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateIssue: async (id: number, issueData: any) => {
+    const snakeData = toSnakeCase(issueData);
+    const data = await handleRequest(
+      supabase.from('issues').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteIssue: async (id: number) => {
+    await handleRequest(supabase.from('issues').delete().eq('id', id));
+  },
+
+  // ============================================
   // Labels
-  getLabels: () => apiGet<any[]>('/issues/labels'),
-  createLabel: (data: any) => apiPost<any>('/issues/labels', data),
-
-  // Users
-  getUsers: () => apiGet<any[]>('/users'),
-  getUser: (id: number) => apiGet<any>(`/users/${id}`),
-  createUser: (data: any) => apiPost<any>('/users', data),
-  updateUser: (id: number, data: any) => apiPut<any>(`/users/${id}`, data),
-  deleteUser: (id: number) => apiDelete(`/users/${id}`),
-
-  // Budgets
-  getBudgets: (params?: { month?: string; category_id?: number }) => {
-    const query = new URLSearchParams();
-    if (params?.month) query.append('month', params.month);
-    if (params?.category_id) query.append('category_id', params.category_id.toString());
-    const queryString = query.toString();
-    return apiGet<any[]>(`/budgets${queryString ? `?${queryString}` : ''}`);
+  // ============================================
+  getLabels: async () => {
+    const data = await handleRequest(
+      supabase.from('labels').select('*').order('name')
+    );
+    return toCamelCase(data);
   },
-  getBudget: (id: number) => apiGet<any>(`/budgets/${id}`),
-  createBudget: (data: any) => apiPost<any>('/budgets', data),
-  updateBudget: (id: number, data: any) => apiPut<any>(`/budgets/${id}`, data),
-  deleteBudget: (id: number) => apiDelete(`/budgets/${id}`),
+
+  createLabel: async (labelData: any) => {
+    const snakeData = toSnakeCase(labelData);
+    const data = await handleRequest(
+      supabase.from('labels').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  // ============================================
+  // Users
+  // ============================================
+  getUsers: async () => {
+    const data = await handleRequest(
+      supabase.from('users').select('*').order('name')
+    );
+    return toCamelCase(data);
+  },
+
+  getUser: async (id: string) => {
+    const data = await handleRequest(
+      supabase.from('users').select('*').eq('id', id).single()
+    );
+    return toCamelCase(data);
+  },
+
+  createUser: async (userData: any) => {
+    const snakeData = toSnakeCase(userData);
+    const data = await handleRequest(
+      supabase.from('users').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateUser: async (id: string, userData: any) => {
+    const snakeData = toSnakeCase(userData);
+    const data = await handleRequest(
+      supabase.from('users').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteUser: async (id: string) => {
+    await handleRequest(supabase.from('users').delete().eq('id', id));
+  },
+
+  // ============================================
+  // Budgets
+  // ============================================
+  getBudgets: async (params?: { month?: string; category_id?: number }) => {
+    let query = supabase.from('budgets').select('*').order('month', { ascending: false });
+
+    if (params?.month) {
+      query = query.eq('month', params.month);
+    }
+    if (params?.category_id) {
+      query = query.eq('category_id', params.category_id);
+    }
+
+    const data = await handleRequest(query);
+    return toCamelCase(data);
+  },
+
+  getBudget: async (id: number) => {
+    const data = await handleRequest(
+      supabase.from('budgets').select('*').eq('id', id).single()
+    );
+    return toCamelCase(data);
+  },
+
+  createBudget: async (budgetData: any) => {
+    const snakeData = toSnakeCase(budgetData);
+    const data = await handleRequest(
+      supabase.from('budgets').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateBudget: async (id: number, budgetData: any) => {
+    const snakeData = toSnakeCase(budgetData);
+    const data = await handleRequest(
+      supabase.from('budgets').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteBudget: async (id: number) => {
+    await handleRequest(supabase.from('budgets').delete().eq('id', id));
+  },
 };
