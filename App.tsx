@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Currency, Page, User } from './types';
+import { Currency, Page, User, UserRole } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -15,16 +15,14 @@ import { DEFAULT_USD_KRW_EXCHANGE_RATE } from './constants';
 import { api } from './lib/api';
 import { useAuth } from './lib/auth';
 
-const resolveStoredMemberId = (): number => {
-  if (typeof window === 'undefined') return -1;
+const resolveStoredMemberId = (): string => {
+  if (typeof window === 'undefined') return '';
   const storedId = window.localStorage.getItem('activeMemberId');
-  if (!storedId) return -1;
-  const parsed = parseInt(storedId, 10);
-  return Number.isFinite(parsed) ? parsed : -1;
+  return storedId || '';
 };
 
 const App: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>('Dashboard');
   const [currency, setCurrency] = useState<Currency>('KRW');
@@ -35,8 +33,8 @@ const App: React.FC = () => {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<number>(DEFAULT_USD_KRW_EXCHANGE_RATE);
   const [members, setMembers] = useState<User[]>([]);
-  const storedMemberIdRef = useRef<number>(resolveStoredMemberId());
-  const [activeMemberId, setActiveMemberId] = useState<number>(() => -1);
+  const storedMemberIdRef = useRef<string>(resolveStoredMemberId());
+  const [activeMemberId, setActiveMemberId] = useState<string>(() => '');
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const swRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
@@ -130,44 +128,93 @@ const App: React.FC = () => {
   }, [exchangeRate]);
 
   const loadMembers = useCallback(async () => {
+    if (!user) {
+      setMembers([]);
+      setActiveMemberId('');
+      storedMemberIdRef.current = '';
+      return;
+    }
+
     try {
-      const data = await api.getUsers();
-      setMembers(data);
+      const apiUsers = await api.getUsers();
+      let nextMembers: User[] = Array.isArray(apiUsers) ? apiUsers : [];
+
+      if (nextMembers.length === 0) {
+        if (profile) {
+          nextMembers = [
+            {
+              id: profile.id,
+              name: profile.name,
+              email: profile.email,
+              role: profile.role as UserRole,
+              avatar: profile.avatar,
+            },
+          ];
+        } else if (user) {
+          const fallbackName =
+            (user.user_metadata && (user.user_metadata.name as string | undefined)) ||
+            user.email?.split('@')[0] ||
+            'User';
+
+          nextMembers = [
+            {
+              id: user.id,
+              name: fallbackName,
+              email: user.email ?? '',
+              role: UserRole.Viewer,
+              avatar:
+                (user.user_metadata && (user.user_metadata.avatar_url as string | undefined)) ??
+                null,
+            },
+          ];
+        }
+      }
+
+      setMembers(nextMembers);
       setActiveMemberId(prev => {
-        if (!Array.isArray(data) || data.length === 0) {
-          storedMemberIdRef.current = -1;
-          return -1;
+        if (!Array.isArray(nextMembers) || nextMembers.length === 0) {
+          storedMemberIdRef.current = '';
+          return '';
         }
 
         const candidateIds = [
           storedMemberIdRef.current,
           prev,
-        ].filter((id): id is number => Number.isFinite(id) && id > 0);
+        ].filter((id): id is string => typeof id === 'string' && id.length > 0);
 
         const matchedId = candidateIds.find(id =>
-          data.some(user => user.id === id)
+          nextMembers.some(member => member.id === id)
         );
 
-        const nextId = matchedId ?? data[0].id;
+        const nextId = matchedId ?? nextMembers[0].id;
         storedMemberIdRef.current = nextId;
         return nextId;
       });
     } catch (error) {
       console.error('Failed to load members:', error);
     }
-  }, []);
+  }, [profile, user]);
 
   useEffect(() => {
-    loadMembers();
-  }, [loadMembers]);
+    if (loading) {
+      return;
+    }
+    if (user) {
+      loadMembers();
+    } else {
+      setMembers([]);
+      setActiveMemberId('');
+      storedMemberIdRef.current = '';
+    }
+  }, [loading, user, loadMembers]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (activeMemberId > 0) {
+    if (activeMemberId && activeMemberId.length > 0) {
       storedMemberIdRef.current = activeMemberId;
-      window.localStorage.setItem('activeMemberId', activeMemberId.toString());
+      window.localStorage.setItem('activeMemberId', activeMemberId);
     } else {
-      storedMemberIdRef.current = -1;
+      storedMemberIdRef.current = '';
       window.localStorage.removeItem('activeMemberId');
     }
   }, [activeMemberId]);
@@ -200,7 +247,7 @@ const App: React.FC = () => {
     />
   );
 
-  const activeMemberValid = activeMemberId > 0 && members.some(member => member.id === activeMemberId);
+  const activeMemberValid = activeMemberId.length > 0 && members.some(member => member.id === activeMemberId);
 
   const renderContent = () => {
     switch (currentPage) {

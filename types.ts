@@ -243,11 +243,11 @@ export enum UserRole {
 }
 
 export interface User {
-  id: number;
+  id: string; // UUID from Supabase auth.users
   name: string;
   email: string;
   role: UserRole;
-  avatar: string;
+  avatar: string | null;
 }
 
 export interface Category {
@@ -262,7 +262,7 @@ export interface Expense {
   date: string;
   amount: number;
   memo: string;
-  createdBy: number;
+  createdBy: string; // UUID from users.id
 }
 
 export interface Budget {
@@ -327,7 +327,7 @@ export interface Issue {
   title: string;
   status: IssueStatus;
   priority: IssuePriority;
-  assigneeId: number;
+  assigneeId: string; // UUID from users.id
   labels: IssueLabel[];
   body: string;
 }

@@ -132,7 +132,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
     if (accounts.length > 0) {
       setTransactionFormData((prev) => ({
         ...prev,
-        account_id: prev.account_id || accounts[0].id.toString(),
+        account_id: prev.accountId || accounts[0].id.toString(),
       }));
 
       if (
@@ -150,7 +150,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
     if (holding) {
       setEditingHolding(holding);
       setHoldingFormData({
-        account_id: holding.account_id?.toString() ?? '',
+        account_id: holding.accountId?.toString() ?? '',
         symbol: holding.symbol ?? '',
         name: holding.name ?? '',
         qty: holding.qty?.toString() ?? '',
@@ -266,7 +266,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
     if (transaction) {
       setEditingTransaction(transaction);
       setTransactionFormData({
-        account_id: transaction.account_id?.toString() ?? '',
+        account_id: transaction.accountId?.toString() ?? '',
         symbol: transaction.symbol ?? '',
         name: transaction.name ?? '',
         type: transaction.type ?? 'BUY',
@@ -514,7 +514,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
                           <td className="p-3 font-semibold">
                             {holding.name ?? holding.symbol} ({holding.symbol})
                           </td>
-                          <td className="p-3">{getAccountName(holding.account_id)}</td>
+                          <td className="p-3">{getAccountName(holding.accountId)}</td>
                           <td className="p-3">{holding.qty}</td>
                           <td className="p-3">
                             {formatCurrency(holding.avg_price ?? 0, currency, exchangeRate)}
@@ -573,7 +573,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
                             {holding.name || 'N/A'}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
-                            계좌: {getAccountName(holding.account_id)}
+                            계좌: {getAccountName(holding.accountId)}
                           </p>
                         </div>
                         <div className="flex gap-1 flex-shrink-0">
@@ -793,7 +793,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
                             {transaction.type === 'BUY' ? '매수' : '매도'}
                           </span>
                         </td>
-                        <td className="p-3">{getAccountName(transaction.account_id)}</td>
+                        <td className="p-3">{getAccountName(transaction.accountId)}</td>
                         <td className="p-3 font-semibold">{transaction.symbol}</td>
                         <td className="p-3 max-w-[100px] truncate">{transaction.name || '-'}</td>
                         <td className="p-3">{transaction.quantity}</td>
@@ -902,7 +902,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
                       <div className="col-span-1">
                         <p className="text-xs text-gray-400 mb-1 font-medium">계좌</p>
                         <p className="text-xs sm:text-sm text-gray-200">
-                          {getAccountName(transaction.account_id)}
+                          {getAccountName(transaction.accountId)}
                         </p>
                       </div>
                       <div className="col-span-1 text-right">

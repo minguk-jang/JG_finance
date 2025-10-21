@@ -7,7 +7,7 @@ import { api } from '../lib/api';
 interface IncomeProps {
   currency: Currency;
   exchangeRate: number;
-  activeMemberId: number;
+  activeMemberId: string;
   members: User[];
   activeMemberValid: boolean;
 }
@@ -53,6 +53,9 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
     memo: ''
   });
 
+  // 선택된 항목들의 ID를 관리하는 state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -68,7 +71,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
 
       const incomeCategories = (categoriesData as any[]).filter((category) => category.type === 'income');
       const incomeCategoryIds = new Set(incomeCategories.map((category) => category.id));
-      const filteredIncomes = (expensesData as any[]).filter((expense) => incomeCategoryIds.has(expense.category_id));
+      const filteredIncomes = (expensesData as any[]).filter((expense) => incomeCategoryIds.has(expense.categoryId));
 
       setIncomes(filteredIncomes);
       setCategories(incomeCategories);
@@ -85,7 +88,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
   }, [filters]);
 
   const getCategoryName = (id: number) => categories.find((category) => category.id === id)?.name || 'N/A';
-  const getUserName = (id: number) => members.find((user) => user.id === id)?.name || 'N/A';
+  const getUserName = (id: string) => members.find((user) => user.id === id)?.name || 'N/A';
 
   const calculateStatistics = () => {
     const totalAmount = incomes.reduce((sum, income) => sum + (income.amount ?? 0), 0);
@@ -94,7 +97,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
 
     const byCategoryMap = new Map<number, { name: string; amount: number; count: number }>();
     incomes.forEach((income) => {
-      const categoryId = income.category_id;
+      const categoryId = income.categoryId;
       const categoryName = getCategoryName(categoryId);
       const current = byCategoryMap.get(categoryId) ?? { name: categoryName, amount: 0, count: 0 };
       current.amount += income.amount ?? 0;
@@ -142,8 +145,8 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
           bValue = new Date(b.date).getTime();
           break;
         case 'category':
-          aValue = getCategoryName(a.category_id);
-          bValue = getCategoryName(b.category_id);
+          aValue = getCategoryName(a.categoryId);
+          bValue = getCategoryName(b.categoryId);
           break;
         case 'amount':
           aValue = a.amount;
@@ -183,7 +186,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
     if (income) {
       setEditingIncome(income);
       setFormData({
-        category_id: income.category_id.toString(),
+        category_id: income.categoryId.toString(),
         date: (income.date ?? '').slice(0, 10),
         amount: income.amount.toString(),
         memo: income.memo
@@ -244,18 +247,18 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
         memo: formData.memo
       };
 
-      const creatorId = activeMemberValid && activeMemberId > 0
+      const creatorId = activeMemberValid && activeMemberId.length > 0
         ? activeMemberId
-        : editingIncome?.created_by;
+        : editingIncome?.createdBy;
 
       if (editingIncome) {
-        if (!creatorId || creatorId <= 0) {
+        if (!creatorId || creatorId.length === 0) {
           alert('유효한 작업자를 찾을 수 없습니다. 구성원 목록을 다시 확인해주세요.');
           return;
         }
         data.created_by = creatorId;
       } else {
-        if (!creatorId || creatorId <= 0) {
+        if (!creatorId || creatorId.length === 0) {
           alert('먼저 작업자를 선택해주세요.');
           return;
         }
@@ -286,6 +289,47 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
       await fetchData();
     } catch (error) {
       console.error('Failed to delete income:', error);
+      alert('수익을 삭제하는데 실패했습니다. 다시 시도해주세요.');
+    }
+  };
+
+  // 체크박스 관련 핸들러
+  const handleToggleSelect = (id: number) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    const allIds = new Set(sortedIncomes.map((inc: any) => inc.id));
+    setSelectedIds(allIds);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) {
+      alert('삭제할 항목을 선택해주세요.');
+      return;
+    }
+
+    if (!confirm(`${selectedIds.size}개 항목을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      await api.deleteExpenses(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      await fetchData();
+      alert(`${selectedIds.size}개 항목이 삭제되었습니다.`);
+    } catch (error) {
+      console.error('Failed to delete incomes:', error);
       alert('수익을 삭제하는데 실패했습니다. 다시 시도해주세요.');
     }
   };
@@ -390,7 +434,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
             {stats.largestIncome ? formatCurrency(stats.largestIncome.amount, currency, exchangeRate) : formatCurrency(0, currency, exchangeRate)}
           </div>
           <div className="text-xs sm:text-sm text-gray-400 mt-1">
-            {stats.largestIncome ? `${getCategoryName(stats.largestIncome.category_id)}` : '데이터 없음'}
+            {stats.largestIncome ? `${getCategoryName(stats.largestIncome.categoryId)}` : '데이터 없음'}
           </div>
         </Card>
         <Card title="최다 수익 카테고리" className="!p-2 sm:!p-3 md:!p-4">
@@ -480,6 +524,20 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
           <table className="w-full text-left">
             <thead className="bg-gray-700">
               <tr>
+                <th className="p-3 w-12 text-xs sm:text-sm md:text-base">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size > 0 && selectedIds.size === sortedIncomes.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        handleSelectAll();
+                      } else {
+                        handleDeselectAll();
+                      }
+                    }}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                </th>
                 <th
                   className="p-3 cursor-pointer hover:bg-gray-600 transition select-none text-xs sm:text-sm md:text-base"
                   onClick={() => handleSort('date')}
@@ -515,24 +573,32 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
             <tbody>
               {sortedIncomes.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-400">
+                  <td colSpan={7} className="p-8 text-center text-gray-400">
                     수익 내역이 없습니다. "수익 추가"를 클릭하여 생성하세요.
                   </td>
                 </tr>
               ) : (
                 sortedIncomes.map((income) => (
                   <tr key={income.id} className="border-b border-gray-700 hover:bg-gray-600/20">
+                    <td className="p-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(income.id)}
+                        onChange={() => handleToggleSelect(income.id)}
+                        className="w-4 h-4 cursor-pointer"
+                      />
+                    </td>
                     <td className="p-3 text-sm">{income.date}</td>
                     <td className="p-3">
                       <span className="px-2 py-1 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400">
-                        {getCategoryName(income.category_id)}
+                        {getCategoryName(income.categoryId)}
                       </span>
                     </td>
                     <td className="p-3 font-semibold text-emerald-400 text-sm">
                       {formatCurrency(income.amount, currency, exchangeRate)}
                     </td>
                     <td className="p-3 text-sm">{income.memo}</td>
-                    <td className="p-3 text-sm">{getUserName(income.created_by)}</td>
+                    <td className="p-3 text-sm">{getUserName(income.createdBy)}</td>
                     <td className="p-3">
                       <button
                         onClick={() => handleOpenModal(income)}
@@ -566,9 +632,17 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                 key={income.id}
                 className="bg-gray-700/50 rounded-lg p-3 border border-gray-600"
               >
-                {/* Header: Date and Actions */}
+                {/* Header: Checkbox, Date and Actions */}
                 <div className="flex justify-between items-start mb-2">
-                  <div className="text-xs sm:text-sm text-gray-400">{income.date}</div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(income.id)}
+                      onChange={() => handleToggleSelect(income.id)}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                    <div className="text-xs sm:text-sm text-gray-400">{income.date}</div>
+                  </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleOpenModal(income)}
@@ -594,7 +668,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                 {/* Category Badge */}
                 <div className="mb-2">
                   <span className="px-2 py-1 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400 inline-block">
-                    {getCategoryName(income.category_id)}
+                    {getCategoryName(income.categoryId)}
                   </span>
                 </div>
 
@@ -612,12 +686,43 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                   </div>
                 )}
                 <div className="text-xs sm:text-sm text-gray-500">
-                  작성자: {getUserName(income.created_by)}
+                  작성자: {getUserName(income.createdBy)}
                 </div>
               </div>
             ))
           )}
         </div>
+
+        {/* 일괄 삭제 버튼 영역 */}
+        {sortedIncomes.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-600 flex flex-wrap gap-2 justify-between items-center">
+            <div className="flex gap-2">
+              <button
+                onClick={handleSelectAll}
+                className="px-3 py-1.5 text-xs sm:text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition"
+              >
+                전체 선택
+              </button>
+              <button
+                onClick={handleDeselectAll}
+                className="px-3 py-1.5 text-xs sm:text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition"
+              >
+                선택 해제
+              </button>
+            </div>
+            <button
+              onClick={handleDeleteSelected}
+              disabled={selectedIds.size === 0}
+              className={`px-4 py-1.5 text-xs sm:text-sm rounded transition ${
+                selectedIds.size === 0
+                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  : 'bg-red-600 hover:bg-red-700 text-white'
+              }`}
+            >
+              선택 삭제 ({selectedIds.size}개)
+            </button>
+          </div>
+        )}
       </Card>
 
       {showModal && (

@@ -8,8 +8,8 @@ interface HeaderProps {
   theme: 'dark' | 'light';
   setTheme: (theme: 'dark' | 'light') => void;
   members: User[];
-  activeMemberId: number;
-  onActiveMemberChange: (memberId: number) => void;
+  activeMemberId: string;
+  onActiveMemberChange: (memberId: string) => void;
   onQuickAdd?: () => void;
   onMenuToggle?: () => void;
 }
@@ -34,8 +34,8 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   const handleMemberChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const nextMemberId = parseInt(event.target.value, 10);
-    if (Number.isNaN(nextMemberId)) {
+    const nextMemberId = event.target.value;
+    if (!nextMemberId) {
       return;
     }
     onActiveMemberChange(nextMemberId);
@@ -144,7 +144,7 @@ const Header: React.FC<HeaderProps> = ({
           <span className={`${labelColor} hidden sm:inline text-xs md:text-sm`}>작업자</span>
           <div className="relative">
             <select
-              value={members.length > 0 && activeMemberId > 0 ? activeMemberId : ''}
+              value={members.length > 0 && activeMemberId.length > 0 ? activeMemberId : ''}
               onChange={handleMemberChange}
               disabled={members.length === 0}
               className={`appearance-none rounded-lg px-2 sm:px-3 md:px-3 py-1.5 sm:py-1.5 md:py-2 border text-xs sm:text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition flex-shrink-0 min-h-8 sm:min-h-9 ${selectBgClass} ${

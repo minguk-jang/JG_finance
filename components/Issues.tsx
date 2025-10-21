@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Currency, Issue, IssueStatus, IssuePriority } from '../types';
 import { USERS } from '../constants';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import Card from './ui/Card';
 
 interface IssuesProps {
@@ -123,6 +124,7 @@ const AVAILABLE_LABELS = [
 ];
 
 const Issues: React.FC<IssuesProps> = ({ currency }) => {
+  const { user } = useAuth();
   const columns: IssueStatus[] = [IssueStatus.Open, IssueStatus.InProgress, IssueStatus.Closed];
   const [issues, setIssues] = useState<Issue[]>([]);
   const [labels, setLabels] = useState<any[]>([]);
@@ -167,7 +169,7 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
     setFormData({
       title: '',
       body: '',
-      assigneeId: '',
+      assigneeId: user?.id || '', // 현재 로그인한 사용자로 자동 설정
       status: IssueStatus.Open,
       priority: IssuePriority.Medium,
       labels: [],
@@ -227,6 +229,12 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate assigneeId
+    if (!formData.assigneeId || formData.assigneeId.trim() === '') {
+      alert('담당자를 선택해주세요.');
+      return;
+    }
+
     try {
       // Get label IDs from label names
       const labelIds = formData.labels
@@ -238,7 +246,7 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
         body: formData.body,
         status: formData.status,
         priority: formData.priority,
-        assignee_id: parseInt(formData.assigneeId),
+        assignee_id: formData.assigneeId,
         label_ids: labelIds,
       };
 
@@ -262,6 +270,18 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-xl text-gray-400">로딩 중...</div>
+      </div>
+    );
+  }
+
+  // Check if user is authenticated
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="text-xl text-gray-400 mb-2">로그인이 필요합니다</div>
+          <div className="text-sm text-gray-500">이슈를 보거나 생성하려면 먼저 로그인해주세요.</div>
+        </div>
       </div>
     );
   }

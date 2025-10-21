@@ -45,7 +45,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate }) => {
 
         const normalizedBudgets = (Array.isArray(budgetsData) ? budgetsData : []).map((budget: any) => ({
           id: budget.id,
-          categoryId: budget.categoryId ?? budget.category_id,
+          categoryId: budget.categoryId,
           month: budget.month,
           limitAmount: budget.limitAmount ?? budget.limit_amount,
         }));
@@ -129,14 +129,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate }) => {
     (expense: any) =>
       expense.date &&
       expense.date.startsWith(activeMonth) &&
-      categoriesById.get(expense.category_id)?.type === 'expense'
+      categoriesById.get(expense.categoryId)?.type === 'expense'
   );
 
   const monthlyIncomes = expenses.filter(
     (expense: any) =>
       expense.date &&
       expense.date.startsWith(activeMonth) &&
-      categoriesById.get(expense.category_id)?.type === 'income'
+      categoriesById.get(expense.categoryId)?.type === 'income'
   );
 
   const totalExpense = monthlyExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
@@ -328,7 +328,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate }) => {
               {categories
                 .filter((cat: any) => cat.type === 'expense')
                 .map((cat: any) => {
-                  const catExpenses = monthlyExpenses.filter((exp: any) => exp.category_id === cat.id);
+                  const catExpenses = monthlyExpenses.filter((exp: any) => exp.categoryId === cat.id);
                   const catTotal = catExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
                   if (catTotal === 0) return null;
                   const percentage = totalExpense > 0 ? (catTotal / totalExpense) * 100 : 0;
@@ -362,7 +362,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate }) => {
               {categories
                 .filter((cat: any) => cat.type === 'income')
                 .map((cat: any) => {
-                  const catIncomes = monthlyIncomes.filter((inc: any) => inc.category_id === cat.id);
+                  const catIncomes = monthlyIncomes.filter((inc: any) => inc.categoryId === cat.id);
                   const catTotal = catIncomes.reduce((sum: number, inc: any) => sum + (inc.amount || 0), 0);
                   if (catTotal === 0) return null;
                   const percentage = totalIncome > 0 ? (catTotal / totalIncome) * 100 : 0;
@@ -397,7 +397,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate }) => {
               const category = categoriesById.get(categoryId);
               const limit = budget.limitAmount || 0;
               const spent = monthlyExpenses
-                .filter((expense: any) => expense.category_id === categoryId)
+                .filter((expense: any) => expense.categoryId === categoryId)
                 .reduce((sum: number, expense: any) => sum + (expense.amount || 0), 0);
               const percentage = limit > 0 ? Math.min((spent / limit) * 100, 100) : 0;
 

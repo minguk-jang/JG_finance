@@ -7,7 +7,7 @@ import { api } from '../lib/api';
 interface ExpensesProps {
   currency: Currency;
   exchangeRate: number;
-  activeMemberId: number;
+  activeMemberId: string;
   members: User[];
   activeMemberValid: boolean;
 }
@@ -56,6 +56,9 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
     memo: ''
   });
 
+  // 선택된 항목들의 ID를 관리하는 state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -70,7 +73,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
       ]);
       const expenseCategories = (categoriesData as any[]).filter((category) => category.type === 'expense');
       const expenseCategoryIds = new Set(expenseCategories.map((category) => category.id));
-      const filteredExpenses = (expensesData as any[]).filter((expense) => expenseCategoryIds.has(expense.category_id));
+      const filteredExpenses = (expensesData as any[]).filter((expense) => expenseCategoryIds.has(expense.categoryId));
       setExpenses(filteredExpenses);
       setCategories(expenseCategories);
     } catch (error) {
@@ -86,7 +89,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
   }, [filters]);
 
   const getCategoryName = (id: number) => categories.find(c => c.id === id)?.name || 'N/A';
-  const getUserName = (id: number) => members.find(user => user.id === id)?.name || 'N/A';
+  const getUserName = (id: string) => members.find(user => user.id === id)?.name || 'N/A';
 
   // Statistics calculation
   const calculateStatistics = () => {
@@ -96,7 +99,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
 
     const byCategoryMap = new Map<number, { name: string; amount: number; count: number }>();
     expenses.forEach(exp => {
-      const categoryId = exp.category_id;
+      const categoryId = exp.categoryId;
       const categoryName = getCategoryName(categoryId);
       const current = byCategoryMap.get(categoryId) ?? { name: categoryName, amount: 0, count: 0 };
       current.amount += exp.amount ?? 0;
@@ -145,8 +148,8 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
           bValue = new Date(b.date).getTime();
           break;
         case 'category':
-          aValue = getCategoryName(a.category_id);
-          bValue = getCategoryName(b.category_id);
+          aValue = getCategoryName(a.categoryId);
+          bValue = getCategoryName(b.categoryId);
           break;
         case 'amount':
           aValue = a.amount;
@@ -186,7 +189,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
     if (expense) {
       setEditingExpense(expense);
       setFormData({
-        category_id: expense.category_id.toString(),
+        category_id: expense.categoryId.toString(),
         date: (expense.date ?? '').slice(0, 10),
         amount: expense.amount.toString(),
         memo: expense.memo
@@ -248,18 +251,18 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
         memo: formData.memo
       };
 
-      const creatorId = activeMemberValid && activeMemberId > 0
+      const creatorId = activeMemberValid && activeMemberId.length > 0
         ? activeMemberId
-        : editingExpense?.created_by;
+        : editingExpense?.createdBy;
 
       if (editingExpense) {
-        if (!creatorId || creatorId <= 0) {
+        if (!creatorId || creatorId.length === 0) {
           alert('유효한 작업자를 찾을 수 없습니다. 구성원 목록을 다시 확인해주세요.');
           return;
         }
         data.created_by = creatorId;
       } else {
-        if (!creatorId || creatorId <= 0) {
+        if (!creatorId || creatorId.length === 0) {
           alert('먼저 작업자를 선택해주세요.');
           return;
         }
@@ -290,6 +293,47 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
       await fetchData();
     } catch (error) {
       console.error('Failed to delete expense:', error);
+      alert('지출을 삭제하는데 실패했습니다. 다시 시도해주세요.');
+    }
+  };
+
+  // 체크박스 관련 핸들러
+  const handleToggleSelect = (id: number) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    const allIds = new Set(sortedExpenses.map((exp: any) => exp.id));
+    setSelectedIds(allIds);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) {
+      alert('삭제할 항목을 선택해주세요.');
+      return;
+    }
+
+    if (!confirm(`${selectedIds.size}개 항목을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      await api.deleteExpenses(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      await fetchData();
+      alert(`${selectedIds.size}개 항목이 삭제되었습니다.`);
+    } catch (error) {
+      console.error('Failed to delete expenses:', error);
       alert('지출을 삭제하는데 실패했습니다. 다시 시도해주세요.');
     }
   };
@@ -394,7 +438,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
             {stats.largestExpense ? formatCurrency(stats.largestExpense.amount, currency, exchangeRate) : formatCurrency(0, currency, exchangeRate)}
           </div>
           <div className="text-xs sm:text-sm text-gray-400 mt-1">
-            {stats.largestExpense ? `${getCategoryName(stats.largestExpense.category_id)}` : '데이터 없음'}
+            {stats.largestExpense ? `${getCategoryName(stats.largestExpense.categoryId)}` : '데이터 없음'}
           </div>
         </Card>
         <Card title="최다 지출 카테고리" className="!p-2 sm:!p-3 md:!p-4">
@@ -486,6 +530,20 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
           <table className="w-full text-left">
             <thead className="bg-gray-700">
               <tr>
+                <th className="p-3 w-12 text-xs sm:text-sm md:text-base">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size > 0 && selectedIds.size === sortedExpenses.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        handleSelectAll();
+                      } else {
+                        handleDeselectAll();
+                      }
+                    }}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                </th>
                 <th
                   className="p-3 cursor-pointer hover:bg-gray-600 transition select-none text-xs sm:text-sm md:text-base"
                   onClick={() => handleSort('date')}
@@ -521,24 +579,32 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
             <tbody>
               {sortedExpenses.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-400">
+                  <td colSpan={7} className="p-8 text-center text-gray-400">
                     지출 내역이 없습니다. "지출 추가"를 클릭하여 생성하세요.
                   </td>
                 </tr>
               ) : (
                 sortedExpenses.map((expense) => (
                   <tr key={expense.id} className="border-b border-gray-700 hover:bg-gray-600/20">
+                    <td className="p-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(expense.id)}
+                        onChange={() => handleToggleSelect(expense.id)}
+                        className="w-4 h-4 cursor-pointer"
+                      />
+                    </td>
                     <td className="p-3 text-sm">{expense.date}</td>
                     <td className="p-3">
                       <span className="px-2 py-1 text-xs font-semibold rounded bg-red-500/20 text-red-400">
-                        {getCategoryName(expense.category_id)}
+                        {getCategoryName(expense.categoryId)}
                       </span>
                     </td>
                     <td className="p-3 font-semibold text-red-400 text-sm">
                       {formatCurrency(expense.amount, currency, exchangeRate)}
                     </td>
                     <td className="p-3 text-sm">{expense.memo}</td>
-                    <td className="p-3 text-sm">{getUserName(expense.created_by)}</td>
+                    <td className="p-3 text-sm">{getUserName(expense.createdBy)}</td>
                     <td className="p-3">
                       <button
                         onClick={() => handleOpenModal(expense)}
@@ -572,9 +638,17 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
                 key={expense.id}
                 className="bg-gray-700/50 rounded-lg p-3 border border-gray-600"
               >
-                {/* Header: Date and Actions */}
+                {/* Header: Checkbox, Date and Actions */}
                 <div className="flex justify-between items-start mb-2">
-                  <div className="text-xs sm:text-sm text-gray-400">{expense.date}</div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(expense.id)}
+                      onChange={() => handleToggleSelect(expense.id)}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                    <div className="text-xs sm:text-sm text-gray-400">{expense.date}</div>
+                  </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleOpenModal(expense)}
@@ -600,7 +674,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
                 {/* Category Badge */}
                 <div className="mb-2">
                   <span className="px-2 py-1 text-xs font-semibold rounded bg-red-500/20 text-red-400 inline-block">
-                    {getCategoryName(expense.category_id)}
+                    {getCategoryName(expense.categoryId)}
                   </span>
                 </div>
 
@@ -618,12 +692,43 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
                   </div>
                 )}
                 <div className="text-xs sm:text-sm text-gray-500">
-                  작성자: {getUserName(expense.created_by)}
+                  작성자: {getUserName(expense.createdBy)}
                 </div>
               </div>
             ))
           )}
         </div>
+
+        {/* 일괄 삭제 버튼 영역 */}
+        {sortedExpenses.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-600 flex flex-wrap gap-2 justify-between items-center">
+            <div className="flex gap-2">
+              <button
+                onClick={handleSelectAll}
+                className="px-3 py-1.5 text-xs sm:text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition"
+              >
+                전체 선택
+              </button>
+              <button
+                onClick={handleDeselectAll}
+                className="px-3 py-1.5 text-xs sm:text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition"
+              >
+                선택 해제
+              </button>
+            </div>
+            <button
+              onClick={handleDeleteSelected}
+              disabled={selectedIds.size === 0}
+              className={`px-4 py-1.5 text-xs sm:text-sm rounded transition ${
+                selectedIds.size === 0
+                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  : 'bg-red-600 hover:bg-red-700 text-white'
+              }`}
+            >
+              선택 삭제 ({selectedIds.size}개)
+            </button>
+          </div>
+        )}
       </Card>
 
       {/* Modal */}

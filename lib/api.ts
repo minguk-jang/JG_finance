@@ -2,16 +2,61 @@ import { supabase, handleSupabaseError } from './supabase';
 import { toCamelCase, toSnakeCase } from './database';
 
 // Error handling wrapper
-async function handleRequest<T>(request: Promise<{ data: T | null; error: any }>): Promise<T> {
+async function handleRequest<T>(
+  request: Promise<{ data: T | null; error: any }>
+): Promise<T | null> {
   const { data, error } = await request;
   if (error) {
     throw new Error(handleSupabaseError(error));
   }
-  if (!data) {
-    throw new Error('No data returned');
-  }
   return data;
 }
+
+const ISSUE_WITH_LABELS_SELECT = `
+  *,
+  issue_labels:issue_labels (
+    label_id,
+    label:labels (
+      id,
+      name,
+      color
+    )
+  )
+`;
+
+const normalizeIssue = (rawIssue: any) => {
+  if (!rawIssue) {
+    return rawIssue;
+  }
+
+  const camelIssue = toCamelCase(rawIssue);
+  const relationships = Array.isArray(camelIssue.issueLabels) ? camelIssue.issueLabels : [];
+
+  const labels = relationships
+    .map((relation: any) => relation.label)
+    .filter(Boolean)
+    .map((label: any) => toCamelCase(label));
+
+  const normalized = { ...camelIssue, labels };
+  delete (normalized as any).issueLabels;
+  return normalized;
+};
+
+const fetchIssueWithLabels = async (issueId: number) => {
+  const issue = await handleRequest(
+    supabase
+      .from('issues')
+      .select(ISSUE_WITH_LABELS_SELECT)
+      .eq('id', issueId)
+      .single()
+  );
+
+  if (!issue) {
+    throw new Error('Issue not found');
+  }
+
+  return normalizeIssue(issue);
+};
 
 export const api = {
   // ============================================
@@ -84,11 +129,17 @@ export const api = {
 
   createExpense: async (expenseData: any) => {
     const snakeData = toSnakeCase(expenseData);
-    // Ensure created_by is set from current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      snakeData.created_by = user.id;
+
+    // Set created_by if not already provided
+    if (!snakeData.created_by) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        snakeData.created_by = user.id;
+      } else {
+        throw new Error('로그인이 필요합니다. 먼저 로그인해주세요.');
+      }
     }
+
     const data = await handleRequest(
       supabase.from('expenses').insert(snakeData).select().single()
     );
@@ -105,6 +156,11 @@ export const api = {
 
   deleteExpense: async (id: number) => {
     await handleRequest(supabase.from('expenses').delete().eq('id', id));
+  },
+
+  deleteExpenses: async (ids: number[]) => {
+    if (ids.length === 0) return;
+    await handleRequest(supabase.from('expenses').delete().in('id', ids));
   },
 
   // ============================================
@@ -247,7 +303,10 @@ export const api = {
   // Issues
   // ============================================
   getIssues: async (params?: { status?: string; assignee_id?: string }) => {
-    let query = supabase.from('issues').select('*').order('id', { ascending: false });
+    let query = supabase
+      .from('issues')
+      .select(ISSUE_WITH_LABELS_SELECT)
+      .order('id', { ascending: false });
 
     if (params?.status) {
       query = query.eq('status', params.status);
@@ -257,30 +316,62 @@ export const api = {
     }
 
     const data = await handleRequest(query);
-    return toCamelCase(data);
+    const issues = Array.isArray(data) ? data : [];
+    return issues.map(normalizeIssue);
   },
 
   getIssue: async (id: number) => {
-    const data = await handleRequest(
-      supabase.from('issues').select('*, labels(*)').eq('id', id).single()
-    );
-    return toCamelCase(data);
+    return fetchIssueWithLabels(id);
   },
 
   createIssue: async (issueData: any) => {
-    const snakeData = toSnakeCase(issueData);
-    const data = await handleRequest(
+    const { label_ids = [], ...issueFields } = issueData;
+    const snakeData = toSnakeCase(issueFields);
+    const createdIssue = await handleRequest(
       supabase.from('issues').insert(snakeData).select().single()
     );
-    return toCamelCase(data);
+
+    if (!createdIssue) {
+      throw new Error('Failed to create issue');
+    }
+
+    if (Array.isArray(label_ids) && label_ids.length > 0) {
+      const relations = label_ids.map((labelId: number) => ({
+        issue_id: createdIssue.id,
+        label_id: labelId,
+      }));
+      await handleRequest(
+        supabase.from('issue_labels').insert(relations).select()
+      );
+    }
+
+    return fetchIssueWithLabels(createdIssue.id);
   },
 
   updateIssue: async (id: number, issueData: any) => {
-    const snakeData = toSnakeCase(issueData);
-    const data = await handleRequest(
+    const { label_ids, ...issueFields } = issueData;
+    const snakeData = toSnakeCase(issueFields);
+    await handleRequest(
       supabase.from('issues').update(snakeData).eq('id', id).select().single()
     );
-    return toCamelCase(data);
+
+    if (Array.isArray(label_ids)) {
+      await handleRequest(
+        supabase.from('issue_labels').delete().eq('issue_id', id).select()
+      );
+
+      if (label_ids.length > 0) {
+        const relations = label_ids.map((labelId: number) => ({
+          issue_id: id,
+          label_id: labelId,
+        }));
+        await handleRequest(
+          supabase.from('issue_labels').insert(relations).select()
+        );
+      }
+    }
+
+    return fetchIssueWithLabels(id);
   },
 
   deleteIssue: async (id: number) => {

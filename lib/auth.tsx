@@ -22,31 +22,79 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch user profile from users table
-  const fetchProfile = async (userId: string) => {
+  const selectProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error) {
+      if (error && error.code !== 'PGRST116') {
         console.error('Error fetching profile:', error);
         return null;
       }
 
-      return data as UserProfile;
+      return (data ?? null) as UserProfile | null;
     } catch (error) {
       console.error('Error fetching profile:', error);
       return null;
     }
   };
 
+  const ensureProfile = async (authUser: User) => {
+    const existing = await selectProfile(authUser.id);
+    if (existing) {
+      return existing;
+    }
+
+    const fallbackName =
+      (authUser.user_metadata && (authUser.user_metadata.name as string | undefined)) ||
+      authUser.email?.split('@')[0] ||
+      'User';
+
+    const payload = {
+      id: authUser.id,
+      email: authUser.email ?? '',
+      name: fallbackName,
+      role: 'Viewer',
+      avatar:
+        (authUser.user_metadata && (authUser.user_metadata.avatar_url as string | undefined)) ??
+        null,
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .upsert(payload, { onConflict: 'id' })
+        .select('*')
+        .single();
+
+      if (error) {
+        console.error('Error creating profile:', error);
+        return null;
+      }
+
+      return data as UserProfile;
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      return null;
+    }
+  };
+
+  const loadProfile = async (authUser: User | null) => {
+    if (!authUser) {
+      return null;
+    }
+
+    const profile = await ensureProfile(authUser);
+    return profile;
+  };
+
   // Refresh profile
   const refreshProfile = async () => {
     if (user) {
-      const userProfile = await fetchProfile(user.id);
+      const userProfile = await loadProfile(user);
       setProfile(userProfile);
     }
   };
@@ -59,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        fetchProfile(session.user.id).then(setProfile);
+        loadProfile(session.user).then(setProfile);
       }
 
       setLoading(false);
@@ -73,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        const userProfile = await fetchProfile(session.user.id);
+        const userProfile = await loadProfile(session.user);
         setProfile(userProfile);
       } else {
         setProfile(null);
