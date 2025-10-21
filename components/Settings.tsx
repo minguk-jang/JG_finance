@@ -7,10 +7,9 @@ import { useAuth } from '../lib/auth';
 interface SettingsProps {
   exchangeRate: number;
   onExchangeRateChange: (value: number) => void;
-  onUsersRefresh?: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange, onUsersRefresh }) => {
+const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange }) => {
   const { signOut, user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -169,7 +168,6 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange,
 
       setIsUserModalOpen(false);
       await fetchData();
-      onUsersRefresh?.();
     } catch (error: any) {
       console.error('Failed to save user:', error);
       alert(error.message || '구성원 저장에 실패했습니다.');
@@ -185,7 +183,6 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange,
       await api.deleteUser(userId);
       alert('구성원이 삭제되었습니다.');
       await fetchData();
-      onUsersRefresh?.();
     } catch (error: any) {
       console.error('Failed to delete user:', error);
       alert(error.message || '구성원 삭제에 실패했습니다.');

@@ -103,6 +103,7 @@ export const api = {
     from_date?: string;
     to_date?: string;
     category_id?: number;
+    created_by?: string;
   }) => {
     let query = supabase.from('expenses').select('*').order('date', { ascending: false });
 
@@ -114,6 +115,9 @@ export const api = {
     }
     if (params?.category_id) {
       query = query.eq('category_id', params.category_id);
+    }
+    if (params?.created_by) {
+      query = query.eq('created_by', params.created_by);
     }
 
     const data = await handleRequest(query);

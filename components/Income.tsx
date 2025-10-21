@@ -1,15 +1,13 @@
 import React, { useEffect, useImperativeHandle, useState, forwardRef } from 'react';
-import { Currency, User } from '../types';
+import { Currency } from '../types';
 import Card from './ui/Card';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 interface IncomeProps {
   currency: Currency;
   exchangeRate: number;
-  activeMemberId: string;
-  members: User[];
-  activeMemberValid: boolean;
 }
 
 export interface IncomeHandle {
@@ -28,9 +26,11 @@ const formatCurrency = (value: number, currency: Currency, exchangeRate: number)
 type SortKey = 'date' | 'category' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, activeMemberId, members, activeMemberValid }, ref) => {
+const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }, ref) => {
+  const { user, profile } = useAuth();
   const [incomes, setIncomes] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingIncome, setEditingIncome] = useState<any>(null);
@@ -38,7 +38,8 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
   const [filters, setFilters] = useState({
     fromDate: '',
     toDate: '',
-    categoryId: ''
+    categoryId: '',
+    createdBy: ''
   });
 
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
@@ -63,10 +64,12 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
       if (filters.fromDate) params.from_date = filters.fromDate;
       if (filters.toDate) params.to_date = filters.toDate;
       if (filters.categoryId) params.category_id = parseInt(filters.categoryId, 10);
+      if (filters.createdBy) params.created_by = filters.createdBy;
 
-      const [expensesData, categoriesData] = await Promise.all([
+      const [expensesData, categoriesData, usersData] = await Promise.all([
         api.getExpenses(params),
-        api.getCategories()
+        api.getCategories(),
+        api.getUsers()
       ]);
 
       const incomeCategories = (categoriesData as any[]).filter((category) => category.type === 'income');
@@ -75,6 +78,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
 
       setIncomes(filteredIncomes);
       setCategories(incomeCategories);
+      setUsers(usersData as any[]);
     } catch (error) {
       console.error('Failed to fetch income data:', error);
       alert('수익 내역을 불러오는데 실패했습니다. 백엔드가 실행 중인지 확인하세요.');
@@ -88,7 +92,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
   }, [filters]);
 
   const getCategoryName = (id: number) => categories.find((category) => category.id === id)?.name || 'N/A';
-  const getUserName = (id: string) => members.find((user) => user.id === id)?.name || 'N/A';
+  const getUserName = (id: string) => users.find(u => u.id === id)?.name || '알 수 없음';
 
   const calculateStatistics = () => {
     const totalAmount = incomes.reduce((sum, income) => sum + (income.amount ?? 0), 0);
@@ -240,30 +244,18 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
 
       const isoDate = normalizedDate.toISOString().split('T')[0];
 
+      if (!user) {
+        alert('로그인이 필요합니다.');
+        return;
+      }
+
       const data: Record<string, any> = {
         category_id: categoryId,
         date: isoDate,
         amount: amountValue,
-        memo: formData.memo
+        memo: formData.memo,
+        created_by: user.id
       };
-
-      const creatorId = activeMemberValid && activeMemberId.length > 0
-        ? activeMemberId
-        : editingIncome?.createdBy;
-
-      if (editingIncome) {
-        if (!creatorId || creatorId.length === 0) {
-          alert('유효한 작업자를 찾을 수 없습니다. 구성원 목록을 다시 확인해주세요.');
-          return;
-        }
-        data.created_by = creatorId;
-      } else {
-        if (!creatorId || creatorId.length === 0) {
-          alert('먼저 작업자를 선택해주세요.');
-          return;
-        }
-        data.created_by = creatorId;
-      }
 
       if (editingIncome) {
         await api.updateExpense(editingIncome.id, data);
@@ -335,7 +327,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
   };
 
   const handleFilterReset = () => {
-    setFilters({ fromDate: '', toDate: '', categoryId: '' });
+    setFilters({ fromDate: '', toDate: '', categoryId: '', createdBy: '' });
   };
 
   if (loading) {
@@ -364,7 +356,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
       </div>
 
       <Card title="필터">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
           <div>
             <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">시작 날짜</label>
             <input
@@ -396,6 +388,26 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                   <option key={category.id} value={category.id} className="bg-gray-800">
                     {category.name}
                   </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
+                <svg className="h-4 sm:h-5 w-4 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">작성자</label>
+            <div className="relative">
+              <select
+                value={filters.createdBy}
+                onChange={(e) => setFilters({ ...filters, createdBy: e.target.value })}
+                className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+              >
+                <option value="" className="bg-gray-800">전체</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id} className="bg-gray-800">{u.name}</option>
                 ))}
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
@@ -598,7 +610,11 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                       {formatCurrency(income.amount, currency, exchangeRate)}
                     </td>
                     <td className="p-3 text-sm">{income.memo}</td>
-                    <td className="p-3 text-sm">{getUserName(income.createdBy)}</td>
+                    <td className="p-3">
+                      <span className="px-2 py-1 text-xs font-medium rounded bg-gray-600 text-gray-200">
+                        {getUserName(income.createdBy)}
+                      </span>
+                    </td>
                     <td className="p-3">
                       <button
                         onClick={() => handleOpenModal(income)}
@@ -679,14 +695,21 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate, 
                   </div>
                 </div>
 
-                {/* Memo and Author - Small Text */}
+                {/* Memo - Small Text */}
                 {income.memo && (
                   <div className="mb-1 text-xs sm:text-sm text-gray-400">
                     메모: {income.memo}
                   </div>
                 )}
-                <div className="text-xs sm:text-sm text-gray-500">
-                  작성자: {getUserName(income.createdBy)}
+
+                {/* Created By */}
+                <div className="mt-2 flex items-center gap-1">
+                  <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span className="text-xs text-gray-400">
+                    {getUserName(income.createdBy)}
+                  </span>
                 </div>
               </div>
             ))

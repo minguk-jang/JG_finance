@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Currency, Page, User, UserRole } from './types';
+import React, { useState, useRef, useEffect } from 'react';
+import { Currency, Page } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -12,14 +12,7 @@ import QuickAddVoiceModal from './components/QuickAddVoiceModal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import AuthModal from './components/AuthModal';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from './constants';
-import { api } from './lib/api';
 import { useAuth } from './lib/auth';
-
-const resolveStoredMemberId = (): string => {
-  if (typeof window === 'undefined') return '';
-  const storedId = window.localStorage.getItem('activeMemberId');
-  return storedId || '';
-};
 
 const App: React.FC = () => {
   const { user, profile, loading } = useAuth();
@@ -32,9 +25,6 @@ const App: React.FC = () => {
   const incomeRef = useRef<IncomeHandle>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<number>(DEFAULT_USD_KRW_EXCHANGE_RATE);
-  const [members, setMembers] = useState<User[]>([]);
-  const storedMemberIdRef = useRef<string>(resolveStoredMemberId());
-  const [activeMemberId, setActiveMemberId] = useState<string>(() => '');
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const swRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
@@ -127,97 +117,6 @@ const App: React.FC = () => {
     window.localStorage.setItem('usdKrwExchangeRate', exchangeRate.toString());
   }, [exchangeRate]);
 
-  const loadMembers = useCallback(async () => {
-    if (!user) {
-      setMembers([]);
-      setActiveMemberId('');
-      storedMemberIdRef.current = '';
-      return;
-    }
-
-    try {
-      const apiUsers = await api.getUsers();
-      let nextMembers: User[] = Array.isArray(apiUsers) ? apiUsers : [];
-
-      if (nextMembers.length === 0) {
-        if (profile) {
-          nextMembers = [
-            {
-              id: profile.id,
-              name: profile.name,
-              email: profile.email,
-              role: profile.role as UserRole,
-              avatar: profile.avatar,
-            },
-          ];
-        } else if (user) {
-          const fallbackName =
-            (user.user_metadata && (user.user_metadata.name as string | undefined)) ||
-            user.email?.split('@')[0] ||
-            'User';
-
-          nextMembers = [
-            {
-              id: user.id,
-              name: fallbackName,
-              email: user.email ?? '',
-              role: UserRole.Viewer,
-              avatar:
-                (user.user_metadata && (user.user_metadata.avatar_url as string | undefined)) ??
-                null,
-            },
-          ];
-        }
-      }
-
-      setMembers(nextMembers);
-      setActiveMemberId(prev => {
-        if (!Array.isArray(nextMembers) || nextMembers.length === 0) {
-          storedMemberIdRef.current = '';
-          return '';
-        }
-
-        const candidateIds = [
-          storedMemberIdRef.current,
-          prev,
-        ].filter((id): id is string => typeof id === 'string' && id.length > 0);
-
-        const matchedId = candidateIds.find(id =>
-          nextMembers.some(member => member.id === id)
-        );
-
-        const nextId = matchedId ?? nextMembers[0].id;
-        storedMemberIdRef.current = nextId;
-        return nextId;
-      });
-    } catch (error) {
-      console.error('Failed to load members:', error);
-    }
-  }, [profile, user]);
-
-  useEffect(() => {
-    if (loading) {
-      return;
-    }
-    if (user) {
-      loadMembers();
-    } else {
-      setMembers([]);
-      setActiveMemberId('');
-      storedMemberIdRef.current = '';
-    }
-  }, [loading, user, loadMembers]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (activeMemberId && activeMemberId.length > 0) {
-      storedMemberIdRef.current = activeMemberId;
-      window.localStorage.setItem('activeMemberId', activeMemberId);
-    } else {
-      storedMemberIdRef.current = '';
-      window.localStorage.removeItem('activeMemberId');
-    }
-  }, [activeMemberId]);
 
   const handlePageChange = (page: Page) => {
     setCurrentPage(page);
@@ -243,11 +142,8 @@ const App: React.FC = () => {
     <Settings
       exchangeRate={exchangeRate}
       onExchangeRateChange={setExchangeRate}
-      onUsersRefresh={loadMembers}
     />
   );
-
-  const activeMemberValid = activeMemberId.length > 0 && members.some(member => member.id === activeMemberId);
 
   const renderContent = () => {
     switch (currentPage) {
@@ -259,9 +155,6 @@ const App: React.FC = () => {
             ref={expensesRef}
             currency={currency}
             exchangeRate={exchangeRate}
-            activeMemberId={activeMemberId}
-            members={members}
-            activeMemberValid={activeMemberValid}
           />
         );
       case 'Income':
@@ -270,9 +163,6 @@ const App: React.FC = () => {
             ref={incomeRef}
             currency={currency}
             exchangeRate={exchangeRate}
-            activeMemberId={activeMemberId}
-            members={members}
-            activeMemberValid={activeMemberValid}
           />
         );
       case 'Investments':
@@ -324,9 +214,6 @@ const App: React.FC = () => {
           setCurrency={setCurrency}
           theme={theme}
           setTheme={setTheme}
-          members={members}
-          activeMemberId={activeMemberId}
-          onActiveMemberChange={setActiveMemberId}
           onQuickAdd={handleQuickAdd}
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
         />

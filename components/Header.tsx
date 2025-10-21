@@ -1,15 +1,12 @@
 
 import React from 'react';
-import { Currency, User } from '../types';
+import { Currency } from '../types';
 
 interface HeaderProps {
   currency: Currency;
   setCurrency: (currency: Currency) => void;
   theme: 'dark' | 'light';
   setTheme: (theme: 'dark' | 'light') => void;
-  members: User[];
-  activeMemberId: string;
-  onActiveMemberChange: (memberId: string) => void;
   onQuickAdd?: () => void;
   onMenuToggle?: () => void;
 }
@@ -19,9 +16,6 @@ const Header: React.FC<HeaderProps> = ({
   setCurrency,
   theme,
   setTheme,
-  members,
-  activeMemberId,
-  onActiveMemberChange,
   onQuickAdd,
   onMenuToggle,
 }) => {
@@ -31,14 +25,6 @@ const Header: React.FC<HeaderProps> = ({
 
   const toggleTheme = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
-
-  const handleMemberChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const nextMemberId = event.target.value;
-    if (!nextMemberId) {
-      return;
-    }
-    onActiveMemberChange(nextMemberId);
   };
 
   const labelColor = theme === 'dark' ? 'text-gray-400' : 'text-gray-500';
@@ -136,42 +122,6 @@ const Header: React.FC<HeaderProps> = ({
             >
               USD
             </span>
-          </div>
-        </div>
-
-        {/* Member Selection */}
-        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-          <span className={`${labelColor} hidden sm:inline text-xs md:text-sm`}>작업자</span>
-          <div className="relative">
-            <select
-              value={members.length > 0 && activeMemberId.length > 0 ? activeMemberId : ''}
-              onChange={handleMemberChange}
-              disabled={members.length === 0}
-              className={`appearance-none rounded-lg px-2 sm:px-3 md:px-3 py-1.5 sm:py-1.5 md:py-2 border text-xs sm:text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition flex-shrink-0 min-h-8 sm:min-h-9 ${selectBgClass} ${
-                members.length === 0 ? 'opacity-60 cursor-not-allowed' : ''
-              }`}
-            >
-              {members.length === 0 ? (
-                <option value="" className={theme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-500'}>
-                  구성원
-                </option>
-              ) : (
-                members.map((member) => (
-                  <option
-                    key={member.id}
-                    value={member.id}
-                    className={theme === 'dark' ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-700'}
-                  >
-                    {member.name}
-                  </option>
-                ))
-              )}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 sm:px-2 md:px-2 text-gray-400">
-              <svg className="h-4 w-4 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
           </div>
         </div>
 
