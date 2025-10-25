@@ -4,6 +4,8 @@ import Card from './ui/Card';
 import { api } from '../lib/api';
 import { getLocalDateString } from '../lib/dateUtils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { generateFixedCostRecommendations } from '../lib/fixedCostGemini';
+import { useAuth } from '../lib/auth';
 
 interface FixedCostsProps {
   currency: Currency;
@@ -20,11 +22,13 @@ const formatCurrency = (value: number, currency: Currency, exchangeRate: number)
 };
 
 const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
+  const { user } = useAuth();
   const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
   const [payments, setPayments] = useState<FixedCostPayment[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRecommending, setIsRecommending] = useState(false);
 
   // Monthly summary statistics
   const [currentMonthSummary, setCurrentMonthSummary] = useState<any>(null);
@@ -232,6 +236,145 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     const date = new Date(year, month - 1 + offset, 1);
     const newYearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     setSelectedMonth(newYearMonth);
+  };
+
+  // LLM 추천 핸들러 (AddVoiceModal 패턴 사용)
+  const handleLLMRecommend = async () => {
+    if (!user?.id) {
+      setError('로그인이 필요합니다.');
+      return;
+    }
+
+    if (!selectedMonth) {
+      setError('월을 선택해주세요.');
+      return;
+    }
+
+    try {
+      setIsRecommending(true);
+      setError(null);
+
+      console.log(`LLM 추천 시작: ${selectedMonth}, 사용자: ${user.id}`);
+
+      // 1. 변동 고정비만 필터링 (isFixedAmount: false)
+      const variablePayments = payments.filter(
+        payment => payment.fixedCost?.isFixedAmount === false
+      );
+
+      if (variablePayments.length === 0) {
+        setError('추천할 변동 고정비가 없습니다.');
+        return;
+      }
+
+      // 2. 해당 월의 지출 데이터 가져오기 (api.ts 사용)
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const fromDate = new Date(year, month - 1, 1);
+      const toDate = new Date(year, month, 0);
+
+      const expensesData = await api.getExpenses({
+        from_date: fromDate.toISOString().slice(0, 10),
+        to_date: toDate.toISOString().slice(0, 10),
+      });
+
+      // 3. 카테고리별 지출 집계
+      const categoryMap = new Map<number, {
+        categoryId: number;
+        categoryName: string;
+        totalAmount: number;
+        count: number;
+        avgAmount: number;
+      }>();
+
+      for (const expense of expensesData) {
+        const category = categories.find(c => c.id === expense.categoryId);
+        if (!category) continue;
+
+        if (!categoryMap.has(expense.categoryId)) {
+          categoryMap.set(expense.categoryId, {
+            categoryId: expense.categoryId,
+            categoryName: category.name,
+            totalAmount: 0,
+            count: 0,
+            avgAmount: 0,
+          });
+        }
+
+        const summary = categoryMap.get(expense.categoryId)!;
+        summary.totalAmount += expense.amount ?? 0;
+        summary.count += 1;
+      }
+
+      // 평균 계산
+      const categoryExpenses = Array.from(categoryMap.values()).map(summary => ({
+        ...summary,
+        avgAmount: summary.count > 0 ? Math.round(summary.totalAmount / summary.count) : 0,
+      }));
+
+      // 4. 변동 고정비 정보 준비
+      const variableFixedCosts = variablePayments.map(payment => ({
+        id: payment.fixedCost!.id,
+        name: payment.fixedCost!.name,
+        categoryId: payment.fixedCost!.categoryId,
+        categoryName: payment.fixedCost!.category?.name || '미분류',
+        paymentDay: payment.fixedCost!.paymentDay,
+      }));
+
+      // 5. Gemini 호출 (QuickAddVoiceModal 패턴)
+      const recommendations = await generateFixedCostRecommendations(
+        selectedMonth,
+        variableFixedCosts,
+        categoryExpenses,
+        currency
+      );
+
+      if (recommendations.length === 0) {
+        setError('추천 결과가 없습니다.');
+        return;
+      }
+
+      // 6. 각 payment의 scheduledAmount 업데이트 (api.ts 사용)
+      let updatedCount = 0;
+      const updateResults: { name: string; amount: number }[] = [];
+
+      for (const recommendation of recommendations) {
+        const payment = variablePayments.find(
+          p => p.fixedCost?.id === recommendation.fixedCostId
+        );
+
+        if (!payment) continue;
+
+        try {
+          await api.updateFixedCostPayment(payment.id, {
+            scheduledAmount: recommendation.recommendedAmount,
+          });
+          updatedCount++;
+          updateResults.push({
+            name: payment.fixedCost!.name,
+            amount: recommendation.recommendedAmount,
+          });
+        } catch (err) {
+          console.error(`Failed to update payment ${payment.id}:`, err);
+        }
+      }
+
+      // 7. 성공 메시지 및 데이터 새로고침
+      if (updatedCount > 0) {
+        const summary = updateResults
+          .map(r => `• ${r.name}: ${r.amount.toLocaleString()}원`)
+          .join('\n');
+
+        alert(`✓ ${updatedCount}개 항목 추천 완료:\n\n${summary}`);
+        await fetchData();
+      } else {
+        setError('예정 금액을 업데이트하지 못했습니다.');
+      }
+
+    } catch (err: any) {
+      console.error('LLM 추천 실패:', err);
+      setError(err.message || 'LLM 추천 중 오류가 발생했습니다.');
+    } finally {
+      setIsRecommending(false);
+    }
   };
 
   // Calculate statistics with month-over-month comparison
@@ -666,6 +809,22 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
           </svg>
           월간 트렌드
+        </button>
+
+        <button
+          onClick={handleLLMRecommend}
+          disabled={isRecommending}
+          className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center gap-2 ${
+            isRecommending
+              ? 'bg-gray-600 cursor-not-allowed'
+              : 'bg-yellow-600 hover:bg-yellow-700'
+          }`}
+          title="Gemini AI를 사용하여 변동 고정비의 예정 금액을 추천합니다."
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
+          {isRecommending ? 'LLM 분석 중...' : 'LLM 추천'}
         </button>
       </div>
 
