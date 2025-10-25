@@ -81,6 +81,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, theme, i
           <NavItem pageName="Investments" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<InvestmentsIcon className={iconClasses} />} theme={theme}>
             투자
           </NavItem>
+          <NavItem pageName="FixedCosts" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<FixedCostsIcon className={iconClasses} />} theme={theme}>
+            고정비
+          </NavItem>
           <NavItem pageName="Issues" currentPage={currentPage} setCurrentPage={setCurrentPage} icon={<IssuesIcon className={iconClasses} />} theme={theme}>
             이슈
           </NavItem>
@@ -124,6 +127,12 @@ const ExpensesIcon = (props: React.SVGProps<SVGSVGElement>) => (
 const InvestmentsIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+);
+
+const FixedCostsIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
 );
 

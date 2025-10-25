@@ -564,4 +564,175 @@ export const api = {
   deleteBudget: async (id: number) => {
     await handleRequest(supabase.from('budgets').delete().eq('id', id));
   },
+
+  // ============================================
+  // Fixed Costs
+  // ============================================
+  getFixedCosts: async (params?: { is_active?: boolean }) => {
+    let query = supabase
+      .from('fixed_costs')
+      .select('*, category:categories(*)')
+      .order('payment_day', { ascending: true });
+
+    if (params?.is_active !== undefined) {
+      query = query.eq('is_active', params.is_active);
+    }
+
+    const data = await handleRequest(query);
+    return toCamelCase(data);
+  },
+
+  getFixedCost: async (id: number) => {
+    const data = await handleRequest(
+      supabase
+        .from('fixed_costs')
+        .select('*, category:categories(*)')
+        .eq('id', id)
+        .single()
+    );
+    return toCamelCase(data);
+  },
+
+  createFixedCost: async (fixedCostData: any) => {
+    const { user } = await supabase.auth.getUser();
+    if (!user.data.user?.id) {
+      throw new Error('User not authenticated');
+    }
+
+    const snakeData = toSnakeCase({
+      ...fixedCostData,
+      createdBy: user.data.user.id,
+    });
+
+    const data = await handleRequest(
+      supabase.from('fixed_costs').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateFixedCost: async (id: number, fixedCostData: any) => {
+    const snakeData = toSnakeCase(fixedCostData);
+    const data = await handleRequest(
+      supabase.from('fixed_costs').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteFixedCost: async (id: number) => {
+    await handleRequest(supabase.from('fixed_costs').delete().eq('id', id));
+  },
+
+  // ============================================
+  // Fixed Cost Payments
+  // ============================================
+  getFixedCostPayments: async (params?: { year_month?: string; fixed_cost_id?: number; status?: string }) => {
+    let query = supabase
+      .from('fixed_cost_payments')
+      .select('*, fixed_cost:fixed_costs(*, category:categories(*))')
+      .order('year_month', { ascending: false });
+
+    if (params?.year_month) {
+      query = query.eq('year_month', params.year_month);
+    }
+    if (params?.fixed_cost_id) {
+      query = query.eq('fixed_cost_id', params.fixed_cost_id);
+    }
+    if (params?.status) {
+      query = query.eq('status', params.status);
+    }
+
+    const data = await handleRequest(query);
+    return toCamelCase(data);
+  },
+
+  getFixedCostPayment: async (id: number) => {
+    const data = await handleRequest(
+      supabase
+        .from('fixed_cost_payments')
+        .select('*, fixed_cost:fixed_costs(*, category:categories(*))')
+        .eq('id', id)
+        .single()
+    );
+    return toCamelCase(data);
+  },
+
+  createFixedCostPayment: async (paymentData: any) => {
+    const { user } = await supabase.auth.getUser();
+    if (!user.data.user?.id) {
+      throw new Error('User not authenticated');
+    }
+
+    const snakeData = toSnakeCase({
+      ...paymentData,
+      createdBy: user.data.user.id,
+    });
+
+    const data = await handleRequest(
+      supabase.from('fixed_cost_payments').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateFixedCostPayment: async (id: number, paymentData: any) => {
+    const snakeData = toSnakeCase(paymentData);
+    const data = await handleRequest(
+      supabase
+        .from('fixed_cost_payments')
+        .update(snakeData)
+        .eq('id', id)
+        .select()
+        .single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteFixedCostPayment: async (id: number) => {
+    await handleRequest(supabase.from('fixed_cost_payments').delete().eq('id', id));
+  },
+
+  /**
+   * Generate fixed cost payments for a specific month
+   * This will create payment records for all active fixed costs in the given month
+   */
+  generateMonthlyFixedCostPayments: async (yearMonth: string) => {
+    const { user } = await supabase.auth.getUser();
+    if (!user.data.user?.id) {
+      throw new Error('User not authenticated');
+    }
+
+    // Get all active fixed costs
+    const fixedCosts = await api.getFixedCosts({ is_active: true });
+    if (!fixedCosts) return [];
+
+    const payments = [];
+    for (const fixedCost of fixedCosts) {
+      // Check if payment already exists for this month
+      const existing = await handleRequest(
+        supabase
+          .from('fixed_cost_payments')
+          .select('*')
+          .eq('fixed_cost_id', fixedCost.id)
+          .eq('year_month', yearMonth)
+          .maybeSingle()
+      );
+
+      if (existing) {
+        continue; // Skip if already exists
+      }
+
+      // Create new payment
+      const payment = await api.createFixedCostPayment({
+        fixedCostId: fixedCost.id,
+        yearMonth,
+        scheduledAmount: fixedCost.amount,
+        status: 'scheduled',
+      });
+
+      if (payment) {
+        payments.push(payment);
+      }
+    }
+
+    return payments;
+  },
 };

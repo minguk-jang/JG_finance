@@ -1,5 +1,5 @@
 export type Currency = 'KRW' | 'USD';
-export type Page = 'Dashboard' | 'Expenses' | 'Income' | 'Investments' | 'Issues' | 'Settings';
+export type Page = 'Dashboard' | 'Expenses' | 'Income' | 'Investments' | 'Issues' | 'Settings' | 'FixedCosts';
 
 // ============================================
 // Supabase Database Types
@@ -226,6 +226,77 @@ export interface Database {
         };
         Update: never;
       };
+      fixed_costs: {
+        Row: {
+          id: number;
+          name: string;
+          category_id: number;
+          amount: number;
+          payment_day: number; // 1-31
+          start_date: string; // YYYY-MM-DD
+          end_date: string | null; // YYYY-MM-DD
+          is_active: boolean;
+          memo: string | null;
+          created_by: string; // UUID
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          name: string;
+          category_id: number;
+          amount: number;
+          payment_day: number;
+          start_date: string;
+          end_date?: string | null;
+          is_active?: boolean;
+          memo?: string | null;
+          created_by: string;
+        };
+        Update: {
+          name?: string;
+          category_id?: number;
+          amount?: number;
+          payment_day?: number;
+          start_date?: string;
+          end_date?: string | null;
+          is_active?: boolean;
+          memo?: string | null;
+        };
+      };
+      fixed_cost_payments: {
+        Row: {
+          id: number;
+          fixed_cost_id: number;
+          year_month: string; // YYYY-MM
+          scheduled_amount: number;
+          actual_amount: number | null;
+          payment_date: string | null; // YYYY-MM-DD
+          status: 'scheduled' | 'paid' | 'skipped';
+          memo: string | null;
+          created_by: string; // UUID
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          fixed_cost_id: number;
+          year_month: string;
+          scheduled_amount: number;
+          actual_amount?: number | null;
+          payment_date?: string | null;
+          status?: 'scheduled' | 'paid' | 'skipped';
+          memo?: string | null;
+          created_by: string;
+        };
+        Update: {
+          fixed_cost_id?: number;
+          year_month?: string;
+          scheduled_amount?: number;
+          actual_amount?: number | null;
+          payment_date?: string | null;
+          status?: 'scheduled' | 'paid' | 'skipped';
+          memo?: string | null;
+        };
+      };
     };
   };
 }
@@ -330,4 +401,33 @@ export interface Issue {
   assigneeId: string; // UUID from users.id
   labels: IssueLabel[];
   body: string;
+}
+
+export type FixedCostPaymentStatus = 'scheduled' | 'paid' | 'skipped';
+
+export interface FixedCost {
+  id: number;
+  name: string;
+  categoryId: number;
+  amount: number;
+  paymentDay: number; // 1-31
+  startDate: string; // YYYY-MM-DD
+  endDate: string | null; // YYYY-MM-DD
+  isActive: boolean;
+  memo?: string;
+  createdBy: string; // UUID from users.id
+  category?: Category; // Optional joined data
+}
+
+export interface FixedCostPayment {
+  id: number;
+  fixedCostId: number;
+  yearMonth: string; // YYYY-MM
+  scheduledAmount: number;
+  actualAmount: number | null;
+  paymentDate: string | null; // YYYY-MM-DD
+  status: FixedCostPaymentStatus;
+  memo?: string;
+  createdBy: string; // UUID from users.id
+  fixedCost?: FixedCost; // Optional joined data
 }
