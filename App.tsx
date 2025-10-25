@@ -8,6 +8,7 @@ import Income, { IncomeHandle } from './components/Income';
 import Investments from './components/Investments';
 import Issues from './components/Issues';
 import Settings from './components/Settings';
+import FixedCosts from './components/FixedCosts';
 import QuickAddVoiceModal from './components/QuickAddVoiceModal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import AuthModal from './components/AuthModal';
@@ -169,6 +170,8 @@ const App: React.FC = () => {
         return <Investments currency={currency} exchangeRate={exchangeRate} />;
       case 'Issues':
         return <Issues currency={currency} />;
+      case 'FixedCosts':
+        return <FixedCosts currency={currency} exchangeRate={exchangeRate} />;
       case 'Settings':
         return renderSettings();
       default:
