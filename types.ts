@@ -254,6 +254,7 @@ export interface Database {
           start_date: string; // YYYY-MM-DD
           end_date: string | null; // YYYY-MM-DD
           is_active: boolean;
+          is_fixed_amount: boolean;
           memo: string | null;
           created_by: string; // UUID
           created_at: string;
@@ -267,6 +268,7 @@ export interface Database {
           start_date: string;
           end_date?: string | null;
           is_active?: boolean;
+          is_fixed_amount?: boolean;
           memo?: string | null;
           created_by: string;
         };
@@ -278,6 +280,7 @@ export interface Database {
           start_date?: string;
           end_date?: string | null;
           is_active?: boolean;
+          is_fixed_amount?: boolean;
           memo?: string | null;
         };
       };
@@ -286,7 +289,7 @@ export interface Database {
           id: number;
           fixed_cost_id: number;
           year_month: string; // YYYY-MM
-          scheduled_amount: number;
+          scheduled_amount: number | null;
           actual_amount: number | null;
           payment_date: string | null; // YYYY-MM-DD
           status: 'scheduled' | 'paid' | 'skipped';
@@ -299,7 +302,7 @@ export interface Database {
         Insert: {
           fixed_cost_id: number;
           year_month: string;
-          scheduled_amount: number;
+          scheduled_amount?: number | null;
           actual_amount?: number | null;
           payment_date?: string | null;
           status?: 'scheduled' | 'paid' | 'skipped';
@@ -310,7 +313,7 @@ export interface Database {
         Update: {
           fixed_cost_id?: number;
           year_month?: string;
-          scheduled_amount?: number;
+          scheduled_amount?: number | null;
           actual_amount?: number | null;
           payment_date?: string | null;
           status?: 'scheduled' | 'paid' | 'skipped';
@@ -445,6 +448,7 @@ export interface FixedCost {
   startDate: string; // YYYY-MM-DD
   endDate: string | null; // YYYY-MM-DD
   isActive: boolean;
+  isFixedAmount: boolean;
   memo?: string;
   createdBy: string; // UUID from users.id
   category?: Category; // Optional joined data
@@ -454,7 +458,7 @@ export interface FixedCostPayment {
   id: number;
   fixedCostId: number;
   yearMonth: string; // YYYY-MM
-  scheduledAmount: number;
+  scheduledAmount: number | null;
   actualAmount: number | null;
   paymentDate: string | null; // YYYY-MM-DD
   status: FixedCostPaymentStatus;

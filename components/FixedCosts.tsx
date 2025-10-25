@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Currency, FixedCost, FixedCostPayment, Category } from '../types';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Currency, FixedCost, FixedCostPayment, Category, Expense } from '../types';
 import Card from './ui/Card';
 import { api } from '../lib/api';
 import { getLocalDateString } from '../lib/dateUtils';
@@ -43,6 +43,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [editingCost, setEditingCost] = useState<FixedCost | null>(null);
   const [processingPayment, setProcessingPayment] = useState<{ payment: FixedCostPayment; cost: FixedCost } | null>(null);
+  const [showExpenseSelectModal, setShowExpenseSelectModal] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -52,8 +53,8 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     paymentDay: 1,
     startDate: '',
     endDate: '',
-    isActive: true,
     memo: '',
+    isFixedAmount: true,
   });
 
   // Payment form state
@@ -62,6 +63,18 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     paymentDate: '',
     memo: '',
   });
+
+  // Expense selection state
+  const [availableExpenses, setAvailableExpenses] = useState<Expense[]>([]);
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [expenseFilters, setExpenseFilters] = useState({
+    categoryId: '',
+    createdBy: '',
+  });
+  const [expenseLoading, setExpenseLoading] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [scheduledAmountEdits, setScheduledAmountEdits] = useState<Record<number, string>>({});
+  const [savingScheduledAmountId, setSavingScheduledAmountId] = useState<number | null>(null);
 
   // Initialize selected month to current month
   useEffect(() => {
@@ -76,28 +89,70 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     fetchData();
   }, [selectedMonth]);
 
-  // Auto-generate payments for the selected month
-  useEffect(() => {
-    if (!selectedMonth) return;
-    const autoGenerate = async () => {
-      try {
-        await api.generateMonthlyFixedCostPayments(selectedMonth);
-        // Re-fetch data after generation
-        await fetchData();
-      } catch (err) {
-        // Silent fail - payments might already exist
-        console.log('Auto-generate payments:', err);
-      }
-    };
-    autoGenerate();
-  }, [selectedMonth]);
-
   // Fetch trend data when trend modal opens
   useEffect(() => {
     if (showTrendModal && selectedMonth) {
       fetchTrendData();
     }
   }, [showTrendModal, selectedMonth]);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const usersData = await api.getUsers();
+        setUsers(Array.isArray(usersData) ? usersData : []);
+      } catch (err) {
+        console.error('Failed to load users', err);
+      }
+    };
+    loadUsers();
+  }, []);
+
+  useEffect(() => {
+    const next: Record<number, string> = {};
+    payments.forEach(payment => {
+      next[payment.id] =
+        payment.scheduledAmount !== null && payment.scheduledAmount !== undefined
+          ? payment.scheduledAmount.toString()
+          : '';
+    });
+    setScheduledAmountEdits(next);
+  }, [payments]);
+
+  const fetchExpensesForSelection = useCallback(async () => {
+    if (!selectedMonth) return;
+    try {
+      setExpenseLoading(true);
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const fromDate = new Date(year, month - 1, 1);
+      const toDate = new Date(year, month, 0);
+
+      const params: any = {
+        from_date: fromDate.toISOString().slice(0, 10),
+        to_date: toDate.toISOString().slice(0, 10),
+      };
+
+      if (expenseFilters.categoryId) {
+        params.category_id = Number(expenseFilters.categoryId);
+      }
+      if (expenseFilters.createdBy) {
+        params.created_by = expenseFilters.createdBy;
+      }
+
+      const expensesData = await api.getExpenses(params);
+      setAvailableExpenses(Array.isArray(expensesData) ? expensesData : []);
+    } catch (err: any) {
+      console.error('Failed to fetch expenses for selection:', err);
+      setError(err.message || '지출 목록을 불러오지 못했습니다.');
+    } finally {
+      setExpenseLoading(false);
+    }
+  }, [expenseFilters, selectedMonth]);
+
+  useEffect(() => {
+    if (!showExpenseSelectModal) return;
+    fetchExpensesForSelection();
+  }, [showExpenseSelectModal, fetchExpensesForSelection]);
 
   const fetchData = async () => {
     try {
@@ -110,7 +165,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       const prevYearMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
 
       const [fixedCostsData, paymentsData, categoriesData, currentSummary, prevSummary] = await Promise.all([
-        api.getFixedCosts({ is_active: true, year_month: selectedMonth }),
+        api.getFixedCosts({ year_month: selectedMonth }),
         api.getFixedCostPayments({ year_month: selectedMonth }),
         api.getCategories(),
         api.getFixedCostMonthlySummary(selectedMonth),
@@ -218,10 +273,16 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     };
   }, [currentMonthSummary, prevMonthSummary]);
 
-  // Get payment for a fixed cost
-  const getPaymentForCost = (fixedCostId: number): FixedCostPayment | undefined => {
-    return payments.find(p => p.fixedCostId === fixedCostId);
-  };
+  const sortedPayments = useMemo(() => {
+    return [...payments].sort((a, b) => {
+      const dayA = a.fixedCost?.paymentDay ?? 31;
+      const dayB = b.fixedCost?.paymentDay ?? 31;
+      if (dayA === dayB) {
+        return a.fixedCostId - b.fixedCostId;
+      }
+      return dayA - dayB;
+    });
+  }, [payments]);
 
   // Calculate days until payment based on selectedMonth
   const getDaysUntilPayment = (paymentDay: number): number => {
@@ -237,13 +298,33 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     return diffDays;
   };
 
+  const getCategoryName = (categoryId: number) => {
+    return categories.find(c => c.id === categoryId)?.name || '-';
+  };
+
+  const getUserName = (userId: string) => {
+    return users.find(u => u.id === userId)?.name || '알 수 없음';
+  };
+
+  const getCostForPayment = (payment: FixedCostPayment): FixedCost | undefined => {
+    return payment.fixedCost || fixedCosts.find(cost => cost.id === payment.fixedCostId);
+  };
+
   // Open payment modal
-  const openPaymentModal = (payment: FixedCostPayment, fixedCost: FixedCost) => {
+  const openPaymentModal = (payment: FixedCostPayment) => {
+    const fixedCost = getCostForPayment(payment);
+    if (!fixedCost) {
+      setError('고정비 정보를 찾을 수 없습니다.');
+      return;
+    }
     setProcessingPayment({ payment, cost: fixedCost });
     setPaymentFormData({
-      actualAmount: payment.scheduledAmount.toString(),
-      paymentDate: getLocalDateString(),
-      memo: fixedCost.memo || '',
+      actualAmount:
+        payment.scheduledAmount !== null && payment.scheduledAmount !== undefined
+          ? payment.scheduledAmount.toString()
+          : '',
+      paymentDate: payment.paymentDate || getLocalDateString(),
+      memo: payment.memo || fixedCost.memo || '',
     });
     setShowPaymentModal(true);
   };
@@ -254,33 +335,27 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
 
     if (!processingPayment) return;
 
-    const { payment, cost } = processingPayment;
-
-    // Check if already linked to an expense
-    if (payment.expenseId) {
-      setError('이 고정비는 이미 지출 내역과 연동되어 있습니다.');
-      return;
-    }
+    const { payment } = processingPayment;
 
     try {
-      const actualAmount = Number(paymentFormData.actualAmount);
+      const actualRaw = paymentFormData.actualAmount.trim();
+      if (!actualRaw) {
+        setError('실제 금액을 입력해주세요.');
+        return;
+      }
+
+      const actualAmount = Number(actualRaw);
+      if (Number.isNaN(actualAmount)) {
+        setError('실제 금액은 숫자여야 합니다.');
+        return;
+      }
       const paymentDate = paymentFormData.paymentDate;
 
-      // Create expense record first
-      const expense = await api.createExpense({
-        categoryId: cost.categoryId,
-        date: paymentDate,
-        amount: actualAmount,
-        memo: `[고정비] ${cost.name}${paymentFormData.memo ? ` - ${paymentFormData.memo}` : ''}`,
-      });
-
-      // Update payment with expense link
       await api.updateFixedCostPayment(payment.id, {
         status: 'paid',
         actualAmount,
         paymentDate,
         memo: paymentFormData.memo || null,
-        expenseId: expense.id,
       });
 
       setShowPaymentModal(false);
@@ -291,31 +366,82 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     }
   };
 
+  const handleRevertPayment = async (payment: FixedCostPayment) => {
+    if (!confirm('지불 상태를 되돌릴까요?')) return;
+
+    try {
+      await api.updateFixedCostPayment(payment.id, {
+        status: 'scheduled',
+        actualAmount: null,
+        paymentDate: null,
+        memo: null,
+        expenseId: null,
+      });
+
+      await fetchData();
+    } catch (err: any) {
+      setError(err.message || '지불 상태를 되돌리지 못했습니다.');
+    }
+  };
+
+  const handleScheduledAmountChange = (paymentId: number, value: string) => {
+    setScheduledAmountEdits(prev => ({
+      ...prev,
+      [paymentId]: value,
+    }));
+  };
+
+  const handleScheduledAmountSave = async (payment: FixedCostPayment) => {
+    const rawValue = (scheduledAmountEdits[payment.id] ?? '').trim();
+    const parsedValue = rawValue === '' ? null : Number(rawValue);
+
+    if (parsedValue !== null && (Number.isNaN(parsedValue) || parsedValue < 0)) {
+      setError('예정 금액은 0 이상의 숫자여야 합니다.');
+      return;
+    }
+
+    try {
+      setSavingScheduledAmountId(payment.id);
+      await api.updateFixedCostPayment(payment.id, {
+        scheduledAmount: parsedValue,
+      });
+      await fetchData();
+    } catch (err: any) {
+      setError(err.message || '예정 금액을 저장하지 못했습니다.');
+    } finally {
+      setSavingScheduledAmountId(null);
+    }
+  };
+
   // Handle form submission for add/edit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      const data = {
+      const data: any = {
         name: formData.name,
         categoryId: Number(formData.categoryId),
         amount: Number(formData.amount),
         paymentDay: Number(formData.paymentDay),
         startDate: formData.startDate,
         endDate: formData.endDate || null,
-        isActive: formData.isActive,
         memo: formData.memo || null,
+        isFixedAmount: formData.isFixedAmount,
       };
 
       if (editingCost) {
+        data.isActive = editingCost.isActive ?? true;
         await api.updateFixedCost(editingCost.id, data);
       } else {
+        data.isActive = true;
         await api.createFixedCost(data);
       }
 
       setShowAddModal(false);
       setShowEditModal(false);
       setEditingCost(null);
+      setShowExpenseSelectModal(false);
+      setSelectedExpense(null);
       resetForm();
       await fetchData();
       await generatePayments(); // Auto-generate payment for new cost
@@ -332,15 +458,16 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       paymentDay: 1,
       startDate: '',
       endDate: '',
-      isActive: true,
       memo: '',
+      isFixedAmount: true,
     });
   };
 
   const openAddModal = () => {
     resetForm();
     setEditingCost(null);
-    setShowAddModal(true);
+    setSelectedExpense(null);
+    setShowExpenseSelectModal(true);
   };
 
   const openEditModal = (cost: FixedCost) => {
@@ -351,11 +478,40 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       paymentDay: cost.paymentDay,
       startDate: cost.startDate,
       endDate: cost.endDate || '',
-      isActive: cost.isActive,
       memo: cost.memo || '',
+      isFixedAmount: cost.isFixedAmount ?? true,
     });
     setEditingCost(cost);
+    setSelectedExpense(null);
+    setShowExpenseSelectModal(false);
     setShowEditModal(true);
+  };
+
+  const handleExpensePick = (expense: Expense) => {
+    const expenseDate = expense.date ? new Date(expense.date) : new Date();
+    const categoryName = getCategoryName(expense.categoryId);
+    const normalizedMemo = expense.memo ? expense.memo.replace(/^\[고정비\]\s*/i, '').trim() : '';
+    const derivedName = normalizedMemo || (categoryName !== '-' ? `${categoryName} 고정비` : '새 고정비');
+
+    setFormData({
+      name: derivedName,
+      categoryId: expense.categoryId,
+      amount: expense.amount !== undefined && expense.amount !== null ? expense.amount.toString() : '',
+      paymentDay: expenseDate.getDate(),
+      startDate: expense.date?.slice(0, 10) || getLocalDateString(),
+      endDate: '',
+      memo: expense.memo || '',
+      isFixedAmount: true,
+    });
+    setSelectedExpense(expense);
+    setShowExpenseSelectModal(false);
+    setShowAddModal(true);
+  };
+
+  const openManualEntryForm = () => {
+    setSelectedExpense(null);
+    setShowExpenseSelectModal(false);
+    setShowAddModal(true);
   };
 
   const handleDelete = async (costId: number) => {
@@ -494,6 +650,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
         <button
           onClick={generatePayments}
           className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2"
+          title="지난 달과 동일한 고정비 항목을 선택한 달에 생성합니다."
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -514,199 +671,398 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
 
       {/* Desktop Table */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-700">
-              <th className="text-left py-3 px-4">상태</th>
-              <th className="text-left py-3 px-4">항목명</th>
-              <th className="text-left py-3 px-4">카테고리</th>
-              <th className="text-left py-3 px-4">결제일</th>
-              <th className="text-right py-3 px-4">예정금액</th>
-              <th className="text-right py-3 px-4">실제금액</th>
-              <th className="text-center py-3 px-4">작업</th>
-            </tr>
-          </thead>
-          <tbody>
-            {fixedCosts.map((cost) => {
-              const payment = getPaymentForCost(cost.id);
-              const daysUntil = getDaysUntilPayment(cost.paymentDay);
-              const isPaid = payment?.status === 'paid';
+        {sortedPayments.length === 0 ? (
+          <div className="text-center py-16 text-gray-500 border border-dashed border-gray-700 rounded-lg">
+            <p className="text-sm">이 달의 고정비 항목이 없습니다.</p>
+            <p className="text-xs text-gray-400 mt-2">"이번 달 항목 생성" 버튼으로 지난 달 항목을 복사해보세요.</p>
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-700">
+                <th className="text-left py-3 px-4">상태</th>
+                <th className="text-left py-3 px-4">항목명</th>
+                <th className="text-left py-3 px-4">결제일</th>
+                <th className="text-right py-3 px-4">예정금액</th>
+                <th className="text-right py-3 px-4">실제금액</th>
+                <th className="text-center py-3 px-4">작업</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedPayments.map((payment) => {
+                const cost = getCostForPayment(payment);
+                if (!cost) return null;
+                const daysUntil = getDaysUntilPayment(cost.paymentDay);
+                const isPaid = payment.status === 'paid';
+                const isFixedAmount = cost.isFixedAmount ?? true;
+                const canProcessPayment = !isPaid;
+                const scheduledDisplay = payment.scheduledAmount ?? (isFixedAmount ? cost.amount : null);
+                const scheduledInputValue = scheduledAmountEdits[payment.id] ?? '';
 
-              return (
-                <tr key={cost.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                  <td className="py-3 px-4">
-                    <span className="text-2xl">
-                      {isPaid ? '✅' : '⏳'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-medium">{cost.name}</td>
-                  <td className="py-3 px-4 text-gray-400">
-                    {cost.category?.name || '-'}
-                  </td>
-                  <td className="py-3 px-4">
-                    <div>
+                return (
+                  <tr key={payment.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                    <td className="py-3 px-4">
+                      <span className="text-2xl">{isPaid ? '✅' : '⏳'}</span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="font-medium">{cost.name}</div>
+                      <div className="text-xs text-gray-500">{cost.category?.name || '-'}</div>
+                    </td>
+                    <td className="py-3 px-4">
                       <div>{cost.paymentDay}일</div>
                       {!isPaid && (
                         <div className="text-xs text-gray-500">
                           {daysUntil > 0 ? `D-${daysUntil}` : daysUntil === 0 ? '오늘' : `${Math.abs(daysUntil)}일 지남`}
                         </div>
                       )}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    {formatCurrency(payment?.scheduledAmount || cost.amount, currency, exchangeRate)}
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    {isPaid && payment ? (
-                      <div>
-                        <div className="text-green-400">
-                          {formatCurrency(payment.actualAmount || 0, currency, exchangeRate)}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      {isFixedAmount ? (
+                        scheduledDisplay !== null
+                          ? formatCurrency(scheduledDisplay, currency, exchangeRate)
+                          : <span className="text-gray-500">-</span>
+                      ) : (
+                        <div className="flex items-center justify-end gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={scheduledInputValue}
+                            onChange={(e) => handleScheduledAmountChange(payment.id, e.target.value)}
+                            className="w-28 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-right"
+                            placeholder="금액"
+                          />
+                          <button
+                            type="button"
+                            disabled={savingScheduledAmountId === payment.id}
+                            onClick={() => handleScheduledAmountSave(payment)}
+                            className={`px-2 py-1 text-xs rounded ${
+                              savingScheduledAmountId === payment.id
+                                ? 'bg-gray-600 text-gray-300'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                            }`}
+                          >
+                            {savingScheduledAmountId === payment.id ? '저장중' : '저장'}
+                          </button>
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {payment.paymentDate}
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      {isPaid && payment.actualAmount !== null ? (
+                        <div>
+                          <div className="text-green-400">
+                            {formatCurrency(payment.actualAmount, currency, exchangeRate)}
+                          </div>
+                          <div className="text-xs text-gray-500">{payment.paymentDate}</div>
                         </div>
-                      </div>
-                    ) : (
-                      <span className="text-gray-500">-</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center justify-center gap-2">
-                      {!isPaid && payment && (
+                      ) : (
+                        <span className="text-gray-500">-</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-center gap-2">
+                        {canProcessPayment && (
+                          <button
+                            onClick={() => openPaymentModal(payment)}
+                            className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition-colors"
+                          >
+                            지불완료
+                          </button>
+                        )}
+                        {isPaid && (
+                          <button
+                            onClick={() => handleRevertPayment(payment)}
+                            className="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded transition-colors"
+                          >
+                            지불취소
+                          </button>
+                        )}
                         <button
-                          onClick={() => openPaymentModal(payment, cost)}
-                          disabled={!!payment.expenseId}
-                          className={`px-3 py-1 text-white text-sm rounded transition-colors ${
-                            payment.expenseId
-                              ? 'bg-gray-500 cursor-not-allowed'
-                              : 'bg-green-600 hover:bg-green-700'
-                          }`}
+                          onClick={() => cost && openEditModal(cost)}
+                          className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded transition-colors"
                         >
-                          {payment.expenseId ? '연동됨' : '지불완료'}
+                          수정
                         </button>
-                      )}
-                      {isPaid && payment?.expenseId && (
-                        <span className="px-3 py-1 bg-blue-600 text-white text-sm rounded">
-                          ✓ 지출연동
-                        </span>
-                      )}
-                      <button
-                        onClick={() => openEditModal(cost)}
-                        className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded transition-colors"
-                      >
-                        수정
-                      </button>
-                      <button
-                        onClick={() => handleDelete(cost.id)}
-                        className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {fixedCosts.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            등록된 고정비가 없습니다.
-          </div>
+                        <button
+                          onClick={() => cost && handleDelete(cost.id)}
+                          className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
       {/* Mobile Cards */}
       <div className="block md:hidden space-y-3">
-        {fixedCosts.map((cost) => {
-          const payment = getPaymentForCost(cost.id);
-          const daysUntil = getDaysUntilPayment(cost.paymentDay);
-          const isPaid = payment?.status === 'paid';
-
-          return (
-            <Card key={cost.id} className="p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{isPaid ? '✅' : '⏳'}</span>
-                  <div>
-                    <h3 className="font-semibold">{cost.name}</h3>
-                    <p className="text-sm text-gray-400">{cost.category?.name || '-'}</p>
-                  </div>
-                </div>
-                <span className="text-sm text-gray-500">{cost.paymentDay}일</span>
-              </div>
-
-              <div className="space-y-2 mb-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">예정:</span>
-                  <span className="font-medium">
-                    {formatCurrency(payment?.scheduledAmount || cost.amount, currency, exchangeRate)}
-                  </span>
-                </div>
-
-                {isPaid && payment ? (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">실제:</span>
-                    <span className="text-green-400 font-medium">
-                      {formatCurrency(payment.actualAmount || 0, currency, exchangeRate)}
-                      <span className="text-xs text-gray-500 ml-2">
-                        ({payment.paymentDate})
-                      </span>
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">미지불</span>
-                    <span className="text-orange-400">
-                      {daysUntil > 0 ? `D-${daysUntil}` : daysUntil === 0 ? '오늘' : `${Math.abs(daysUntil)}일 지남`}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-2">
-                {!isPaid && payment && (
-                  <button
-                    onClick={() => openPaymentModal(payment, cost)}
-                    disabled={!!payment.expenseId}
-                    className={`flex-1 px-3 py-2 text-white text-sm rounded transition-colors ${
-                      payment.expenseId
-                        ? 'bg-gray-500 cursor-not-allowed'
-                        : 'bg-green-600 hover:bg-green-700'
-                    }`}
-                  >
-                    {payment.expenseId ? '연동됨' : '지불완료'}
-                  </button>
-                )}
-                {isPaid && payment?.expenseId && (
-                  <div className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded text-center">
-                    ✓ 지출연동
-                  </div>
-                )}
-                <button
-                  onClick={() => openEditModal(cost)}
-                  className="flex-1 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded transition-colors"
-                >
-                  수정
-                </button>
-                <button
-                  onClick={() => handleDelete(cost.id)}
-                  className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
-                >
-                  삭제
-                </button>
-              </div>
-            </Card>
-          );
-        })}
-
-        {fixedCosts.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            등록된 고정비가 없습니다.
+        {sortedPayments.length === 0 ? (
+          <div className="text-center py-12 text-gray-500 border border-dashed border-gray-700 rounded-lg">
+            <p className="text-sm">이 달의 고정비 항목이 없습니다.</p>
+            <p className="text-xs text-gray-400 mt-2">버튼을 눌러 항목을 생성하세요.</p>
           </div>
+        ) : (
+          sortedPayments.map((payment) => {
+            const cost = getCostForPayment(payment);
+            if (!cost) return null;
+            const daysUntil = getDaysUntilPayment(cost.paymentDay);
+            const isPaid = payment.status === 'paid';
+            const isFixedAmount = cost.isFixedAmount ?? true;
+            const canProcessPayment = !isPaid;
+            const scheduledDisplay = payment.scheduledAmount ?? (isFixedAmount ? cost.amount : null);
+            const scheduledInputValue = scheduledAmountEdits[payment.id] ?? '';
+
+            return (
+              <Card key={payment.id} className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{isPaid ? '✅' : '⏳'}</span>
+                    <div>
+                      <h3 className="font-semibold">{cost.name}</h3>
+                      <p className="text-sm text-gray-400">{cost.category?.name || '-'}</p>
+                    </div>
+                  </div>
+                  <span className="text-sm text-gray-500">{cost.paymentDay}일</span>
+                </div>
+
+                <div className="space-y-2 mb-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">예정:</span>
+                    {isFixedAmount ? (
+                      <span className="font-medium">
+                        {scheduledDisplay !== null
+                          ? formatCurrency(scheduledDisplay, currency, exchangeRate)
+                          : '-'}
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={scheduledInputValue}
+                          onChange={(e) => handleScheduledAmountChange(payment.id, e.target.value)}
+                          className="w-24 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-right"
+                          placeholder="금액"
+                        />
+                        <button
+                          type="button"
+                          disabled={savingScheduledAmountId === payment.id}
+                          onClick={() => handleScheduledAmountSave(payment)}
+                          className={`px-2 py-1 text-xs rounded ${
+                            savingScheduledAmountId === payment.id
+                              ? 'bg-gray-600 text-gray-300'
+                              : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          }`}
+                        >
+                          {savingScheduledAmountId === payment.id ? '저장중' : '저장'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {isPaid && payment.actualAmount !== null ? (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">실제:</span>
+                      <span className="text-green-400 font-medium">
+                        {formatCurrency(payment.actualAmount, currency, exchangeRate)}
+                        <span className="text-xs text-gray-500 ml-2">({payment.paymentDate})</span>
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">미지불</span>
+                      <span className="text-orange-400">
+                        {daysUntil > 0 ? `D-${daysUntil}` : daysUntil === 0 ? '오늘' : `${Math.abs(daysUntil)}일 지남`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {canProcessPayment && (
+                    <button
+                      onClick={() => openPaymentModal(payment)}
+                      className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition-colors"
+                    >
+                      지불완료
+                    </button>
+                  )}
+                  {isPaid && (
+                    <button
+                      onClick={() => handleRevertPayment(payment)}
+                      className="flex-1 px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded transition-colors"
+                    >
+                      지불취소
+                    </button>
+                  )}
+                  <button
+                    onClick={() => cost && openEditModal(cost)}
+                    className="flex-1 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded transition-colors"
+                  >
+                    수정
+                  </button>
+                  <button
+                    onClick={() => cost && handleDelete(cost.id)}
+                    className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
+                  >
+                    삭제
+                  </button>
+                </div>
+              </Card>
+            );
+          })
         )}
       </div>
+      {/* Expense Selection Modal */}
+      {showExpenseSelectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-start gap-4 mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold">지출 내역에서 불러오기</h2>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {selectedMonth
+                      ? `${new Date(selectedMonth + '-01').toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' })} 지출 중에서 가져옵니다.`
+                      : '지출 기록을 선택해 고정비를 빠르게 등록하세요.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowExpenseSelectModal(false);
+                    setSelectedExpense(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">카테고리</label>
+                  <select
+                    value={expenseFilters.categoryId}
+                    onChange={(e) => setExpenseFilters(prev => ({ ...prev, categoryId: e.target.value }))}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-sm"
+                  >
+                    <option value="">전체</option>
+                    {categories
+                      .filter(c => c.type === 'expense')
+                      .map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">작성자</label>
+                  <select
+                    value={expenseFilters.createdBy}
+                    onChange={(e) => setExpenseFilters(prev => ({ ...prev, createdBy: e.target.value }))}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-sm"
+                  >
+                    <option value="">전체</option>
+                    {users.map(user => (
+                      <option key={user.id} value={user.id}>{user.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="block text-sm font-medium mb-1">빠른 작업</label>
+                  <button
+                    type="button"
+                    onClick={fetchExpensesForSelection}
+                    className="px-3 py-2 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-lg text-sm transition-colors"
+                  >
+                    목록 새로고침
+                  </button>
+                </div>
+              </div>
+
+              <div className="border border-gray-700 rounded-lg divide-y divide-gray-700 max-h-[50vh] overflow-y-auto">
+                {expenseLoading && (
+                  <div className="flex items-center justify-center py-10 text-gray-400">
+                    지출을 불러오는 중입니다...
+                  </div>
+                )}
+
+                {!expenseLoading && availableExpenses.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                    <p>조건에 맞는 지출이 없습니다.</p>
+                    <button
+                      onClick={openManualEntryForm}
+                      className="mt-3 text-sm text-blue-400 hover:text-blue-300 underline"
+                    >
+                      직접 입력으로 이동
+                    </button>
+                  </div>
+                )}
+
+                {!expenseLoading && availableExpenses.map(expense => {
+                  const expenseDate = expense.date ? new Date(expense.date) : null;
+                  return (
+                    <button
+                      key={expense.id}
+                      onClick={() => handleExpensePick(expense)}
+                      className="w-full text-left p-4 hover:bg-gray-700/60 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="font-semibold text-gray-100">
+                          {expenseDate
+                            ? expenseDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+                            : '날짜 미상'}
+                        </div>
+                        <div className="text-sm text-gray-400">
+                          {getCategoryName(expense.categoryId)}
+                        </div>
+                        <div className="text-sky-400 font-semibold">
+                          {formatCurrency(expense.amount || 0, currency, exchangeRate)}
+                        </div>
+                      </div>
+                      <div className="mt-1 text-sm text-gray-300">
+                        {expense.memo || '메모 없음'}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        작성자: {getUserName(expense.createdBy)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-6">
+                <button
+                  type="button"
+                  onClick={openManualEntryForm}
+                  className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+                >
+                  직접 입력으로 건너뛰기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowExpenseSelectModal(false);
+                    setSelectedExpense(null);
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Modal */}
       {(showAddModal || showEditModal) && (
@@ -722,6 +1078,8 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                     setShowAddModal(false);
                     setShowEditModal(false);
                     setEditingCost(null);
+                    setSelectedExpense(null);
+                    setShowExpenseSelectModal(false);
                   }}
                   className="text-gray-400 hover:text-gray-200"
                 >
@@ -732,6 +1090,52 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
+                {selectedExpense && (
+                  <div className="p-3 border border-blue-500/40 bg-blue-500/10 rounded-lg space-y-3">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-blue-300">선택된 지출</p>
+                        <p className="text-lg font-semibold text-white">
+                          {getCategoryName(selectedExpense.categoryId)}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          {selectedExpense.date
+                            ? new Date(selectedExpense.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+                            : '날짜 미상'} · {getUserName(selectedExpense.createdBy)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-400">금액</p>
+                        <p className="text-xl font-bold text-sky-400">
+                          {formatCurrency(selectedExpense.amount || 0, currency, exchangeRate)}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-300">
+                      메모: {selectedExpense.memo || '없음'}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddModal(false);
+                          setShowExpenseSelectModal(true);
+                        }}
+                        className="px-3 py-1.5 bg-blue-600/50 hover:bg-blue-600 text-white text-sm rounded-md transition-colors"
+                      >
+                        다른 지출 선택
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedExpense(null)}
+                        className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded-md transition-colors"
+                      >
+                        연결 해제
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium mb-1">항목명 *</label>
                   <input
@@ -823,15 +1227,24 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                   />
                 </div>
 
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="isActive"
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                    className="mr-2"
-                  />
-                  <label htmlFor="isActive" className="text-sm">활성 상태</label>
+                <div className="flex items-center justify-between p-3 bg-gray-700/60 border border-gray-600 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium">금액 고정 여부</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {formData.isFixedAmount
+                        ? '매달 같은 금액을 자동 적용합니다.'
+                        : '매달 예정 금액을 직접 입력합니다.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, isFixedAmount: !formData.isFixedAmount })}
+                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+                      formData.isFixedAmount ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-200'
+                    }`}
+                  >
+                    {formData.isFixedAmount ? '고정' : '변동'}
+                  </button>
                 </div>
 
                 <div className="flex gap-3 pt-4">
@@ -841,6 +1254,8 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                       setShowAddModal(false);
                       setShowEditModal(false);
                       setEditingCost(null);
+                      setSelectedExpense(null);
+                      setShowExpenseSelectModal(false);
                     }}
                     className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
                   >

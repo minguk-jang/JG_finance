@@ -693,10 +693,13 @@ export const api = {
     // Filter by year_month: include only fixed costs where start_date <= month <= end_date
     if (params?.year_month) {
       const yearMonth = params.year_month;
-      // start_date <= yearMonth
-      query = query.lte('start_date', yearMonth + '-31');
-      // end_date is null OR end_date >= yearMonth
-      query = query.or(`end_date.is.null,end_date.gte.${yearMonth}-01`);
+      const [year, month] = yearMonth.split('-').map(Number);
+      const lastDay = new Date(year, month, 0).getDate();
+      const endOfMonth = `${yearMonth}-${String(lastDay).padStart(2, '0')}`;
+      const startOfMonth = `${yearMonth}-01`;
+
+      query = query.lte('start_date', endOfMonth);
+      query = query.or(`end_date.is.null,end_date.gte.${startOfMonth}`);
     }
 
     const data = await handleRequest(query);
@@ -715,14 +718,18 @@ export const api = {
   },
 
   createFixedCost: async (fixedCostData: any) => {
-    const { user } = await supabase.auth.getUser();
-    if (!user.data.user?.id) {
+    const { data: authData, error } = await supabase.auth.getUser();
+    if (error) {
+      throw error;
+    }
+    const user = authData.user;
+    if (!user?.id) {
       throw new Error('User not authenticated');
     }
 
     const snakeData = toSnakeCase({
       ...fixedCostData,
-      createdBy: user.data.user.id,
+      createdBy: user.id,
     });
 
     const data = await handleRequest(
@@ -778,14 +785,18 @@ export const api = {
   },
 
   createFixedCostPayment: async (paymentData: any) => {
-    const { user } = await supabase.auth.getUser();
-    if (!user.data.user?.id) {
+    const { data: authData, error } = await supabase.auth.getUser();
+    if (error) {
+      throw error;
+    }
+    const user = authData.user;
+    if (!user?.id) {
       throw new Error('User not authenticated');
     }
 
     const snakeData = toSnakeCase({
       ...paymentData,
-      createdBy: user.data.user.id,
+      createdBy: user.id,
     });
 
     const data = await handleRequest(
@@ -817,8 +828,12 @@ export const api = {
    * Only includes fixed costs where start_date <= month <= end_date
    */
   generateMonthlyFixedCostPayments: async (yearMonth: string) => {
-    const { user } = await supabase.auth.getUser();
-    if (!user.data.user?.id) {
+    const { data: authData, error } = await supabase.auth.getUser();
+    if (error) {
+      throw error;
+    }
+    const user = authData.user;
+    if (!user?.id) {
       throw new Error('User not authenticated');
     }
 
@@ -842,11 +857,14 @@ export const api = {
         continue; // Skip if already exists
       }
 
+      const isFixedAmount = fixedCost.isFixedAmount ?? true;
+      const scheduledAmount = isFixedAmount ? fixedCost.amount : null;
+
       // Create new payment
       const payment = await api.createFixedCostPayment({
         fixedCostId: fixedCost.id,
         yearMonth,
-        scheduledAmount: fixedCost.amount,
+        scheduledAmount,
         status: 'scheduled',
       });
 
