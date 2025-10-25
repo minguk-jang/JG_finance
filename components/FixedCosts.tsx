@@ -74,7 +74,13 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       setPayments(Array.isArray(paymentsData) ? paymentsData : []);
       setCategories(Array.isArray(categoriesData) ? categoriesData : []);
     } catch (err: any) {
-      setError(err.message || '데이터를 불러오는데 실패했습니다.');
+      console.error('Failed to fetch fixed costs:', err);
+      // Check if it's a table not found error
+      if (err.message?.includes('fixed_cost')) {
+        setError('⚠️ 데이터베이스 마이그레이션이 필요합니다. Supabase에서 005_add_fixed_costs.sql을 실행해주세요.');
+      } else {
+        setError(err.message || '데이터를 불러오는데 실패했습니다.');
+      }
     } finally {
       setLoading(false);
     }
