@@ -3,6 +3,7 @@ import Card from './ui/Card';
 import { User, UserRole, Budget, Category } from '../types';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { getLocalDateString } from '../lib/dateUtils';
 
 interface SettingsProps {
   exchangeRate: number;
@@ -10,7 +11,7 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange }) => {
-  const { signOut, user: currentUser } = useAuth();
+  const { signOut, user: currentUser, profile: currentProfile, isAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -30,13 +31,16 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
     avatar: '',
     password: ''
   });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   // Budget modal state
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [budgetFormData, setBudgetFormData] = useState({
     categoryId: 0,
-    month: new Date().toISOString().slice(0, 7), // YYYY-MM
+    month: getLocalDateString().slice(0, 7), // YYYY-MM
     limitAmount: 0
   });
 
@@ -114,20 +118,34 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
     }
   };
 
-  // User CRUD handlers
-  const handleCreateUser = () => {
-    setEditingUser(null);
-    setUserFormData({
-      name: '',
-      email: '',
-      role: UserRole.Viewer,
-      avatar: '',
-      password: ''
+  // User invite state
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
+
+  const handleShowInviteGuide = () => {
+    if (!isAdmin()) {
+      alert('구성원 초대는 관리자만 가능합니다.');
+      return;
+    }
+    setInviteLinkCopied(false);
+    setIsInviteModalOpen(true);
+  };
+
+  const handleCopyInviteLink = () => {
+    const inviteUrl = window.location.origin;
+    navigator.clipboard.writeText(inviteUrl).then(() => {
+      setInviteLinkCopied(true);
+      setTimeout(() => setInviteLinkCopied(false), 3000);
     });
-    setIsUserModalOpen(true);
   };
 
   const handleEditUser = (user: User) => {
+    // Admin은 모든 사용자 수정 가능, 일반 사용자는 자신만 수정 가능
+    if (!isAdmin() && user.id !== currentUser?.id) {
+      alert('다른 구성원의 정보는 관리자만 수정할 수 있습니다.');
+      return;
+    }
+
     setEditingUser(user);
     setUserFormData({
       name: user.name,
@@ -136,46 +154,105 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
       avatar: user.avatar || '',
       password: ''
     });
+    setAvatarFile(null);
+    setAvatarPreview(null);
     setIsUserModalOpen(true);
   };
 
-  const handleSaveUser = async () => {
-    try {
-      const payload: any = {
-        name: userFormData.name,
-        email: userFormData.email,
-        role: userFormData.role,
-        avatar: userFormData.avatar || `https://i.pravatar.cc/150?u=${Date.now()}`
-      };
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      if (editingUser) {
-        // Update existing user
-        if (userFormData.password) {
-          payload.password = userFormData.password;
-        }
-        await api.updateUser(editingUser.id, payload);
-        alert('구성원이 수정되었습니다.');
-      } else {
-        // Create new user
-        if (!userFormData.password) {
-          alert('비밀번호를 입력해주세요.');
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일만 업로드할 수 있습니다.');
+      return;
+    }
+
+    // Validate file size (2MB)
+    const maxSize = 2 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert('파일 크기는 2MB 이하여야 합니다.');
+      return;
+    }
+
+    setAvatarFile(file);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAvatarPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveUser = async () => {
+    if (!editingUser) {
+      alert('사용자 생성은 회원가입을 통해서만 가능합니다.');
+      return;
+    }
+
+    // 일반 사용자는 자신의 정보만 수정 가능
+    if (!isAdmin() && editingUser.id !== currentUser?.id) {
+      alert('다른 구성원의 정보는 관리자만 수정할 수 있습니다.');
+      return;
+    }
+
+    try {
+      let avatarUrl = userFormData.avatar || editingUser.avatar;
+
+      // Upload avatar if file is selected
+      if (avatarFile) {
+        setIsUploadingAvatar(true);
+        try {
+          avatarUrl = await api.uploadAvatar(avatarFile, editingUser.id);
+        } catch (uploadError: any) {
+          alert(uploadError.message || '이미지 업로드에 실패했습니다.');
+          setIsUploadingAvatar(false);
           return;
         }
-        payload.password = userFormData.password;
-        await api.createUser(payload);
-        alert('구성원이 초대되었습니다.');
+        setIsUploadingAvatar(false);
       }
 
+      const payload: any = {
+        name: userFormData.name,
+        avatar: avatarUrl
+      };
+
+      // Admin만 역할 변경 가능
+      if (isAdmin()) {
+        payload.role = userFormData.role;
+      }
+
+      await api.updateUser(editingUser.id, payload);
+
+      const isOwnProfile = editingUser.id === currentUser?.id;
+      alert(isOwnProfile ? '내 정보가 수정되었습니다.' : '구성원 정보가 수정되었습니다.');
+
       setIsUserModalOpen(false);
+      setAvatarFile(null);
+      setAvatarPreview(null);
       await fetchData();
     } catch (error: any) {
       console.error('Failed to save user:', error);
-      alert(error.message || '구성원 저장에 실패했습니다.');
+      alert(error.message || '정보 저장에 실패했습니다.');
     }
   };
 
-  const handleDeleteUser = async (userId: number) => {
-    if (!confirm('정말로 이 구성원을 삭제하시겠습니까?')) {
+  const handleDeleteUser = async (userId: string) => {
+    // 본인 삭제 방지
+    if (userId === currentUser?.id) {
+      alert('자기 자신은 삭제할 수 없습니다.');
+      return;
+    }
+
+    // Admin 권한 체크
+    if (!isAdmin()) {
+      alert('구성원 삭제는 관리자만 가능합니다.');
+      return;
+    }
+
+    if (!confirm('정말로 이 구성원을 삭제하시겠습니까? 해당 구성원이 작성한 데이터도 함께 삭제될 수 있습니다.')) {
       return;
     }
 
@@ -385,12 +462,14 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
       {/* User Management */}
       <Card title="가족 구성원">
         <div className="mb-4 flex justify-end">
-          <button
-            onClick={handleCreateUser}
-            className="bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition"
-          >
-            구성원 초대
-          </button>
+          {isAdmin() && (
+            <button
+              onClick={handleShowInviteGuide}
+              className="bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition"
+            >
+              구성원 초대 안내
+            </button>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -398,7 +477,29 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
               <tr>
                 <th className="p-3">이름</th>
                 <th className="p-3">이메일</th>
-                <th className="p-3">역할</th>
+                <th className="p-3">
+                  <div className="flex items-center gap-1">
+                    역할
+                    <div className="relative group">
+                      <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className="absolute hidden group-hover:block z-10 w-64 p-3 bg-gray-900 text-sm text-gray-200 rounded-lg shadow-lg -top-2 left-6 border border-gray-700">
+                        <div className="space-y-2">
+                          <div>
+                            <span className="font-semibold text-red-400">Admin:</span> 모든 권한 (구성원 관리, 카테고리, 예산 설정)
+                          </div>
+                          <div>
+                            <span className="font-semibold text-yellow-400">Editor:</span> 지출/수익/투자 생성, 수정, 삭제
+                          </div>
+                          <div>
+                            <span className="font-semibold text-blue-400">Viewer:</span> 모든 데이터 조회만 가능
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </th>
                 <th className="p-3">작업</th>
               </tr>
             </thead>
@@ -407,7 +508,12 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
                 <tr key={user.id} className="border-b border-gray-700 hover:bg-gray-600/20">
                   <td className="p-3 flex items-center">
                     <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full mr-3" />
-                    {user.name}
+                    <div className="flex items-center gap-2">
+                      {user.name}
+                      {user.id === currentUser?.id && (
+                        <span className="text-xs bg-sky-600 px-2 py-0.5 rounded-full">나</span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3">{user.email}</td>
                   <td className="p-3">
@@ -420,18 +526,32 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
                     </span>
                   </td>
                   <td className="p-3">
-                    <button
-                      onClick={() => handleEditUser(user)}
-                      className="text-sky-400 hover:text-sky-300 mr-2"
-                    >
-                      수정
-                    </button>
-                    <button
-                      onClick={() => handleDeleteUser(user.id)}
-                      className="text-red-400 hover:text-red-300"
-                    >
-                      삭제
-                    </button>
+                    {isAdmin() && (
+                      <>
+                        <button
+                          onClick={() => handleEditUser(user)}
+                          className="text-sky-400 hover:text-sky-300 mr-2"
+                        >
+                          수정
+                        </button>
+                        {user.id !== currentUser?.id && (
+                          <button
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            삭제
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {!isAdmin() && user.id === currentUser?.id && (
+                      <button
+                        onClick={() => handleEditUser(user)}
+                        className="text-sky-400 hover:text-sky-300"
+                      >
+                        내 정보 수정
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -646,6 +766,121 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
         </div>
       )}
 
+      {/* Invite Guide Modal */}
+      {isInviteModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-gray-800 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] flex flex-col shadow-xl border-t sm:border border-gray-700">
+            <div className="flex-shrink-0 border-b border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
+              <h3 className="text-lg sm:text-xl font-bold">가족 구성원 초대하기</h3>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+              <div className="space-y-4">
+                <div className="bg-gradient-to-br from-sky-900/40 to-sky-800/20 border border-sky-600/50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg className="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h4 className="text-sm font-semibold text-sky-300">초대 프로세스</h4>
+                  </div>
+                  <ol className="space-y-2.5 text-sm text-gray-300">
+                    <li className="flex items-start gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 bg-sky-600 rounded-full flex items-center justify-center text-xs font-bold text-white">1</span>
+                      <div>
+                        <p className="font-medium text-white">아래 링크를 복사하여 공유</p>
+                        <p className="text-xs text-gray-400 mt-0.5">카카오톡, 문자 등으로 가족에게 전송</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 bg-sky-600 rounded-full flex items-center justify-center text-xs font-bold text-white">2</span>
+                      <div>
+                        <p className="font-medium text-white">가족 구성원이 직접 회원가입</p>
+                        <p className="text-xs text-gray-400 mt-0.5">링크 접속 → 우측 상단 "로그인/회원가입" 클릭 → 이메일로 가입</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 bg-sky-600 rounded-full flex items-center justify-center text-xs font-bold text-white">3</span>
+                      <div>
+                        <p className="font-medium text-white">Admin이 역할 변경</p>
+                        <p className="text-xs text-gray-400 mt-0.5">가입 완료 후 이 화면에서 역할을 Editor 또는 Admin으로 변경</p>
+                      </div>
+                    </li>
+                  </ol>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-300">
+                    <span className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      회원가입 링크
+                    </span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={window.location.origin}
+                      readOnly
+                      className="flex-1 bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-sm text-white font-mono select-all"
+                    />
+                    <button
+                      onClick={handleCopyInviteLink}
+                      className={`px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
+                        inviteLinkCopied
+                          ? 'bg-green-600 text-white'
+                          : 'bg-sky-600 hover:bg-sky-700 text-white'
+                      }`}
+                    >
+                      {inviteLinkCopied ? (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          복사됨
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          복사
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-3.5">
+                  <div className="flex gap-2">
+                    <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div className="text-xs text-amber-200">
+                      <p className="font-semibold mb-1">중요 안내</p>
+                      <ul className="space-y-1 list-disc list-inside">
+                        <li>새로 가입한 사용자의 기본 역할은 <strong>Viewer</strong> (조회만 가능)</li>
+                        <li>데이터 입력이 필요한 경우 Admin이 <strong>Editor</strong> 역할로 변경 필요</li>
+                        <li>역할 변경은 이 "가족 구성원" 섹션에서 "수정" 버튼으로 가능</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-shrink-0 border-t border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
+              <button
+                onClick={() => setIsInviteModalOpen(false)}
+                className="w-full px-4 py-2 text-sm font-medium bg-gray-600 rounded-lg hover:bg-gray-700 transition"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* User Modal */}
       {isUserModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
@@ -653,13 +888,59 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
             {/* Header - Fixed */}
             <div className="flex-shrink-0 border-b border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
               <h3 className="text-lg sm:text-xl font-bold">
-                {editingUser ? '구성원 수정' : '구성원 초대'}
+                {editingUser?.id === currentUser?.id ? '내 정보 수정' : '구성원 정보 수정'}
               </h3>
             </div>
 
             {/* Content - Scrollable */}
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
               <div className="space-y-3 sm:space-y-4">
+                {/* Avatar Upload Section */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium mb-2 text-gray-300">프로필 사진</label>
+                  <div className="flex items-center gap-4">
+                    {/* Current/Preview Avatar */}
+                    <div className="flex-shrink-0">
+                      <img
+                        src={avatarPreview || userFormData.avatar || editingUser?.avatar || 'https://via.placeholder.com/80'}
+                        alt="프로필 미리보기"
+                        className="w-20 h-20 rounded-full object-cover border-2 border-gray-600"
+                      />
+                    </div>
+
+                    {/* Upload Controls */}
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        id="avatar-upload"
+                        accept="image/*"
+                        onChange={handleAvatarFileChange}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="avatar-upload"
+                        className="inline-block px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm rounded-lg cursor-pointer transition"
+                      >
+                        {avatarFile ? '다른 이미지 선택' : '이미지 업로드'}
+                      </label>
+                      {avatarFile && (
+                        <button
+                          onClick={() => {
+                            setAvatarFile(null);
+                            setAvatarPreview(null);
+                          }}
+                          className="ml-2 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white text-xs sm:text-sm rounded-lg transition"
+                        >
+                          취소
+                        </button>
+                      )}
+                      <p className="text-xs text-gray-500 mt-2">
+                        JPG, PNG, GIF (최대 2MB)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-300">이름</label>
                   <input
@@ -675,10 +956,11 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
                   <input
                     type="email"
                     value={userFormData.email}
-                    onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
-                    placeholder="email@example.com"
+                    readOnly
+                    disabled
+                    className="w-full bg-gray-600 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-gray-400 cursor-not-allowed"
                   />
+                  <p className="text-xs text-gray-500 mt-1">이메일은 변경할 수 없습니다</p>
                 </div>
                 <div>
                   <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-300">역할</label>
@@ -686,7 +968,12 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
                     <select
                       value={userFormData.role}
                       onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value as UserRole })}
-                      className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                      disabled={!isAdmin()}
+                      className={`w-full border-2 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white appearance-none transition-all ${
+                        isAdmin()
+                          ? 'bg-gray-700 border-gray-600 cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none'
+                          : 'bg-gray-600 border-gray-600 cursor-not-allowed opacity-60'
+                      }`}
                     >
                       <option value={UserRole.Admin} className="bg-gray-800">Admin</option>
                       <option value={UserRole.Editor} className="bg-gray-800">Editor</option>
@@ -698,18 +985,14 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
                       </svg>
                     </div>
                   </div>
+                  {!isAdmin() && (
+                    <p className="text-xs text-gray-500 mt-1">역할 변경은 관리자만 가능합니다</p>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-300">
-                    {editingUser ? '비밀번호 (변경하려면 입력)' : '비밀번호'}
-                  </label>
-                  <input
-                    type="password"
-                    value={userFormData.password}
-                    onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
-                    placeholder={editingUser ? '변경하지 않으려면 비워두세요' : '비밀번호를 입력하세요'}
-                  />
+                <div className="bg-gray-700/50 border border-gray-600 rounded-lg p-3">
+                  <p className="text-xs text-gray-400">
+                    비밀번호는 각 사용자가 자신의 계정 설정에서 직접 변경할 수 있습니다.
+                  </p>
                 </div>
               </div>
             </div>
@@ -718,16 +1001,32 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
             <div className="flex-shrink-0 border-t border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
                 <button
-                  onClick={() => setIsUserModalOpen(false)}
-                  className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-gray-600 rounded-lg hover:bg-gray-700 transition"
+                  onClick={() => {
+                    setIsUserModalOpen(false);
+                    setAvatarFile(null);
+                    setAvatarPreview(null);
+                  }}
+                  disabled={isUploadingAvatar}
+                  className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-gray-600 rounded-lg hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   취소
                 </button>
                 <button
                   onClick={handleSaveUser}
-                  className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-sky-600 rounded-lg hover:bg-sky-700 transition"
+                  disabled={isUploadingAvatar}
+                  className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-sky-600 rounded-lg hover:bg-sky-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  저장
+                  {isUploadingAvatar ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      업로드 중...
+                    </>
+                  ) : (
+                    '저장'
+                  )}
                 </button>
               </div>
             </div>

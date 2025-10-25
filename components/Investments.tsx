@@ -4,6 +4,7 @@ import Card from './ui/Card';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { api } from '../lib/api';
+import { getLocalDateString } from '../lib/dateUtils';
 
 interface InvestmentsProps {
   currency: Currency;
@@ -63,7 +64,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
     symbol: '',
     name: '',
     type: 'BUY' as InvestmentTransactionType,
-    trade_date: new Date().toISOString().split('T')[0],
+    trade_date: getLocalDateString(),
     quantity: '',
     price: '',
     fees: '0',
@@ -285,7 +286,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
         type: transactionFilters.type
           ? (transactionFilters.type as InvestmentTransactionType)
           : 'BUY',
-        trade_date: new Date().toISOString().split('T')[0],
+        trade_date: getLocalDateString(),
         quantity: '',
         price: '',
         fees: '0',

@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Currency } from '../types';
+import { useAuth } from '../lib/auth';
 
 interface HeaderProps {
   currency: Currency;
@@ -19,6 +20,7 @@ const Header: React.FC<HeaderProps> = ({
   onQuickAdd,
   onMenuToggle,
 }) => {
+  const { canEdit } = useAuth();
   const toggleCurrency = () => {
     setCurrency(currency === 'KRW' ? 'USD' : 'KRW');
   };
@@ -126,7 +128,7 @@ const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Quick Add Button - Positioned at the end */}
-        {onQuickAdd && (
+        {onQuickAdd && canEdit() && (
           <button
             onClick={onQuickAdd}
             className="ml-auto bg-sky-600 text-white p-1.5 sm:px-2.5 sm:py-1.5 md:px-4 md:py-2 rounded-lg hover:bg-sky-700 active:bg-sky-800 transition text-xs sm:text-sm md:text-base font-medium flex-shrink-0 whitespace-nowrap flex items-center justify-center gap-1 min-h-8 sm:min-h-9"

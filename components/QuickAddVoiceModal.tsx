@@ -3,6 +3,7 @@ import { Currency, Category } from '../types';
 import { api } from '../lib/api';
 import { generateExpenseSuggestion, GeminiExpenseSuggestion } from '../lib/gemini';
 import { useAuth } from '../lib/auth';
+import { getLocalDateString, isValidDateFormat } from '../lib/dateUtils';
 
 interface QuickAddVoiceModalProps {
   isOpen: boolean;
@@ -22,7 +23,7 @@ interface ExpenseFormState {
 const INITIAL_FORM_STATE: ExpenseFormState = {
   amount: '',
   categoryId: '',
-  date: new Date().toISOString().split('T')[0],
+  date: getLocalDateString(),
   memo: '',
 };
 
@@ -61,7 +62,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
     setFormData({
       amount: '',
       categoryId: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       memo: '',
     });
   }, []);
@@ -182,15 +183,15 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
         return;
       }
 
-      const normalizedDate = new Date(`${formData.date}T00:00:00`);
-      if (Number.isNaN(normalizedDate.getTime())) {
+      // 날짜 형식 검증
+      if (!isValidDateFormat(formData.date)) {
         setError('유효한 날짜를 선택해주세요.');
         return;
       }
 
       const payload = {
         category_id: categoryId,
-        date: normalizedDate.toISOString().split('T')[0],
+        date: formData.date, // 타임존 변환 없이 그대로 사용
         amount,
         memo: formData.memo,
         // created_by는 api.createExpense에서 자동으로 설정됨
@@ -206,7 +207,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
         setFormData({
           amount: '',
           categoryId: '',
-          date: new Date().toISOString().split('T')[0],
+          date: getLocalDateString(),
           memo: '',
         });
         setTranscript('');
@@ -317,7 +318,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
                     setFormData({
                       amount: '',
                       categoryId: '',
-                      date: new Date().toISOString().split('T')[0],
+                      date: getLocalDateString(),
                       memo: '',
                     });
                   }}

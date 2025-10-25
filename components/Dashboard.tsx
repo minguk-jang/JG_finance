@@ -3,6 +3,7 @@ import { Currency } from '../types';
 import Card from './ui/Card';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
 import { api } from '../lib/api';
+import { getLocalDateString } from '../lib/dateUtils';
 
 interface DashboardProps {
   currency: Currency;
@@ -67,7 +68,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate }) => {
   useEffect(() => {
     if (loading) return;
 
-    const nowMonth = new Date().toISOString().slice(0, 7);
+    const nowMonth = getLocalDateString().slice(0, 7); // YYYY-MM
     const monthsFromExpenses = expenses
       .map((expense) => (typeof expense.date === 'string' ? expense.date.slice(0, 7) : null))
       .filter((month): month is string => Boolean(month));
@@ -170,9 +171,9 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate }) => {
       { buyAmount: 0, sellAmount: 0, buyCount: 0, sellCount: 0 }
     );
 
-  const monthDate = new Date(`${activeMonth}-01T00:00:00`);
-  const endOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-  const endDateStr = endOfMonth.toISOString().slice(0, 10);
+  const [year, month] = activeMonth.split('-').map(Number);
+  const endOfMonth = new Date(year, month, 0); // 월의 마지막 날
+  const endDateStr = getLocalDateString(endOfMonth);
 
   const cumulativeTransactions = transactions.filter(
     (transaction: any) =>

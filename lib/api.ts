@@ -427,14 +427,98 @@ export const api = {
 
   updateUser: async (id: string, userData: any) => {
     const snakeData = toSnakeCase(userData);
+    // Use maybeSingle() instead of single() to avoid multiple row issues with RLS policies
     const data = await handleRequest(
-      supabase.from('users').update(snakeData).eq('id', id).select().single()
+      supabase.from('users').update(snakeData).eq('id', id).select().maybeSingle()
     );
     return toCamelCase(data);
   },
 
   deleteUser: async (id: string) => {
     await handleRequest(supabase.from('users').delete().eq('id', id));
+  },
+
+  /**
+   * Upload avatar image to Supabase Storage
+   * @param file - Image file to upload
+   * @param userId - User ID (used for folder organization)
+   * @returns Public URL of the uploaded image
+   */
+  uploadAvatar: async (file: File, userId: string): Promise<string> => {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      throw new Error('이미지 파일만 업로드할 수 있습니다.');
+    }
+
+    // Validate file size (2MB limit)
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+      throw new Error('파일 크기는 2MB 이하여야 합니다.');
+    }
+
+    // Generate unique filename with timestamp
+    const timestamp = Date.now();
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}/avatar-${timestamp}.${fileExt}`;
+
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (error) {
+      console.error('Upload error:', error);
+
+      // Provide user-friendly error messages
+      if (error.message?.includes('bucket') || error.message?.includes('not found')) {
+        throw new Error(
+          '❌ Storage가 설정되지 않았습니다.\n\n' +
+          '📋 해결 방법:\n' +
+          '1. QUICK_FIX_STORAGE.md 파일을 열어주세요\n' +
+          '2. Supabase에서 avatars 버킷을 생성해주세요\n' +
+          '3. 약 5분 소요됩니다\n\n' +
+          '자세한 가이드: 프로젝트 루트의 QUICK_FIX_STORAGE.md'
+        );
+      }
+
+      throw new Error(`이미지 업로드에 실패했습니다: ${error.message}`);
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(fileName);
+
+    return publicUrl;
+  },
+
+  /**
+   * Delete avatar image from Supabase Storage
+   * @param avatarUrl - Full URL of the avatar to delete
+   */
+  deleteAvatar: async (avatarUrl: string): Promise<void> => {
+    // Extract file path from URL
+    const url = new URL(avatarUrl);
+    const pathParts = url.pathname.split('/');
+    const bucketIndex = pathParts.findIndex(part => part === 'avatars');
+
+    if (bucketIndex === -1) {
+      return; // Not a storage URL, skip deletion
+    }
+
+    const filePath = pathParts.slice(bucketIndex + 1).join('/');
+
+    const { error } = await supabase.storage
+      .from('avatars')
+      .remove([filePath]);
+
+    if (error) {
+      console.error('Delete error:', error);
+      // Don't throw error - deletion is not critical
+    }
   },
 
   // ============================================

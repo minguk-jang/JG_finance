@@ -12,6 +12,10 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  isAdmin: () => boolean;
+  isEditor: () => boolean;
+  isViewer: () => boolean;
+  canEdit: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -170,6 +174,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  // Role check helpers
+  const isAdmin = () => profile?.role === 'Admin';
+  const isEditor = () => profile?.role === 'Editor';
+  const isViewer = () => profile?.role === 'Viewer';
+  const canEdit = () => profile?.role === 'Admin' || profile?.role === 'Editor';
+
   const value = {
     user,
     session,
@@ -179,6 +189,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signOut,
     refreshProfile,
+    isAdmin,
+    isEditor,
+    isViewer,
+    canEdit,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

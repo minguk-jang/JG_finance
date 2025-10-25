@@ -34,8 +34,9 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 # 선택 - Gemini AI Quick Add
 VITE_GEMINI_API_KEY=your-gemini-api-key
-VITE_GEMINI_MODEL=gemini-2.0-flash-exp
 ```
+
+`.env.example` 파일을 복사하여 시작할 수 있습니다.
 
 ## 기술 스택 & 아키텍처
 
@@ -70,7 +71,15 @@ VITE_GEMINI_MODEL=gemini-2.0-flash-exp
    - 두 테이블 모두 UUID 기반 `id` 사용
    - `lib/auth.tsx`의 `ensureProfile()`이 auth.users → public.users 자동 동기화
 
-4. **모바일 반응형 패턴**
+4. **날짜 및 타임존 처리**
+   - 모든 날짜는 KST(Asia/Seoul) 기준으로 처리
+   - `lib/dateUtils.ts`의 유틸리티 함수 사용:
+     - `getLocalDateString()`: 현재 로컬 날짜를 YYYY-MM-DD 형식으로 반환
+     - `isValidDateFormat()`: 날짜 형식 검증
+     - `parseDateString()`: 날짜 문자열을 Date 객체로 변환
+   - **중요**: UTC 변환 없이 순수 로컬 시간대 사용
+
+5. **모바일 반응형 패턴**
    ```tsx
    // 데스크톱: 테이블 레이아웃
    <table className="hidden md:table">...</table>
@@ -98,7 +107,9 @@ VITE_GEMINI_MODEL=gemini-2.0-flash-exp
 │   ├── api.ts           # Supabase API 래퍼 (모든 CRUD 함수)
 │   ├── supabase.ts      # Supabase 클라이언트 초기화
 │   ├── auth.tsx         # 인증 컨텍스트 (useAuth, AuthProvider)
-│   └── database.ts      # DB 헬퍼 (TableQuery, toCamelCase, toSnakeCase)
+│   ├── database.ts      # DB 헬퍼 (TableQuery, toCamelCase, toSnakeCase)
+│   ├── gemini.ts        # Gemini AI API 통합 (지출 자동 분석)
+│   └── dateUtils.ts     # 날짜 유틸리티 (KST 기준, 타임존 처리)
 ├── types.ts             # TypeScript 타입 정의
 ├── supabase/migrations/ # SQL 마이그레이션
 ├── App.tsx              # 메인 앱 (페이지 라우팅)
@@ -114,6 +125,8 @@ VITE_GEMINI_MODEL=gemini-2.0-flash-exp
 **재무 관리**:
 - `categories` (id: int, name, type: 'income'|'expense')
 - `expenses` (id: int, category_id, date, amount, memo, created_by: UUID)
+  - **주의**: Income과 Expenses는 동일한 `expenses` 테이블 사용
+  - 카테고리의 `type` 필드로 수익/지출 구분 ('income' vs 'expense')
 - `budgets` (id: int, category_id, month: 'YYYY-MM', limit_amount)
 
 **투자 관리**:
@@ -134,10 +147,15 @@ VITE_GEMINI_MODEL=gemini-2.0-flash-exp
 ```tsx
 import { api } from '../lib/api';
 
-// 데이터 가져오기
-const expenses = await api.getExpenses({ from_date: '2025-01-01' });
+// 데이터 가져오기 (필터링 옵션)
+const expenses = await api.getExpenses({
+  from_date: '2025-01-01',
+  to_date: '2025-12-31',
+  category_id: 2,
+  created_by: 'user-uuid-here'  // 작성자 필터
+});
 
-// 생성
+// 생성 (created_by는 자동 설정됨)
 const newExpense = await api.createExpense({
   categoryId: 2,
   date: '2025-10-21',
@@ -175,9 +193,18 @@ function MyComponent() {
 3. `types.ts`의 `Database` 타입 업데이트
 4. `lib/api.ts`에 필요한 API 함수 추가
 
+**기존 마이그레이션 파일**:
+- `001_initial_schema.sql`: 초기 데이터베이스 스키마 (테이블 생성)
+- `002_rls_policies.sql`: Row Level Security 정책 설정
+- `003_fix_missing_users.sql`: 사용자 관리 버그 수정
+- `004_fix_user_management.sql`: 역할 기반 권한 관리 (Admin/Editor/Viewer)
+  - `is_admin()`, `is_editor_or_admin()` 헬퍼 함수
+  - Admin은 모든 사용자 프로필 수정/삭제 가능
+  - 일반 사용자는 본인 프로필만 수정 가능
+
 **예시**:
 ```sql
--- supabase/migrations/004_add_notes_table.sql
+-- supabase/migrations/005_add_notes_table.sql
 CREATE TABLE notes (
   id SERIAL PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id),
@@ -230,16 +257,31 @@ CREATE POLICY "Users can insert own expenses" ON expenses
 
 ## Gemini AI Quick Add
 
-**위치**: `components/Expenses.tsx`의 `handleGeminiAnalyze()` 함수
+**핵심 모듈**: `lib/gemini.ts`의 `generateExpenseSuggestion()` 함수
 
 **동작 방식**:
 1. 사용자가 자연어 입력 (예: "어제 스타벅스에서 5000원 커피")
-2. Gemini API로 텍스트 전송
-3. JSON 응답 파싱 (date, category, amount, memo)
-4. 폼 자동 입력
-5. 사용자 확인 후 저장
+2. `buildPrompt()`로 시스템 프롬프트 + 현재 시간(KST) + 카테고리 목록 생성
+3. Gemini API (`gemini-2.5-flash`) 호출
+4. JSON 응답 파싱 및 검증:
+   - `amount` (number): 금액
+   - `currency` (KRW/USD): 통화
+   - `categoryName` (string): 카테고리 이름
+   - `date` (YYYY-MM-DD): 날짜
+   - `memo` (string): 메모
+   - `confidence` (0-1, 선택): 신뢰도 점수
+5. 컴포넌트에서 폼 자동 입력
+6. 사용자 확인 후 저장
 
-**환경 변수**: `VITE_GEMINI_API_KEY` 필수
+**환경 변수**:
+- `VITE_GEMINI_API_KEY` (필수): Gemini API 키
+- `VITE_GEMINI_MODEL` (선택): 모델 ID (기본값: `gemini-2.5-flash`)
+
+**주요 특징**:
+- 한국어 자연어 처리 최적화
+- 상대적 날짜 표현 지원 ("어제", "지난주 화요일" → YYYY-MM-DD 변환)
+- 기존 카테고리 목록과 매칭
+- 통화 자동 감지 (기본값: KRW)
 
 ## 배포
 
@@ -284,6 +326,33 @@ const transactions = await api.getInvestmentTransactions({
 await api.updateIssue(issueId, { status: 'Closed' });
 ```
 
+### 다중 선택 및 일괄 삭제
+Income 및 Expenses 컴포넌트는 체크박스 기반 다중 선택과 일괄 삭제를 지원합니다:
+```tsx
+// 상태 관리
+const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+// 개별 선택 토글
+const toggleSelect = (id: number) => {
+  const newSet = new Set(selectedIds);
+  if (newSet.has(id)) {
+    newSet.delete(id);
+  } else {
+    newSet.add(id);
+  }
+  setSelectedIds(newSet);
+};
+
+// 일괄 삭제
+const handleBulkDelete = async () => {
+  for (const id of selectedIds) {
+    await api.deleteExpense(id);
+  }
+  setSelectedIds(new Set());
+  await fetchData();
+};
+```
+
 ## 중요 참고사항
 
 1. **FastAPI 백엔드는 사용 중지**: `backend/` 폴더는 참조용이며 실행되지 않음
@@ -291,12 +360,35 @@ await api.updateIssue(issueId, { status: 'Closed' });
 3. **타입 변환**: API 함수는 항상 camelCase 반환, DB는 snake_case - 변환은 자동
 4. **UUID vs INT**: users 테이블은 UUID, 나머지는 auto-increment INT
 5. **created_by 필드**: 자동으로 현재 로그인 사용자 UUID 설정됨
+6. **Income/Expense 테이블**: 동일한 `expenses` 테이블 공유, 카테고리 타입으로 구분
+7. **날짜 처리**: 모든 날짜는 KST 기준이며 UTC 변환 없이 처리됨 - `lib/dateUtils.ts` 사용 필수
+
+## 문제 해결
+
+### 환경 변수 오류
+```
+Missing Supabase environment variables
+```
+→ `.env.example`을 복사하여 `.env` 생성 후 Supabase 프로젝트 설정값 입력
+
+### 빌드 오류
+```
+npm run build
+```
+→ TypeScript 타입 오류 확인, `types.ts`의 Database 타입 정의가 실제 스키마와 일치하는지 확인
+
+### RLS 정책 오류 (403 Forbidden)
+→ Supabase 대시보드에서 RLS 정책 확인, `auth.uid()`와 `created_by`/`user_id` 일치 여부 확인
+
+### Service Worker 캐싱 문제
+→ 개발자 도구 → Application → Clear storage 또는 `npm run build && npm run preview`로 프로덕션 빌드 테스트
 
 ## 문서
 
 상세 정보는 다음 문서 참조:
-- `README.md` - 전체 프로젝트 개요
-- `docs/supabase-setup.md` - Supabase 초기 설정
-- `docs/vercel-deployment.md` - 프로덕션 배포
-- `docs/frontend.md` - 프론트엔드 아키텍처
-- `docs/pwa-setup.md` - PWA 기능
+- `docs/supabase-setup.md` - Supabase 초기 설정 및 마이그레이션
+- `docs/vercel-deployment.md` - Vercel 프로덕션 배포 가이드
+- `docs/frontend.md` - 프론트엔드 아키텍처 및 컴포넌트 구조
+- `docs/pwa-setup.md` - PWA 설정, Service Worker, 오프라인 지원
+
+**참고**: `README.md`는 FastAPI 백엔드 기준으로 작성되어 일부 정보가 구버전일 수 있습니다. Supabase 기반 개발 시 이 CLAUDE.md와 docs/ 폴더를 우선 참조하세요.

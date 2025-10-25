@@ -4,6 +4,7 @@ import Card from './ui/Card';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { getLocalDateString, isValidDateFormat } from '../lib/dateUtils';
 
 interface IncomeProps {
   currency: Currency;
@@ -49,7 +50,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
 
   const [formData, setFormData] = useState({
     category_id: '',
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateString(),
     amount: '',
     memo: ''
   });
@@ -199,7 +200,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
       setEditingIncome(null);
       setFormData({
         category_id: '',
-        date: new Date().toISOString().split('T')[0],
+        date: getLocalDateString(),
         amount: '',
         memo: ''
       });
@@ -236,13 +237,11 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
         return;
       }
 
-      const normalizedDate = new Date(`${formData.date}T00:00:00`);
-      if (Number.isNaN(normalizedDate.getTime())) {
+      // 날짜 형식 검증 (YYYY-MM-DD)
+      if (!isValidDateFormat(formData.date)) {
         alert('유효한 날짜를 선택해주세요.');
         return;
       }
-
-      const isoDate = normalizedDate.toISOString().split('T')[0];
 
       if (!user) {
         alert('로그인이 필요합니다.');
@@ -251,7 +250,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
 
       const data: Record<string, any> = {
         category_id: categoryId,
-        date: isoDate,
+        date: formData.date, // 타임존 변환 없이 그대로 사용
         amount: amountValue,
         memo: formData.memo,
         created_by: user.id
