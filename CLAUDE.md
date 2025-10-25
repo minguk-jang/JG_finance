@@ -99,7 +99,8 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
 │   ├── Expenses.tsx      # 지출 관리 (Gemini AI Quick Add 포함)
 │   ├── Income.tsx        # 수익 관리
 │   ├── Investments.tsx   # 투자 관리 (계좌, 보유종목, 거래내역)
-│   ├── Issues.tsx        # 이슈 보드 (칸반 스타일)
+│   ├── Issues.tsx        # 이슈 보드 (칸반 스타일, 댓글 기능)
+│   ├── FixedCosts.tsx    # 고정비 관리 (구독료, 월세 등)
 │   ├── Settings.tsx      # 설정 (카테고리, 예산, 사용자)
 │   ├── Header.tsx        # 헤더 (페이지 전환, 통화 토글, 인증)
 │   └── AuthModal.tsx     # 로그인/회원가입 모달
@@ -138,6 +139,11 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
 - `issues` (id: int, title, status, priority, assignee_id: UUID, body)
 - `labels` (id: int, name, color)
 - `issue_labels` (issue_id, label_id) - 다대다 관계
+- `issue_comments` (id: int, issue_id, user_id: UUID, content, created_at, updated_at)
+
+**고정비 관리**:
+- `fixed_costs` (id: int, name, category_id, amount, payment_day, start_date, end_date, is_active, created_by: UUID)
+- `fixed_cost_payments` (id: int, fixed_cost_id, year_month: 'YYYY-MM', scheduled_amount, actual_amount, payment_date, status, created_by: UUID)
 
 ## 개발 워크플로
 
@@ -201,10 +207,12 @@ function MyComponent() {
   - `is_admin()`, `is_editor_or_admin()` 헬퍼 함수
   - Admin은 모든 사용자 프로필 수정/삭제 가능
   - 일반 사용자는 본인 프로필만 수정 가능
+- `005_add_fixed_costs.sql`: 고정비 관리 기능 (fixed_costs, fixed_cost_payments 테이블)
+- `006_add_issue_comments.sql`: 이슈 댓글 기능 (issue_comments 테이블)
 
 **예시**:
 ```sql
--- supabase/migrations/005_add_notes_table.sql
+-- supabase/migrations/007_add_notes_table.sql
 CREATE TABLE notes (
   id SERIAL PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id),
@@ -324,6 +332,54 @@ const transactions = await api.getInvestmentTransactions({
 ### 이슈 상태 변경
 ```tsx
 await api.updateIssue(issueId, { status: 'Closed' });
+```
+
+### 이슈 댓글 조회 및 작성
+```tsx
+// 특정 이슈의 댓글 조회 (사용자 정보 포함)
+const comments = await api.getIssueComments(issueId);
+
+// 새 댓글 작성 (user_id는 자동 설정됨)
+await api.createIssueComment({
+  issueId: 123,
+  content: '댓글 내용'
+});
+
+// 댓글 수정
+await api.updateIssueComment(commentId, {
+  content: '수정된 댓글'
+});
+
+// 댓글 삭제
+await api.deleteIssueComment(commentId);
+```
+
+### 고정비 관리
+```tsx
+// 고정비 조회 (카테고리 정보 포함)
+const fixedCosts = await api.getFixedCosts();
+
+// 새 고정비 추가 (created_by는 자동 설정됨)
+await api.createFixedCost({
+  name: '넷플릭스 구독',
+  categoryId: 1,
+  amount: 14500,
+  paymentDay: 15,  // 매월 15일
+  startDate: '2025-01-01',
+  endDate: null,  // 종료일 없음 (계속 활성)
+  isActive: true,
+  memo: '프리미엄 플랜'
+});
+
+// 특정 월의 고정비 납부 내역 조회
+const payments = await api.getFixedCostPayments('2025-10');
+
+// 고정비 납부 완료 처리
+await api.updateFixedCostPayment(paymentId, {
+  status: 'paid',
+  actualAmount: 14500,
+  paymentDate: '2025-10-15'
+});
 ```
 
 ### 다중 선택 및 일괄 삭제

@@ -226,6 +226,24 @@ export interface Database {
         };
         Update: never;
       };
+      issue_comments: {
+        Row: {
+          id: number;
+          issue_id: number;
+          user_id: string; // UUID
+          content: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          issue_id: number;
+          user_id: string;
+          content: string;
+        };
+        Update: {
+          content?: string;
+        };
+      };
       fixed_costs: {
         Row: {
           id: number;
@@ -273,6 +291,7 @@ export interface Database {
           payment_date: string | null; // YYYY-MM-DD
           status: 'scheduled' | 'paid' | 'skipped';
           memo: string | null;
+          expense_id: number | null; // Link to expenses table
           created_by: string; // UUID
           created_at: string;
           updated_at: string;
@@ -285,6 +304,7 @@ export interface Database {
           payment_date?: string | null;
           status?: 'scheduled' | 'paid' | 'skipped';
           memo?: string | null;
+          expense_id?: number | null;
           created_by: string;
         };
         Update: {
@@ -295,6 +315,7 @@ export interface Database {
           payment_date?: string | null;
           status?: 'scheduled' | 'paid' | 'skipped';
           memo?: string | null;
+          expense_id?: number | null;
         };
       };
     };
@@ -403,6 +424,16 @@ export interface Issue {
   body: string;
 }
 
+export interface IssueComment {
+  id: number;
+  issueId: number;
+  userId: string; // UUID from users.id
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: User; // Optional joined user data
+}
+
 export type FixedCostPaymentStatus = 'scheduled' | 'paid' | 'skipped';
 
 export interface FixedCost {
@@ -428,6 +459,7 @@ export interface FixedCostPayment {
   paymentDate: string | null; // YYYY-MM-DD
   status: FixedCostPaymentStatus;
   memo?: string;
+  expenseId: number | null; // Link to expenses table
   createdBy: string; // UUID from users.id
   fixedCost?: FixedCost; // Optional joined data
 }

@@ -383,6 +383,118 @@ export const api = {
   },
 
   // ============================================
+  // Issue Comments
+  // ============================================
+  getIssueComments: async (issueId: number) => {
+    const data = await handleRequest(
+      supabase
+        .from('issue_comments')
+        .select('*')
+        .eq('issue_id', issueId)
+        .order('created_at', { ascending: true })
+    );
+
+    // Manually fetch user data for each comment
+    const comments = toCamelCase(data) || [];
+    const users = await api.getUsers();
+
+    return comments.map((comment: any) => ({
+      ...comment,
+      user: users?.find((u: any) => u.id === comment.userId)
+    }));
+  },
+
+  getIssueComment: async (id: number) => {
+    const data = await handleRequest(
+      supabase
+        .from('issue_comments')
+        .select('*')
+        .eq('id', id)
+        .single()
+    );
+
+    const comment = toCamelCase(data);
+    if (comment) {
+      const users = await api.getUsers();
+      comment.user = users?.find((u: any) => u.id === comment.userId);
+    }
+
+    return comment;
+  },
+
+  createIssueComment: async (commentData: any) => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+      if (authError) {
+        console.error('Auth error:', authError);
+        throw new Error(`인증 오류: ${authError.message}`);
+      }
+
+      if (!user?.id) {
+        throw new Error('로그인이 필요합니다. 먼저 로그인해주세요.');
+      }
+
+      console.log('Authenticated user ID:', user.id);
+      console.log('Comment data:', commentData);
+
+      const snakeData = toSnakeCase({
+        ...commentData,
+        userId: user.id,
+      });
+
+      console.log('Snake case data:', snakeData);
+
+      const data = await handleRequest(
+        supabase
+          .from('issue_comments')
+          .insert(snakeData)
+          .select()
+          .single()
+      );
+
+      const comment = toCamelCase(data);
+
+      // Manually fetch user data
+      if (comment) {
+        const users = await api.getUsers();
+        comment.user = users?.find((u: any) => u.id === comment.userId);
+      }
+
+      return comment;
+    } catch (error: any) {
+      console.error('Error in createIssueComment:', error);
+      throw error;
+    }
+  },
+
+  updateIssueComment: async (id: number, commentData: any) => {
+    const snakeData = toSnakeCase(commentData);
+    const data = await handleRequest(
+      supabase
+        .from('issue_comments')
+        .update(snakeData)
+        .eq('id', id)
+        .select()
+        .single()
+    );
+
+    const comment = toCamelCase(data);
+
+    // Manually fetch user data
+    if (comment) {
+      const users = await api.getUsers();
+      comment.user = users?.find((u: any) => u.id === comment.userId);
+    }
+
+    return comment;
+  },
+
+  deleteIssueComment: async (id: number) => {
+    await handleRequest(supabase.from('issue_comments').delete().eq('id', id));
+  },
+
+  // ============================================
   // Labels
   // ============================================
   getLabels: async () => {
@@ -568,7 +680,7 @@ export const api = {
   // ============================================
   // Fixed Costs
   // ============================================
-  getFixedCosts: async (params?: { is_active?: boolean }) => {
+  getFixedCosts: async (params?: { is_active?: boolean; year_month?: string }) => {
     let query = supabase
       .from('fixed_costs')
       .select('*, category:categories(*)')
@@ -576,6 +688,15 @@ export const api = {
 
     if (params?.is_active !== undefined) {
       query = query.eq('is_active', params.is_active);
+    }
+
+    // Filter by year_month: include only fixed costs where start_date <= month <= end_date
+    if (params?.year_month) {
+      const yearMonth = params.year_month;
+      // start_date <= yearMonth
+      query = query.lte('start_date', yearMonth + '-31');
+      // end_date is null OR end_date >= yearMonth
+      query = query.or(`end_date.is.null,end_date.gte.${yearMonth}-01`);
     }
 
     const data = await handleRequest(query);
@@ -693,6 +814,7 @@ export const api = {
   /**
    * Generate fixed cost payments for a specific month
    * This will create payment records for all active fixed costs in the given month
+   * Only includes fixed costs where start_date <= month <= end_date
    */
   generateMonthlyFixedCostPayments: async (yearMonth: string) => {
     const { user } = await supabase.auth.getUser();
@@ -700,8 +822,8 @@ export const api = {
       throw new Error('User not authenticated');
     }
 
-    // Get all active fixed costs
-    const fixedCosts = await api.getFixedCosts({ is_active: true });
+    // Get all active fixed costs for the specific month (filtered by date range)
+    const fixedCosts = await api.getFixedCosts({ is_active: true, year_month: yearMonth });
     if (!fixedCosts) return [];
 
     const payments = [];
@@ -734,5 +856,22 @@ export const api = {
     }
 
     return payments;
+  },
+
+  /**
+   * Get monthly summary statistics for fixed costs
+   * Returns aggregated data including total scheduled, paid, remaining amounts
+   */
+  getFixedCostMonthlySummary: async (yearMonth: string) => {
+    const { data, error } = await supabase.rpc('get_fixed_cost_monthly_summary', {
+      target_year_month: yearMonth,
+    });
+
+    if (error) {
+      throw new Error(handleSupabaseError(error));
+    }
+
+    // Return first row (should only be one)
+    return data && data.length > 0 ? toCamelCase(data[0]) : null;
   },
 };

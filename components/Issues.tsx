@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Currency, Issue, IssueStatus, IssuePriority } from '../types';
+import { Currency, Issue, IssueStatus, IssuePriority, IssueComment } from '../types';
 import { USERS } from '../constants';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -33,11 +33,12 @@ const priorityLabels: { [key in IssuePriority]: string } = {
 interface IssueCardProps {
   issue: Issue;
   users: any[];
+  onView: (issue: Issue) => void;
   onEdit: (issue: Issue) => void;
   onDelete: (issueId: number) => void;
 }
 
-const IssueCard: React.FC<IssueCardProps> = ({ issue, users, onEdit, onDelete }) => {
+const IssueCard: React.FC<IssueCardProps> = ({ issue, users, onView, onEdit, onDelete }) => {
   // Handle both camelCase and snake_case
   const assigneeId = (issue as any).assigneeId || (issue as any).assignee_id;
   const assignee = users.find(u => u.id === assigneeId);
@@ -48,7 +49,7 @@ const IssueCard: React.FC<IssueCardProps> = ({ issue, users, onEdit, onDelete })
       className={`bg-gray-700 p-4 rounded-lg shadow-md mb-4 border-t-4 ${statusColors[issue.status]} cursor-pointer hover:bg-gray-650 hover:shadow-lg transition-all duration-200 hover:scale-[1.02]`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
-      onClick={() => onEdit(issue)}
+      onClick={() => onView(issue)}
     >
       <div className="flex items-start justify-between">
         <h4 className="font-bold surface-text flex-1">{issue.title}</h4>
@@ -132,6 +133,11 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
+  const [viewingIssue, setViewingIssue] = useState<Issue | null>(null);
+  const [comments, setComments] = useState<IssueComment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingCommentContent, setEditingCommentContent] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     body: '',
@@ -177,10 +183,23 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
     setShowModal(true);
   };
 
+  const handleViewIssue = async (issue: Issue | any) => {
+    try {
+      setViewingIssue(issue);
+      // Fetch comments for this issue
+      const commentsData = await api.getIssueComments(issue.id);
+      setComments(commentsData || []);
+    } catch (error) {
+      console.error('Failed to fetch comments:', error);
+      setComments([]);
+    }
+  };
+
   const handleEditIssue = (issue: Issue | any) => {
     console.log('Edit issue clicked:', issue);
     try {
       setEditingIssue(issue);
+      setViewingIssue(null); // Close viewing mode
       // Handle both camelCase and snake_case field names
       const assigneeId = issue.assigneeId || issue.assignee_id;
       setFormData({
@@ -197,6 +216,73 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
       console.error('Error editing issue:', error);
       alert('이슈 수정 중 오류가 발생했습니다: ' + error.message);
     }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !viewingIssue) return;
+
+    try {
+      console.log('Creating comment for issue:', viewingIssue.id);
+      console.log('Comment content:', newComment.trim());
+
+      await api.createIssueComment({
+        issueId: viewingIssue.id,
+        content: newComment.trim(),
+      });
+
+      setNewComment('');
+      // Refresh comments
+      const commentsData = await api.getIssueComments(viewingIssue.id);
+      setComments(commentsData || []);
+    } catch (error: any) {
+      console.error('Failed to add comment:', error);
+      console.error('Error details:', error.message, error.code);
+      alert(`댓글 추가에 실패했습니다.\n\n에러: ${error.message || '알 수 없는 오류'}\n\n브라우저 콘솔을 확인해주세요.`);
+    }
+  };
+
+  const handleUpdateComment = async (commentId: number) => {
+    if (!editingCommentContent.trim()) return;
+
+    try {
+      await api.updateIssueComment(commentId, {
+        content: editingCommentContent.trim(),
+      });
+      setEditingCommentId(null);
+      setEditingCommentContent('');
+      // Refresh comments
+      if (viewingIssue) {
+        const commentsData = await api.getIssueComments(viewingIssue.id);
+        setComments(commentsData || []);
+      }
+    } catch (error) {
+      console.error('Failed to update comment:', error);
+      alert('댓글 수정에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!confirm('정말 이 댓글을 삭제하시겠습니까?')) return;
+
+    try {
+      await api.deleteIssueComment(commentId);
+      // Refresh comments
+      if (viewingIssue) {
+        const commentsData = await api.getIssueComments(viewingIssue.id);
+        setComments(commentsData || []);
+      }
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+      alert('댓글 삭제에 실패했습니다.');
+    }
+  };
+
+  const handleCloseViewModal = () => {
+    setViewingIssue(null);
+    setComments([]);
+    setNewComment('');
+    setEditingCommentId(null);
+    setEditingCommentContent('');
   };
 
   const toggleLabel = (labelName: string) => {
@@ -336,6 +422,7 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
                               key={issue.id}
                               issue={issue}
                               users={availableUsers}
+                              onView={handleViewIssue}
                               onEdit={handleEditIssue}
                               onDelete={handleDeleteIssue}
                             />
@@ -348,7 +435,194 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
             })}
         </div>
 
-        {/* Modal */}
+        {/* View Issue Modal with Comments */}
+        {viewingIssue && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-800 rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-2xl font-bold text-white">{viewingIssue.title}</h2>
+                <button
+                  onClick={handleCloseViewModal}
+                  className="text-gray-400 hover:text-white transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Issue Details */}
+              <div className="mb-6">
+                <div className="bg-gray-700 p-4 rounded-lg mb-4">
+                  <p className="text-gray-300 whitespace-pre-wrap">{viewingIssue.body}</p>
+                </div>
+
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400">상태:</span>
+                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                      viewingIssue.status === IssueStatus.Open ? 'bg-blue-600' :
+                      viewingIssue.status === IssueStatus.InProgress ? 'bg-yellow-600' : 'bg-green-600'
+                    }`}>
+                      {statusLabels[viewingIssue.status]}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400">우선순위:</span>
+                    <span className={`px-2 py-1 text-xs font-semibold text-white rounded ${priorityColors[viewingIssue.priority]}`}>
+                      {priorityLabels[viewingIssue.priority]}
+                    </span>
+                  </div>
+
+                  {(() => {
+                    const assigneeId = (viewingIssue as any).assigneeId || (viewingIssue as any).assignee_id;
+                    const assignee = availableUsers.find(u => u.id === assigneeId);
+                    return assignee && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-400">담당자:</span>
+                        <div className="flex items-center gap-2">
+                          <img src={assignee.avatar} alt={assignee.name} className="w-6 h-6 rounded-full" />
+                          <span className="text-white">{assignee.name}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {Array.isArray(viewingIssue.labels) && viewingIssue.labels.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {viewingIssue.labels.map(label => (
+                      <span key={label.name} className={`px-2 py-1 text-xs font-semibold text-white rounded ${label.color}`}>
+                        {label.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => handleEditIssue(viewingIssue)}
+                  className="mt-4 bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition text-sm"
+                >
+                  이슈 수정
+                </button>
+              </div>
+
+              {/* Comments Section */}
+              <div className="border-t border-gray-700 pt-6">
+                <h3 className="text-xl font-bold text-white mb-4">댓글 ({comments.length})</h3>
+
+                {/* Comments List */}
+                <div className="space-y-4 mb-6">
+                  {comments.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">아직 댓글이 없습니다. 첫 댓글을 작성해보세요!</p>
+                  ) : (
+                    comments.map(comment => {
+                      const commentUser = availableUsers.find(u => u.id === comment.userId) || comment.user;
+                      const isOwner = user?.id === comment.userId;
+                      const isEditing = editingCommentId === comment.id;
+
+                      return (
+                        <div key={comment.id} className="bg-gray-700 p-4 rounded-lg">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              {commentUser && (
+                                <>
+                                  <img src={commentUser.avatar} alt={commentUser.name} className="w-8 h-8 rounded-full" />
+                                  <div>
+                                    <span className="font-semibold text-white">{commentUser.name}</span>
+                                    <span className="text-xs text-gray-400 ml-2">
+                                      {new Date(comment.createdAt).toLocaleString('ko-KR')}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                            {isOwner && !isEditing && (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => {
+                                    setEditingCommentId(comment.id);
+                                    setEditingCommentContent(comment.content);
+                                  }}
+                                  className="p-1 hover:bg-gray-600 rounded transition"
+                                  title="수정"
+                                >
+                                  <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteComment(comment.id)}
+                                  className="p-1 hover:bg-gray-600 rounded transition"
+                                  title="삭제"
+                                >
+                                  <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {isEditing ? (
+                            <div className="mt-2">
+                              <textarea
+                                value={editingCommentContent}
+                                onChange={(e) => setEditingCommentContent(e.target.value)}
+                                className="w-full bg-gray-600 border-2 border-gray-500 rounded-lg px-3 py-2 text-white focus:border-sky-500 focus:outline-none resize-none"
+                                rows={3}
+                              />
+                              <div className="flex gap-2 mt-2">
+                                <button
+                                  onClick={() => handleUpdateComment(comment.id)}
+                                  className="px-3 py-1 bg-sky-600 text-white rounded hover:bg-sky-700 transition text-sm"
+                                >
+                                  저장
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingCommentId(null);
+                                    setEditingCommentContent('');
+                                  }}
+                                  className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition text-sm"
+                                >
+                                  취소
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-gray-300 whitespace-pre-wrap">{comment.content}</p>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* New Comment Form */}
+                <div className="bg-gray-700 p-4 rounded-lg">
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="댓글을 입력하세요..."
+                    className="w-full bg-gray-600 border-2 border-gray-500 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:border-sky-500 focus:outline-none resize-none"
+                    rows={3}
+                  />
+                  <button
+                    onClick={handleAddComment}
+                    disabled={!newComment.trim()}
+                    className="mt-2 bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    댓글 작성
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Issue Modal */}
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
