@@ -40,6 +40,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
   const [categories, setCategories] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingIncome, setEditingIncome] = useState<any>(null);
 
@@ -75,7 +76,25 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
     'w-full rounded-lg border border-emerald-500/40 bg-gray-900/70 px-2 py-1 text-sm text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30 outline-none transition shadow-[0_0_0_1px_rgba(52,211,153,0.35)] placeholder:text-gray-500';
   const categoryRingPalette = ['#34d399', '#60a5fa', '#f472b6', '#facc15', '#fb923c', '#a78bfa'];
 
-  const fetchData = async () => {
+  // 초기 데이터 로드 (categories, users는 한 번만)
+  const fetchInitialData = async () => {
+    try {
+      setLoading(true);
+      const [categoriesData, usersData] = await Promise.all([
+        api.getCategories(),
+        api.getUsers()
+      ]);
+      const incomeCategories = (categoriesData as any[]).filter((category) => category.type === 'income');
+      setCategories(incomeCategories);
+      setUsers(usersData as any[]);
+    } catch (error) {
+      console.error('Failed to fetch initial data:', error);
+      alert('초기 데이터를 불러오는데 실패했습니다.');
+    }
+  };
+
+  // incomes만 다시 불러오기 (필터 변경 시)
+  const fetchIncomes = async () => {
     try {
       setLoading(true);
       const params: any = {};
@@ -84,29 +103,38 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
       if (filters.categoryId) params.category_id = parseInt(filters.categoryId, 10);
       if (filters.createdBy) params.created_by = filters.createdBy;
 
-      const [expensesData, categoriesData, usersData] = await Promise.all([
-        api.getExpenses(params),
-        api.getCategories(),
-        api.getUsers()
-      ]);
-
-      const incomeCategories = (categoriesData as any[]).filter((category) => category.type === 'income');
-      const incomeCategoryIds = new Set(incomeCategories.map((category) => category.id));
+      const expensesData = await api.getExpenses(params);
+      const incomeCategoryIds = new Set(categories.map((category) => category.id));
       const filteredIncomes = (expensesData as any[]).filter((expense) => incomeCategoryIds.has(expense.categoryId));
-
       setIncomes(filteredIncomes);
-      setCategories(incomeCategories);
-      setUsers(usersData as any[]);
     } catch (error) {
-      console.error('Failed to fetch income data:', error);
-      alert('수익 내역을 불러오는데 실패했습니다. 백엔드가 실행 중인지 확인하세요.');
+      console.error('Failed to fetch incomes:', error);
+      alert('수익 내역을 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
     }
   };
 
+  // 전체 데이터 다시 불러오기 (외부 호출용)
+  const fetchData = async () => {
+    await Promise.all([fetchInitialData(), fetchIncomes()]);
+  };
+
+  // 초기 로드
   useEffect(() => {
-    fetchData();
+    const init = async () => {
+      await fetchInitialData();
+      await fetchIncomes();
+      setLoading(false);
+    };
+    init();
+  }, []);
+
+  // 필터 변경 시 incomes만 다시 불러오기
+  useEffect(() => {
+    if (categories.length > 0) {
+      fetchIncomes();
+    }
   }, [filters]);
 
   useEffect(() => {
@@ -347,7 +375,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
     try {
       setInlineSaving(true);
       await api.updateExpense(inlineEdit.id, payload);
-      await fetchData();
+      await fetchIncomes();
       cancelInlineEdit();
     } catch (error) {
       console.error('Failed to save inline edit:', error);
@@ -401,7 +429,15 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    // 이미 제출 중이면 무시
+    if (submitting) {
+      return;
+    }
+
     try {
+      setSubmitting(true);
+
       const categoryId = Number.parseInt(formData.category_id, 10);
       if (!Number.isInteger(categoryId)) {
         alert('카테고리를 선택해주세요.');
@@ -444,11 +480,13 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
         await api.createExpense(data);
       }
 
-      await fetchData();
+      await fetchIncomes();
       handleCloseModal();
     } catch (error) {
       console.error('Failed to save income:', error);
       alert('수익을 저장하는데 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -459,7 +497,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
 
     try {
       await api.deleteExpense(id);
-      await fetchData();
+      await fetchIncomes();
     } catch (error) {
       console.error('Failed to delete income:', error);
       alert('수익을 삭제하는데 실패했습니다. 다시 시도해주세요.');
@@ -499,7 +537,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
     try {
       await api.deleteExpenses(Array.from(selectedIds));
       setSelectedIds(new Set());
-      await fetchData();
+      await fetchIncomes();
       alert(`${selectedIds.size}개 항목이 삭제되었습니다.`);
     } catch (error) {
       console.error('Failed to delete incomes:', error);
@@ -1132,14 +1170,13 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
               </div>
 
               <div className="mb-4 sm:mb-6">
-                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-300">메모</label>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-300">메모 (선택사항)</label>
                 <input
                   type="text"
                   value={formData.memo}
                   onChange={(e) => setFormData({ ...formData, memo: e.target.value })}
                   className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-                  placeholder="설명 입력"
-                  required
+                  placeholder="설명 입력 (선택사항)"
                 />
               </div>
 
@@ -1147,15 +1184,27 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-3 sm:px-4 py-2 bg-gray-600 text-white rounded text-xs sm:text-sm font-medium hover:bg-gray-700 transition"
+                  disabled={submitting}
+                  className="px-3 sm:px-4 py-2 bg-gray-600 text-white rounded text-xs sm:text-sm font-medium hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  className="px-3 sm:px-4 py-2 bg-emerald-600 text-white rounded text-xs sm:text-sm font-medium hover:bg-emerald-700 transition"
+                  disabled={submitting}
+                  className="px-3 sm:px-4 py-2 bg-emerald-600 text-white rounded text-xs sm:text-sm font-medium hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {editingIncome ? '수정' : '생성'}
+                  {submitting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>저장중...</span>
+                    </>
+                  ) : (
+                    <span>{editingIncome ? '수정' : '생성'}</span>
+                  )}
                 </button>
               </div>
             </form>

@@ -42,6 +42,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
   const [categories, setCategories] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any>(null);
 
@@ -79,7 +80,25 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
     'w-full rounded-lg border border-red-500/40 bg-gray-900/70 px-2 py-1 text-sm text-white focus:border-red-400 focus:ring-2 focus:ring-red-400/30 outline-none transition shadow-[0_0_0_1px_rgba(248,113,113,0.35)] placeholder:text-gray-500';
   const categoryRingPalette = ['#f87171', '#fb923c', '#facc15', '#34d399', '#60a5fa', '#a78bfa'];
 
-  const fetchData = async () => {
+  // 초기 데이터 로드 (categories, users는 한 번만)
+  const fetchInitialData = async () => {
+    try {
+      setLoading(true);
+      const [categoriesData, usersData] = await Promise.all([
+        api.getCategories(),
+        api.getUsers()
+      ]);
+      const expenseCategories = (categoriesData as any[]).filter((category) => category.type === 'expense');
+      setCategories(expenseCategories);
+      setUsers(usersData as any[]);
+    } catch (error) {
+      console.error('Failed to fetch initial data:', error);
+      alert('초기 데이터를 불러오는데 실패했습니다.');
+    }
+  };
+
+  // expenses만 다시 불러오기 (필터 변경 시)
+  const fetchExpenses = async () => {
     try {
       setLoading(true);
       const params: any = {};
@@ -88,27 +107,38 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
       if (filters.categoryId) params.category_id = parseInt(filters.categoryId);
       if (filters.createdBy) params.created_by = filters.createdBy;
 
-      const [expensesData, categoriesData, usersData] = await Promise.all([
-        api.getExpenses(params),
-        api.getCategories(),
-        api.getUsers()
-      ]);
-      const expenseCategories = (categoriesData as any[]).filter((category) => category.type === 'expense');
-      const expenseCategoryIds = new Set(expenseCategories.map((category) => category.id));
+      const expensesData = await api.getExpenses(params);
+      const expenseCategoryIds = new Set(categories.map((category) => category.id));
       const filteredExpenses = (expensesData as any[]).filter((expense) => expenseCategoryIds.has(expense.categoryId));
       setExpenses(filteredExpenses);
-      setCategories(expenseCategories);
-      setUsers(usersData as any[]);
     } catch (error) {
-      console.error('Failed to fetch data:', error);
-      alert('지출 내역을 불러오는데 실패했습니다. 백엔드가 실행 중인지 확인하세요.');
+      console.error('Failed to fetch expenses:', error);
+      alert('지출 내역을 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
     }
   };
 
+  // 전체 데이터 다시 불러오기 (외부 호출용)
+  const fetchData = async () => {
+    await Promise.all([fetchInitialData(), fetchExpenses()]);
+  };
+
+  // 초기 로드
   useEffect(() => {
-    fetchData();
+    const init = async () => {
+      await fetchInitialData();
+      await fetchExpenses();
+      setLoading(false);
+    };
+    init();
+  }, []);
+
+  // 필터 변경 시 expenses만 다시 불러오기
+  useEffect(() => {
+    if (categories.length > 0) {
+      fetchExpenses();
+    }
   }, [filters]);
 
   useEffect(() => {
@@ -293,7 +323,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
     try {
       setInlineSaving(true);
       await api.updateExpense(inlineEdit.id, payload);
-      await fetchData();
+      await fetchExpenses();
       cancelInlineEdit();
     } catch (error) {
       console.error('Failed to save inline edit:', error);
@@ -348,7 +378,15 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 이미 제출 중이면 무시
+    if (submitting) {
+      return;
+    }
+
     try {
+      setSubmitting(true);
+
       const categoryId = Number.parseInt(formData.category_id, 10);
       if (!Number.isInteger(categoryId)) {
         alert('카테고리를 선택해주세요.');
@@ -391,11 +429,13 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
         await api.createExpense(data);
       }
 
-      await fetchData();
+      await fetchExpenses();
       handleCloseModal();
     } catch (error) {
       console.error('Failed to save expense:', error);
       alert('지출을 저장하는데 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -406,7 +446,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
 
     try {
       await api.deleteExpense(id);
-      await fetchData();
+      await fetchExpenses();
     } catch (error) {
       console.error('Failed to delete expense:', error);
       alert('지출을 삭제하는데 실패했습니다. 다시 시도해주세요.');
@@ -446,7 +486,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
     try {
       await api.deleteExpenses(Array.from(selectedIds));
       setSelectedIds(new Set());
-      await fetchData();
+      await fetchExpenses();
       alert(`${selectedIds.size}개 항목이 삭제되었습니다.`);
     } catch (error) {
       console.error('Failed to delete expenses:', error);
@@ -1163,14 +1203,13 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
               </div>
 
               <div className="mb-4 sm:mb-6">
-                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-300">메모</label>
+                <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 text-gray-300">메모 (선택사항)</label>
                 <input
                   type="text"
                   value={formData.memo}
                   onChange={(e) => setFormData({ ...formData, memo: e.target.value })}
-                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
-                  placeholder="설명 입력"
-                  required
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm hover:border-sky-500 focus:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
+                  placeholder="설명 입력 (선택사항)"
                 />
               </div>
 
@@ -1178,15 +1217,27 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-3 sm:px-4 py-2 bg-gray-600 text-white rounded text-xs sm:text-sm font-medium hover:bg-gray-700 transition"
+                  disabled={submitting}
+                  className="px-3 sm:px-4 py-2 bg-gray-600 text-white rounded text-xs sm:text-sm font-medium hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  className="px-3 sm:px-4 py-2 bg-sky-600 text-white rounded text-xs sm:text-sm font-medium hover:bg-sky-700 transition"
+                  disabled={submitting}
+                  className="px-3 sm:px-4 py-2 bg-sky-600 text-white rounded text-xs sm:text-sm font-medium hover:bg-sky-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {editingExpense ? '수정' : '생성'}
+                  {submitting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>저장중...</span>
+                    </>
+                  ) : (
+                    <span>{editingExpense ? '수정' : '생성'}</span>
+                  )}
                 </button>
               </div>
             </form>
