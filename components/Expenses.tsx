@@ -384,36 +384,37 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
       return;
     }
 
+    // Validation (try 밖에서 수행)
+    const categoryId = Number.parseInt(formData.category_id, 10);
+    if (!Number.isInteger(categoryId)) {
+      alert('카테고리를 선택해주세요.');
+      return;
+    }
+
+    const amountValue = Number.parseFloat(formData.amount);
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      alert('유효한 금액을 입력해주세요.');
+      return;
+    }
+
+    if (!formData.date) {
+      alert('날짜를 선택해주세요.');
+      return;
+    }
+
+    // 날짜 형식 검증 (YYYY-MM-DD)
+    if (!isValidDateFormat(formData.date)) {
+      alert('유효한 날짜를 선택해주세요.');
+      return;
+    }
+
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
     try {
       setSubmitting(true);
-
-      const categoryId = Number.parseInt(formData.category_id, 10);
-      if (!Number.isInteger(categoryId)) {
-        alert('카테고리를 선택해주세요.');
-        return;
-      }
-
-      const amountValue = Number.parseFloat(formData.amount);
-      if (!Number.isFinite(amountValue) || amountValue <= 0) {
-        alert('유효한 금액을 입력해주세요.');
-        return;
-      }
-
-      if (!formData.date) {
-        alert('날짜를 선택해주세요.');
-        return;
-      }
-
-      // 날짜 형식 검증 (YYYY-MM-DD)
-      if (!isValidDateFormat(formData.date)) {
-        alert('유효한 날짜를 선택해주세요.');
-        return;
-      }
-
-      if (!user) {
-        alert('로그인이 필요합니다.');
-        return;
-      }
 
       const data: Record<string, any> = {
         category_id: categoryId,
