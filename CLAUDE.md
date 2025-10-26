@@ -12,16 +12,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Frontend 개발 서버
-npm run dev              # http://localhost:3000
+npm install              # 의존성 설치/업데이트 (package.json 변경 시)
+npm run dev              # http://localhost:3000 (포트 3000)
 
 # 프로덕션 빌드
-npm run build
+npm run build            # dist/ 폴더에 빌드 결과 생성
 
 # 빌드된 앱 미리보기
 npm run preview
+
+# Supabase 마이그레이션 적용
+npx supabase db push     # 최신 마이그레이션 반영 (스키마 변경 후 필수)
 ```
 
-**중요**: 백엔드는 Supabase 클라우드에서 호스팅되므로 로컬 서버 실행이 필요 없습니다.
+**중요**:
+- 백엔드는 Supabase 클라우드에서 호스팅되므로 로컬 서버 실행이 필요 없습니다
+- 개발 서버는 포트 3000에서 실행됩니다 (vite.config.ts 참조)
+- `vite.config.ts`의 프록시 설정은 레거시 FastAPI 백엔드용이며 현재는 사용되지 않습니다
 
 ## 환경 변수
 
@@ -94,16 +101,23 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
 
 ```
 /
-├── components/           # React 컴포넌트
-│   ├── Dashboard.tsx     # 대시보드 (차트, 통계)
-│   ├── Expenses.tsx      # 지출 관리 (Gemini AI Quick Add 포함)
-│   ├── Income.tsx        # 수익 관리
-│   ├── Investments.tsx   # 투자 관리 (계좌, 보유종목, 거래내역)
-│   ├── Issues.tsx        # 이슈 보드 (칸반 스타일, 댓글 기능)
-│   ├── FixedCosts.tsx    # 고정비 관리 (구독료, 월세 등)
-│   ├── Settings.tsx      # 설정 (카테고리, 예산, 사용자)
-│   ├── Header.tsx        # 헤더 (페이지 전환, 통화 토글, 인증)
-│   └── AuthModal.tsx     # 로그인/회원가입 모달
+├── src/
+│   ├── index.tsx        # Vite 엔트리 포인트 (React 부트스트랩)
+│   ├── App.tsx          # 메인 앱 (페이지 라우팅, 레이아웃)
+│   └── sw.ts            # Service Worker (Workbox 기반 PWA)
+├── components/          # React 컴포넌트
+│   ├── Dashboard.tsx    # 대시보드 (차트, 통계)
+│   ├── Expenses.tsx     # 지출 관리 (Gemini AI Quick Add 포함)
+│   ├── Income.tsx       # 수익 관리
+│   ├── Investments.tsx  # 투자 관리 (계좌, 보유종목, 거래내역)
+│   ├── Issues.tsx       # 이슈 보드 (칸반 스타일, 댓글 기능)
+│   ├── FixedCosts.tsx   # 고정비 관리 (구독료, 월세 등)
+│   ├── Settings.tsx     # 설정 (카테고리, 예산, 사용자)
+│   ├── Sidebar.tsx      # 사이드바 네비게이션
+│   ├── Header.tsx       # 헤더 (페이지 전환, 통화 토글, 인증)
+│   ├── AuthModal.tsx    # 로그인/회원가입 모달
+│   ├── ui/              # 재사용 UI 컴포넌트 (Card 등)
+│   └── icons/           # PWA 아이콘 (192x192, 512x512, maskable)
 ├── lib/
 │   ├── api.ts           # Supabase API 래퍼 (모든 CRUD 함수)
 │   ├── supabase.ts      # Supabase 클라이언트 초기화
@@ -112,11 +126,25 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
 │   ├── gemini.ts        # Gemini AI API 통합 (지출 자동 분석)
 │   └── dateUtils.ts     # 날짜 유틸리티 (KST 기준, 타임존 처리)
 ├── types.ts             # TypeScript 타입 정의
+├── constants.ts         # 상수 정의
 ├── supabase/migrations/ # SQL 마이그레이션
-├── App.tsx              # 메인 앱 (페이지 라우팅)
+│   └── 009_add_fixed_cost_amount_mode.sql  # 최신 마이그레이션
+├── docs/                # 프로젝트 문서
+│   ├── frontend.md      # 프론트엔드 아키텍처
+│   ├── backend.md       # 백엔드 API (참조용)
+│   ├── supabase-setup.md        # Supabase 설정 가이드
+│   ├── vercel-deployment.md     # Vercel 배포 가이드
+│   ├── pwa-setup.md     # PWA 설정 및 캐싱
+│   └── workflow.md      # 개발 워크플로
+├── backend/             # FastAPI 백엔드 (참조용, 사용 중지)
 ├── vite.config.ts       # Vite + PWA 설정
-└── vercel.json          # Vercel 배포 설정
+├── vercel.json          # Vercel 배포 설정
+├── package.json         # NPM 의존성
+├── tsconfig.json        # TypeScript 설정
+└── tailwind.config.js   # Tailwind CSS 설정
 ```
+
+**참고**: 프론트엔드 파일은 리포지터리 루트에 위치하며, `backend/`는 레거시 FastAPI 코드 참조용입니다.
 
 ## 데이터베이스 테이블
 
@@ -238,13 +266,19 @@ CREATE POLICY "Users can view own notes" ON notes
 ### 4. PWA 관련 작업
 
 **Service Worker**:
-- 위치: `src/sw.ts`
+- 위치: `src/sw.ts` (커스텀 Service Worker)
 - Workbox 기반 (precache + runtime caching)
-- 수정 후 `npm run build`로 테스트 필요
+- `vite.config.ts`의 `injectManifest` 설정으로 `dist/sw.js`로 빌드됨
+- 수정 후 `npm run build`로 프로덕션 테스트 필수
+- 개발 환경에서도 PWA 동작 (devOptions.enabled: true)
 
 **Manifest**:
 - `vite.config.ts`의 `VitePWA({ manifest: {...} })` 섹션
-- 아이콘: `components/icons/icon-*.png`
+- 앱 이름: '쭈꾹 가계부' (short_name: '쭈꾹')
+- 아이콘: `components/icons/icon-*.png` (192x192, 512x512, maskable)
+- 테마 컬러: #0ea5e9 (하늘색)
+
+**상세 문서**: `docs/pwa-setup.md`, `docs/pwa-deployment.md`
 
 ## Row Level Security (RLS)
 
@@ -409,6 +443,28 @@ const handleBulkDelete = async () => {
 };
 ```
 
+## 코딩 스타일 & 규칙
+
+**React/TypeScript**:
+- 들여쓰기: 2 스페이스
+- 문자열: 작은따옴표 ('') 사용
+- 컴포넌트: PascalCase (예: `Dashboard.tsx`)
+- 함수/변수: camelCase (예: `getUserName()`)
+- 파일 위치: `components/` 폴더 또는 사용처 근처
+
+**Python (backend/ 참조용)**:
+- 들여쓰기: 4 스페이스
+- 함수/변수: snake_case
+- Black 호환 권장
+
+**환경 변수**:
+- 새 키 추가 시 `.env.example` 업데이트 필수
+- 실제 시크릿은 절대 커밋 금지
+
+**Commit Convention**:
+- Conventional Commits 형식 사용
+- 예: `feat(frontend): add sidebar tweaks`, `fix(backend): expenses schema`
+
 ## 중요 참고사항
 
 1. **FastAPI 백엔드는 사용 중지**: `backend/` 폴더는 참조용이며 실행되지 않음
@@ -418,6 +474,7 @@ const handleBulkDelete = async () => {
 5. **created_by 필드**: 자동으로 현재 로그인 사용자 UUID 설정됨
 6. **Income/Expense 테이블**: 동일한 `expenses` 테이블 공유, 카테고리 타입으로 구분
 7. **날짜 처리**: 모든 날짜는 KST 기준이며 UTC 변환 없이 처리됨 - `lib/dateUtils.ts` 사용 필수
+8. **PWA 테스트**: Service Worker 수정 후 반드시 프로덕션 빌드로 테스트 (`npm run build && npm run preview`)
 
 ## 문제 해결
 
@@ -439,6 +496,36 @@ npm run build
 ### Service Worker 캐싱 문제
 → 개발자 도구 → Application → Clear storage 또는 `npm run build && npm run preview`로 프로덕션 빌드 테스트
 
+## 테스트
+
+### Frontend 테스트 (예정)
+- **프레임워크**: Vitest + React Testing Library
+- **위치**: `components/__tests__/` (컴포넌트 옆에 colocate)
+- **파일 형식**: `*.test.tsx`
+- **테스트 대상**:
+  - Income/Expense API 통합
+  - 예산 검증 로직
+  - 고정비 납부 생성 및 변동 금액 수정/취소 플로우
+  - 투자/이슈 통합
+
+**실행 명령 (향후)**:
+```bash
+npm run test
+```
+
+### Backend 테스트 (참조용, FastAPI)
+- **프레임워크**: Pytest
+- **위치**: `backend/tests/`
+- **데이터베이스**: In-memory SQLite 픽스처
+
+**실행 명령**:
+```bash
+cd backend
+source venv/bin/activate
+pytest                    # 전체 테스트
+pytest tests/test_expenses_api.py -vv  # 특정 테스트
+```
+
 ## 문서
 
 상세 정보는 다음 문서 참조:
@@ -446,5 +533,7 @@ npm run build
 - `docs/vercel-deployment.md` - Vercel 프로덕션 배포 가이드
 - `docs/frontend.md` - 프론트엔드 아키텍처 및 컴포넌트 구조
 - `docs/pwa-setup.md` - PWA 설정, Service Worker, 오프라인 지원
+- `docs/workflow.md` - 개발 워크플로 및 마이그레이션 가이드
+- `AGENTS.md` - 기여자 가이드 (코딩 스타일, PR 규칙)
 
 **참고**: `README.md`는 FastAPI 백엔드 기준으로 작성되어 일부 정보가 구버전일 수 있습니다. Supabase 기반 개발 시 이 CLAUDE.md와 docs/ 폴더를 우선 참조하세요.

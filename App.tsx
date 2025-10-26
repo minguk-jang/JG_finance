@@ -9,6 +9,7 @@ import Investments from './components/Investments';
 import Issues from './components/Issues';
 import Settings from './components/Settings';
 import FixedCosts from './components/FixedCosts';
+import Notes from './components/Notes';
 import QuickAddVoiceModal from './components/QuickAddVoiceModal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import AuthModal from './components/AuthModal';
@@ -172,6 +173,8 @@ const App: React.FC = () => {
         return <Issues currency={currency} />;
       case 'FixedCosts':
         return <FixedCosts currency={currency} exchangeRate={exchangeRate} />;
+      case 'Notes':
+        return <Notes />;
       case 'Settings':
         return renderSettings();
       default:

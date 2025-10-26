@@ -1,5 +1,5 @@
 export type Currency = 'KRW' | 'USD';
-export type Page = 'Dashboard' | 'Expenses' | 'Income' | 'Investments' | 'Issues' | 'Settings' | 'FixedCosts';
+export type Page = 'Dashboard' | 'Expenses' | 'Income' | 'Investments' | 'Issues' | 'Settings' | 'FixedCosts' | 'Notes';
 
 // ============================================
 // Supabase Database Types
@@ -321,6 +321,26 @@ export interface Database {
           expense_id?: number | null;
         };
       };
+      notes: {
+        Row: {
+          id: number;
+          content: string;
+          is_completed: boolean;
+          created_by: string; // UUID
+          created_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          content: string;
+          is_completed?: boolean;
+          created_by: string;
+        };
+        Update: {
+          content?: string;
+          is_completed?: boolean;
+          completed_at?: string | null;
+        };
+      };
     };
   };
 }
@@ -466,4 +486,13 @@ export interface FixedCostPayment {
   expenseId: number | null; // Link to expenses table
   createdBy: string; // UUID from users.id
   fixedCost?: FixedCost; // Optional joined data
+}
+
+export interface Note {
+  id: number;
+  content: string;
+  isCompleted: boolean;
+  createdBy: string; // UUID from users.id
+  createdAt: string;
+  completedAt: string | null;
 }

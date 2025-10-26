@@ -892,4 +892,60 @@ export const api = {
     // Return first row (should only be one)
     return data && data.length > 0 ? toCamelCase(data[0]) : null;
   },
+
+  // ============================================
+  // Notes
+  // ============================================
+  getNotes: async () => {
+    const data = await handleRequest(
+      supabase
+        .from('notes')
+        .select('*')
+        .order('is_completed', { ascending: true })
+        .order('created_at', { ascending: false })
+    );
+    return toCamelCase(data);
+  },
+
+  getNote: async (id: number) => {
+    const data = await handleRequest(
+      supabase.from('notes').select('*').eq('id', id).single()
+    );
+    return toCamelCase(data);
+  },
+
+  createNote: async (noteData: any) => {
+    const snakeData = toSnakeCase(noteData);
+    const data = await handleRequest(
+      supabase.from('notes').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateNote: async (id: number, noteData: any) => {
+    const snakeData = toSnakeCase(noteData);
+    const data = await handleRequest(
+      supabase.from('notes').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteNote: async (id: number) => {
+    await handleRequest(supabase.from('notes').delete().eq('id', id));
+  },
+
+  // Delete notes older than 7 days
+  deleteOldNotes: async () => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const cutoffDate = sevenDaysAgo.toISOString();
+
+    await handleRequest(
+      supabase
+        .from('notes')
+        .delete()
+        .eq('is_completed', true)
+        .lt('completed_at', cutoffDate)
+    );
+  },
 };
