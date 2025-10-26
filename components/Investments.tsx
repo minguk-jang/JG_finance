@@ -1,34 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { Currency } from '../types';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Currency, StudySession, StudyReference, StudyFollowUp } from '../types';
 import Card from './ui/Card';
 import { getLocalDateString } from '../lib/dateUtils';
-
-interface StudyReference {
-  id: string;
-  title: string;
-  url: string;
-}
-
-interface StudyFollowUp {
-  id: string;
-  task: string;
-  owner: string;
-  due: string;
-  completed: boolean;
-}
-
-interface StudySession {
-  id: string;
-  topic: string;
-  date: string;
-  source: string;
-  participants: string;
-  tags: string[];
-  highlights: string[];
-  notes: string;
-  references: StudyReference[];
-  followUps: StudyFollowUp[];
-}
+import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 interface InvestmentsProps {
   currency: Currency;
@@ -70,8 +45,6 @@ const PROMPT_TEMPLATE = `당신은 투자 스터디 기록을 정리하는 전�
 - references에는 원문 제목/링크를 가능한 한 채운다.
 - followUps는 필요 시 1~3개 작성. 기한이 없으면 일주일 뒤로 설정.`;
 
-const generateId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-
 const padHighlights = (highlights: string[]) => {
   const next = [...highlights];
   while (next.length < MAX_HIGHLIGHTS) {
@@ -84,153 +57,38 @@ const cloneSession = (session: StudySession): StudySession => ({
   ...session,
   tags: [...session.tags],
   highlights: padHighlights(session.highlights),
-  references: session.references.map((ref) => ({ ...ref })),
-  followUps: session.followUps.map((item) => ({ ...item })),
+  references: session.references ? session.references.map((ref) => ({ ...ref })) : [],
+  followUps: session.followUps ? session.followUps.map((item) => ({ ...item })) : [],
 });
 
 const createEmptySession = (): StudySession => ({
-  id: '',
+  id: 0,
   topic: '',
   date: getLocalDateString(),
-  source: '',
-  participants: '',
+  source: null,
+  participants: null,
   tags: [],
-  highlights: padHighlights(['']),
-  notes: '',
+  highlights: padHighlights([]),
+  notes: null,
+  createdBy: '',
+  createdAt: getLocalDateString(),
+  updatedAt: getLocalDateString(),
   references: [],
   followUps: [],
 });
 
-const INITIAL_SESSIONS: StudySession[] = [
-  {
-    id: 'session-240520',
-    topic: '금리 사이클이 자산군에 미치는 영향',
-    date: '2024-05-20',
-    source: 'JP Morgan Macro Outlook',
-    participants: 'M, K',
-    tags: ['채권', '매크로', '멀티에셋'],
-    highlights: [
-      '장단기 금리 역전 완화, Q3 채권 비중 +5% 검토',
-      '정책 변곡 시 리스크 헤지 수단 재점검',
-      '성장주 대비 가치주 리스크/보상 분석 필요',
-    ],
-    notes: [
-      '- 연준 점도표와 선물시장의 금리 경로 차이를 비교했고 9월까지 동결 시나리오가 우세함.',
-      '- 10Y-2Y 스프레드는 Q4에 플러스로 돌아설 가능성이 커 보이며 멀티에셋 리밸런싱 시그널로 활용 예정.',
-      '- 기관 고객 채권 편입 비중을 5%p 늘릴 경우 듀레이션 리스크를 커버하기 위한 헤지 비용 추산 필요.',
-    ].join('\n'),
-    references: [
-      { id: 'ref-01', title: 'JP Morgan Macro Outlook', url: 'https://example.com/jpm-macro' },
-      { id: 'ref-02', title: 'BIS Annual Report 2024 (p.42)', url: 'https://example.com/bis-2024' },
-    ],
-    followUps: [
-      { id: 'todo-01', task: '국채 ETF 편입 비중 재산정', owner: 'M', due: '2024-05-25', completed: false },
-      { id: 'todo-02', task: '회사채 스프레드 모니터링 시트 공유', owner: 'K', due: '2024-05-21', completed: true },
-    ],
-  },
-  {
-    id: 'session-240512',
-    topic: '반도체 업황 점검 및 AI CapEx 영향',
-    date: '2024-05-12',
-    source: 'Morgan Stanley Tech Pulse',
-    participants: 'M',
-    tags: ['반도체', 'AI', '성장주'],
-    highlights: [
-      'H2 메모리 ASP 시나리오 상향, DDR5 재고 턴 확인',
-      'AI CapEx → 파운드리 가동률 90% 회복 예상',
-      '대만 공급 차질 시 긴급 대응 플랜 필요',
-    ],
-    notes: [
-      '- DDR5 재고가 7주 수준으로 줄었고 ASP가 QoQ +12% 가이던스.',
-      '- 2025년까지 북미 하이퍼스케일러 CapEx CAGR 19% 전망, 관련 장비 업체 Top pick 재검토.',
-      '- 지정학 리스크 완화 전까지 파운드리 이중 소싱 정책을 유지.',
-    ].join('\n'),
-    references: [
-      { id: 'ref-03', title: 'Morgan Stanley Tech Pulse', url: 'https://example.com/ms-tech' },
-    ],
-    followUps: [
-      { id: 'todo-03', task: 'AI CapEx 민감도 시트 업데이트', owner: 'M', due: '2024-05-18', completed: false },
-    ],
-  },
-  {
-    id: 'session-240503',
-    topic: '배당 ETF 비교 스터디',
-    date: '2024-05-03',
-    source: 'Internal deck',
-    participants: '팀 전체',
-    tags: ['배당', 'ETF'],
-    highlights: [
-      '분배금 성장률과 총수익률을 분리 분석',
-      '국내/미국 배당 ETF 세제 차이 정리',
-      '현금흐름 캘린더 작성 필요',
-    ],
-    notes: [
-      '- 분배금 성장률이 5% 이상인 ETF에 집중하되, 시총 상위 30% 편중 여부를 추가 확인.',
-      '- ETF 분배 스케줄을 월별 현금흐름 테이블로 변환해 고정비 상쇄 계획에 반영.',
-    ].join('\n'),
-    references: [],
-    followUps: [
-      { id: 'todo-04', task: '배당 캘린더 샘플 공유', owner: '팀 전체', due: '2024-05-10', completed: false },
-    ],
-  },
-];
-
-const STORAGE_KEY_SESSIONS = 'investment_study_sessions';
 const STORAGE_KEY_PROMPT = 'investment_study_prompt_template';
 
 const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => {
-  // Load initial data from localStorage
-  const [sessions, setSessions] = useState<StudySession[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_SESSIONS);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (error) {
-      console.error('Failed to load sessions from localStorage', error);
-    }
-    return INITIAL_SESSIONS;
-  });
+  const { user } = useAuth();
 
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_SESSIONS);
-      if (stored) {
-        const loadedSessions = JSON.parse(stored);
-        return loadedSessions[0]?.id ?? null;
-      }
-    } catch (error) {
-      console.error('Failed to load active session', error);
-    }
-    return INITIAL_SESSIONS[0]?.id ?? null;
-  });
-
-  const [draft, setDraft] = useState<StudySession>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_SESSIONS);
-      if (stored) {
-        const loadedSessions = JSON.parse(stored);
-        return loadedSessions[0] ? cloneSession(loadedSessions[0]) : createEmptySession();
-      }
-    } catch (error) {
-      console.error('Failed to load draft', error);
-    }
-    return INITIAL_SESSIONS[0] ? cloneSession(INITIAL_SESSIONS[0]) : createEmptySession();
-  });
-
+  // State management
+  const [sessions, setSessions] = useState<StudySession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
+  const [draft, setDraft] = useState<StudySession>(createEmptySession());
   const [isDirty, setIsDirty] = useState(false);
-  const [isCreatingNew, setIsCreatingNew] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_SESSIONS);
-      if (stored) {
-        const loadedSessions = JSON.parse(stored);
-        return loadedSessions.length === 0;
-      }
-    } catch (error) {
-      console.error('Failed to check if creating new', error);
-    }
-    return INITIAL_SESSIONS.length === 0;
-  });
+  const [isCreatingNew, setIsCreatingNew] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const [tagInput, setTagInput] = useState('');
   const [showPromptModal, setShowPromptModal] = useState(false);
@@ -248,18 +106,38 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
     return PROMPT_TEMPLATE;
   });
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Save sessions to localStorage whenever they change
-  React.useEffect(() => {
+  // Fetch study sessions from API
+  const fetchStudySessions = async () => {
     try {
-      localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
-    } catch (error) {
-      console.error('Failed to save sessions to localStorage', error);
+      setError(null);
+      setLoading(true);
+      const data = await api.getStudySessions();
+      setSessions(data || []);
+
+      // Set default active session to first one if available
+      if (data && data.length > 0) {
+        setActiveSessionId(data[0].id);
+      } else {
+        setActiveSessionId(null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch study sessions:', err);
+      setError('스터디 목록을 불러오지 못했습니다.');
+      setSessions([]);
+    } finally {
+      setLoading(false);
     }
-  }, [sessions]);
+  };
+
+  // Load sessions on mount
+  useEffect(() => {
+    fetchStudySessions();
+  }, []);
 
   // Save prompt template to localStorage whenever it changes
-  React.useEffect(() => {
+  useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_PROMPT, promptTemplate);
     } catch (error) {
@@ -278,18 +156,43 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
     return window.confirm('아직 저장하지 않은 변경 사항이 있습니다. 계속하시겠어요?');
   };
 
-  const handleSelectSession = (sessionId: string) => {
+  const handleSelectSession = async (sessionId: number) => {
     if (!confirmDiscard()) {
       return;
     }
-    const session = sessions.find((item) => item.id === sessionId);
-    if (!session) {
-      return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Load session with references and followups
+      const [session, references, followUps] = await Promise.all([
+        api.getStudySession(sessionId),
+        api.getStudyReferences(sessionId),
+        api.getStudyFollowUps(sessionId),
+      ]);
+
+      if (!session) {
+        setError('스터디를 불러올 수 없습니다.');
+        return;
+      }
+
+      const sessionWithRelations: StudySession = {
+        ...session,
+        references: references || [],
+        followUps: followUps || [],
+      };
+
+      setActiveSessionId(sessionId);
+      setDraft(cloneSession(sessionWithRelations));
+      setIsCreatingNew(false);
+      setIsDirty(false);
+    } catch (err) {
+      console.error('Failed to load session:', err);
+      setError('스터디를 불러오지 못했습니다.');
+    } finally {
+      setLoading(false);
     }
-    setActiveSessionId(session.id);
-    setDraft(cloneSession(session));
-    setIsCreatingNew(false);
-    setIsDirty(false);
   };
 
   const handleStartNewSession = () => {
@@ -322,19 +225,21 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
   const handleAddReference = () => {
     updateDraftField('references', [
       ...draft.references,
-      { id: generateId(), title: '', url: '' },
+      { id: 0, studySessionId: 0, title: '', url: null, createdAt: getLocalDateString() },
     ]);
   };
 
-  const handleReferenceChange = (id: string, field: keyof StudyReference, value: string) => {
+  const handleReferenceChange = (id: number, field: keyof StudyReference, value: string | null) => {
     setDraft((prev) => ({
       ...prev,
-      references: prev.references.map((ref) => (ref.id === id ? { ...ref, [field]: value } : ref)),
+      references: prev.references.map((ref) =>
+        ref.id === id || (ref.id === 0 && id === 0) ? { ...ref, [field]: value } : ref
+      ),
     }));
     setIsDirty(true);
   };
 
-  const handleRemoveReference = (id: string) => {
+  const handleRemoveReference = (id: number) => {
     updateDraftField(
       'references',
       draft.references.filter((ref) => ref.id !== id)
@@ -344,21 +249,29 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
   const handleAddFollowUp = () => {
     updateDraftField('followUps', [
       ...draft.followUps,
-      { id: generateId(), task: '', owner: '', due: getLocalDateString(), completed: false },
+      {
+        id: 0,
+        studySessionId: 0,
+        task: '',
+        owner: null,
+        due: getLocalDateString(),
+        completed: false,
+        createdAt: getLocalDateString(),
+      },
     ]);
   };
 
-  const handleFollowUpChange = (id: string, field: keyof StudyFollowUp, value: string | boolean) => {
+  const handleFollowUpChange = (id: number, field: keyof StudyFollowUp, value: string | boolean | null) => {
     setDraft((prev) => ({
       ...prev,
       followUps: prev.followUps.map((item) =>
-        item.id === id ? { ...item, [field]: value } : item
+        item.id === id || (item.id === 0 && id === 0) ? { ...item, [field]: value } : item
       ),
     }));
     setIsDirty(true);
   };
 
-  const handleRemoveFollowUp = (id: string) => {
+  const handleRemoveFollowUp = (id: number) => {
     updateDraftField(
       'followUps',
       draft.followUps.filter((item) => item.id !== id)
@@ -405,73 +318,175 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
     setIsDirty(false);
   };
 
-  const handleSaveSession = () => {
+  const handleSaveSession = async () => {
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
     const topic = draft.topic.trim();
     if (!topic) {
       alert('스터디 주제를 입력해주세요.');
       return;
     }
+
     const cleanedHighlights = draft.highlights.map((line) => line.trim()).filter(Boolean);
     if (cleanedHighlights.length === 0) {
       alert('핵심 요약을 최소 한 줄 이상 입력해주세요.');
       return;
     }
-    const normalized: StudySession = {
-      ...draft,
-      id: draft.id || generateId(),
-      topic,
-      source: draft.source.trim(),
-      participants: draft.participants.trim(),
-      tags: draft.tags.map((tag) => tag.trim()).filter(Boolean),
-      highlights: cleanedHighlights,
-      references: draft.references
-        .map((ref) => ({
-          ...ref,
-          title: ref.title.trim(),
-          url: ref.url.trim(),
-        }))
-        .filter((ref) => ref.title || ref.url),
-      followUps: draft.followUps.map((item) => ({
-        ...item,
-        task: item.task.trim(),
-        owner: item.owner.trim(),
-        due: item.due,
-      })),
-    };
 
-    if (isCreatingNew || !activeSessionId) {
-      setSessions((prev) => [normalized, ...prev]);
-      setActiveSessionId(normalized.id);
-      setIsCreatingNew(false);
-    } else {
-      setSessions((prev) => prev.map((session) => (session.id === normalized.id ? normalized : session)));
+    try {
+      setLoading(true);
+      setError(null);
+
+      const normalized = {
+        topic,
+        date: draft.date,
+        source: draft.source ? draft.source.trim() : null,
+        participants: draft.participants ? draft.participants.trim() : null,
+        tags: draft.tags.map((tag) => tag.trim()).filter(Boolean),
+        highlights: cleanedHighlights,
+        notes: draft.notes ? draft.notes.trim() : null,
+      };
+
+      let savedSession: StudySession;
+
+      if (isCreatingNew || !activeSessionId) {
+        // Create new session
+        savedSession = await api.createStudySession({
+          ...normalized,
+          createdBy: user.id,
+        });
+
+        // Save references
+        const cleanedRefs = draft.references
+          .map((ref) => ({
+            title: ref.title.trim(),
+            url: ref.url ? ref.url.trim() : null,
+          }))
+          .filter((ref) => ref.title || ref.url);
+
+        for (const ref of cleanedRefs) {
+          await api.createStudyReference({
+            studySessionId: savedSession.id,
+            title: ref.title,
+            url: ref.url,
+          });
+        }
+
+        // Save follow-ups
+        const cleanedFollowUps = draft.followUps.filter((item) => item.task.trim());
+        for (const followUp of cleanedFollowUps) {
+          await api.createStudyFollowUp({
+            studySessionId: savedSession.id,
+            task: followUp.task.trim(),
+            owner: followUp.owner ? followUp.owner.trim() : null,
+            due: followUp.due || null,
+            completed: followUp.completed,
+          });
+        }
+
+        // Add to local list
+        setSessions((prev) => [savedSession, ...prev]);
+        setActiveSessionId(savedSession.id);
+        setIsCreatingNew(false);
+      } else {
+        // Update existing session
+        savedSession = await api.updateStudySession(activeSessionId, normalized);
+
+        // Update references: delete all and recreate
+        const existingRefs = await api.getStudyReferences(activeSessionId);
+        for (const ref of existingRefs) {
+          await api.deleteStudyReference(ref.id);
+        }
+
+        const cleanedRefs = draft.references
+          .map((ref) => ({
+            title: ref.title.trim(),
+            url: ref.url ? ref.url.trim() : null,
+          }))
+          .filter((ref) => ref.title || ref.url);
+
+        for (const ref of cleanedRefs) {
+          await api.createStudyReference({
+            studySessionId: activeSessionId,
+            title: ref.title,
+            url: ref.url,
+          });
+        }
+
+        // Update follow-ups: delete all and recreate
+        const existingFollowUps = await api.getStudyFollowUps(activeSessionId);
+        for (const followUp of existingFollowUps) {
+          await api.deleteStudyFollowUp(followUp.id);
+        }
+
+        const cleanedFollowUps = draft.followUps.filter((item) => item.task.trim());
+        for (const followUp of cleanedFollowUps) {
+          await api.createStudyFollowUp({
+            studySessionId: activeSessionId,
+            task: followUp.task.trim(),
+            owner: followUp.owner ? followUp.owner.trim() : null,
+            due: followUp.due || null,
+            completed: followUp.completed,
+          });
+        }
+
+        // Update local list
+        setSessions((prev) =>
+          prev.map((session) => (session.id === activeSessionId ? savedSession : session))
+        );
+      }
+
+      // Refresh to get updated data
+      await fetchStudySessions();
+      setIsDirty(false);
+    } catch (err) {
+      console.error('Failed to save study session:', err);
+      setError('스터디 저장 중 오류가 발생했습니다.');
+      alert('저장 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
     }
-
-    setDraft(cloneSession(normalized));
-    setIsDirty(false);
   };
 
-  const handleDeleteSession = (sessionId: string) => {
+  const handleDeleteSession = async (sessionId: number) => {
     if (!window.confirm('이 스터디를 삭제하시겠습니까?')) {
       return;
     }
 
-    setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+    try {
+      setLoading(true);
+      setError(null);
 
-    // If deleting the active session, reset to empty or select another
-    if (sessionId === activeSessionId) {
-      const remainingSessions = sessions.filter((s) => s.id !== sessionId);
-      if (remainingSessions.length > 0) {
-        const nextSession = remainingSessions[0];
-        setActiveSessionId(nextSession.id);
-        setDraft(cloneSession(nextSession));
-        setIsCreatingNew(false);
-      } else {
-        setActiveSessionId(null);
-        setDraft(createEmptySession());
-        setIsCreatingNew(true);
+      // Delete cascade: session, references, followups are all deleted
+      await api.deleteStudySession(sessionId);
+
+      // Update local list
+      setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+
+      // If deleting the active session, reset to empty or select another
+      if (sessionId === activeSessionId) {
+        const remainingSessions = sessions.filter((s) => s.id !== sessionId);
+        if (remainingSessions.length > 0) {
+          const nextSession = remainingSessions[0];
+          setActiveSessionId(nextSession.id);
+          setDraft(cloneSession(nextSession));
+          setIsCreatingNew(false);
+        } else {
+          setActiveSessionId(null);
+          setDraft(createEmptySession());
+          setIsCreatingNew(true);
+        }
+        setIsDirty(false);
       }
-      setIsDirty(false);
+    } catch (err) {
+      console.error('Failed to delete study session:', err);
+      setError('스터디 삭제 중 오류가 발생했습니다.');
+      alert('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -505,25 +520,29 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
       const importedData: Partial<StudySession> = {
         topic: parsed.topic || '',
         date: parsed.date || getLocalDateString(),
-        source: parsed.source || '',
-        participants: parsed.participants || '',
+        source: parsed.source || null,
+        participants: parsed.participants || null,
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
         highlights: padHighlights(Array.isArray(parsed.highlights) ? parsed.highlights : []),
-        notes: parsed.notes || '',
+        notes: parsed.notes || null,
         references: Array.isArray(parsed.references)
           ? parsed.references.map((ref: any) => ({
-              id: generateId(),
+              id: 0,
+              studySessionId: 0,
               title: ref.title || '',
-              url: ref.url || '',
+              url: ref.url || null,
+              createdAt: getLocalDateString(),
             }))
           : [],
         followUps: Array.isArray(parsed.followUps)
           ? parsed.followUps.map((item: any) => ({
-              id: generateId(),
+              id: 0,
+              studySessionId: 0,
               task: item.task || '',
-              owner: item.owner || '',
+              owner: item.owner || null,
               due: item.due || getLocalDateString(),
               completed: item.completed || false,
+              createdAt: getLocalDateString(),
             }))
           : [],
       };
@@ -543,13 +562,33 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
     }
   };
 
+  // Show loading state
+  if (loading && sessions.length === 0) {
+    return (
+      <div className="flex justify-center items-center h-96">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="text-gray-400">스터디 목록을 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Error Banner */}
+      {error && (
+        <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-100">투자 스터디 기록</h1>
         <div className="flex flex-wrap items-center gap-2">
           {isDirty && <span className="rounded-full bg-amber-500/30 border border-amber-600 px-3 py-1 text-amber-200 text-xs">임시 변경사항 있음</span>}
+          {loading && <span className="rounded-full bg-blue-500/30 border border-blue-600 px-3 py-1 text-blue-200 text-xs animate-pulse">저장 중...</span>}
           <button
             type="button"
             onClick={() => setShowPromptModal(true)}

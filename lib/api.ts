@@ -948,4 +948,115 @@ export const api = {
         .lt('completed_at', cutoffDate)
     );
   },
+
+  // ============================================
+  // Study Sessions
+  // ============================================
+
+  getStudySessions: async () => {
+    const data = await handleRequest(
+      supabase
+        .from('study_sessions')
+        .select('*')
+        .order('date', { ascending: false })
+    );
+    return toCamelCase(data);
+  },
+
+  getStudySession: async (id: number) => {
+    const data = await handleRequest(
+      supabase.from('study_sessions').select('*').eq('id', id).single()
+    );
+    return toCamelCase(data);
+  },
+
+  createStudySession: async (sessionData: any) => {
+    const snakeData = toSnakeCase(sessionData);
+    const data = await handleRequest(
+      supabase.from('study_sessions').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateStudySession: async (id: number, sessionData: any) => {
+    const snakeData = toSnakeCase(sessionData);
+    const data = await handleRequest(
+      supabase.from('study_sessions').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteStudySession: async (id: number) => {
+    await handleRequest(supabase.from('study_sessions').delete().eq('id', id));
+  },
+
+  // ============================================
+  // Study References
+  // ============================================
+
+  getStudyReferences: async (sessionId: number) => {
+    const data = await handleRequest(
+      supabase
+        .from('study_references')
+        .select('*')
+        .eq('study_session_id', sessionId)
+        .order('created_at', { ascending: true })
+    );
+    return toCamelCase(data);
+  },
+
+  createStudyReference: async (referenceData: any) => {
+    const snakeData = toSnakeCase(referenceData);
+    const data = await handleRequest(
+      supabase.from('study_references').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateStudyReference: async (id: number, referenceData: any) => {
+    const snakeData = toSnakeCase(referenceData);
+    const data = await handleRequest(
+      supabase.from('study_references').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteStudyReference: async (id: number) => {
+    await handleRequest(supabase.from('study_references').delete().eq('id', id));
+  },
+
+  // ============================================
+  // Study Follow-ups
+  // ============================================
+
+  getStudyFollowUps: async (sessionId: number) => {
+    const data = await handleRequest(
+      supabase
+        .from('study_followups')
+        .select('*')
+        .eq('study_session_id', sessionId)
+        .order('due', { ascending: true })
+    );
+    return toCamelCase(data);
+  },
+
+  createStudyFollowUp: async (followUpData: any) => {
+    const snakeData = toSnakeCase(followUpData);
+    const data = await handleRequest(
+      supabase.from('study_followups').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateStudyFollowUp: async (id: number, followUpData: any) => {
+    const snakeData = toSnakeCase(followUpData);
+    const data = await handleRequest(
+      supabase.from('study_followups').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteStudyFollowUp: async (id: number) => {
+    await handleRequest(supabase.from('study_followups').delete().eq('id', id));
+  },
 };

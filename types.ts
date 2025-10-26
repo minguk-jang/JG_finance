@@ -341,6 +341,82 @@ export interface Database {
           completed_at?: string | null;
         };
       };
+      study_sessions: {
+        Row: {
+          id: number;
+          topic: string;
+          date: string;
+          source: string | null;
+          participants: string | null;
+          tags: string[];
+          highlights: string[];
+          notes: string | null;
+          created_by: string; // UUID
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          topic: string;
+          date: string;
+          source?: string | null;
+          participants?: string | null;
+          tags?: string[];
+          highlights?: string[];
+          notes?: string | null;
+          created_by: string;
+        };
+        Update: {
+          topic?: string;
+          date?: string;
+          source?: string | null;
+          participants?: string | null;
+          tags?: string[];
+          highlights?: string[];
+          notes?: string | null;
+        };
+      };
+      study_references: {
+        Row: {
+          id: number;
+          study_session_id: number;
+          title: string;
+          url: string | null;
+          created_at: string;
+        };
+        Insert: {
+          study_session_id: number;
+          title: string;
+          url?: string | null;
+        };
+        Update: {
+          title?: string;
+          url?: string | null;
+        };
+      };
+      study_followups: {
+        Row: {
+          id: number;
+          study_session_id: number;
+          task: string;
+          owner: string | null;
+          due: string | null;
+          completed: boolean;
+          created_at: string;
+        };
+        Insert: {
+          study_session_id: number;
+          task: string;
+          owner?: string | null;
+          due?: string | null;
+          completed?: boolean;
+        };
+        Update: {
+          task?: string;
+          owner?: string | null;
+          due?: string | null;
+          completed?: boolean;
+        };
+      };
     };
   };
 }
@@ -495,4 +571,38 @@ export interface Note {
   createdBy: string; // UUID from users.id
   createdAt: string;
   completedAt: string | null;
+}
+
+export interface StudySession {
+  id: number;
+  topic: string;
+  date: string; // YYYY-MM-DD
+  source: string | null;
+  participants: string | null;
+  tags: string[];
+  highlights: string[];
+  notes: string | null;
+  createdBy: string; // UUID from users.id
+  createdAt: string;
+  updatedAt: string;
+  references?: StudyReference[]; // Optional joined data
+  followUps?: StudyFollowUp[]; // Optional joined data
+}
+
+export interface StudyReference {
+  id: number;
+  studySessionId: number;
+  title: string;
+  url: string | null;
+  createdAt: string;
+}
+
+export interface StudyFollowUp {
+  id: number;
+  studySessionId: number;
+  task: string;
+  owner: string | null;
+  due: string | null; // YYYY-MM-DD
+  completed: boolean;
+  createdAt: string;
 }
