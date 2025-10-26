@@ -198,6 +198,37 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     }
   };
 
+  const ensurePaymentForCost = async (cost: FixedCost) => {
+    if (!selectedMonth) return;
+
+    try {
+      const existingPayments = await api.getFixedCostPayments({
+        year_month: selectedMonth,
+        fixed_cost_id: cost.id,
+      });
+
+      if (Array.isArray(existingPayments) && existingPayments.length > 0) {
+        return;
+      }
+
+      const isFixedAmount = cost.isFixedAmount ?? true;
+      const scheduledAmount = isFixedAmount ? cost.amount : null;
+
+      await api.createFixedCostPayment({
+        fixedCostId: cost.id,
+        yearMonth: selectedMonth,
+        scheduledAmount,
+        status: 'scheduled',
+      });
+    } catch (err: any) {
+      const message = err?.message || '';
+      if (message.toLowerCase().includes('duplicate')) {
+        return;
+      }
+      throw err;
+    }
+  };
+
   // Fetch trend data for the last 6 months
   const fetchTrendData = async () => {
     try {
@@ -572,12 +603,18 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
         isFixedAmount: formData.isFixedAmount,
       };
 
+      let savedCost: FixedCost | null = null;
+
       if (editingCost) {
         data.isActive = editingCost.isActive ?? true;
-        await api.updateFixedCost(editingCost.id, data);
+        savedCost = await api.updateFixedCost(editingCost.id, data);
       } else {
         data.isActive = true;
-        await api.createFixedCost(data);
+        savedCost = await api.createFixedCost(data);
+      }
+
+      if (!editingCost && savedCost) {
+        await ensurePaymentForCost(savedCost);
       }
 
       setShowAddModal(false);
@@ -587,7 +624,6 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       setSelectedExpense(null);
       resetForm();
       await fetchData();
-      await generatePayments(); // Auto-generate payment for new cost
     } catch (err: any) {
       setError(err.message || '저장에 실패했습니다.');
     }
