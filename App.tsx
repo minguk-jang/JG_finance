@@ -150,7 +150,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (currentPage) {
       case 'Dashboard':
-        return <Dashboard currency={currency} exchangeRate={exchangeRate} />;
+        return <Dashboard currency={currency} exchangeRate={exchangeRate} onPageChange={handlePageChange} />;
       case 'Expenses':
         return (
           <Expenses

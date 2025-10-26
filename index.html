@@ -112,10 +112,22 @@
     body.theme-light .bg-gray-800 { background-color: #ffffff !important; }
     body.theme-light .bg-gray-700 { background-color: #f1f5f9 !important; }
     body.theme-light .bg-gray-600 { background-color: #e2e8f0 !important; }
+
+    /* Override all gray backgrounds with opacity modifiers in light mode */
+    body.theme-light [class*="bg-gray-800"] { background-color: #ffffff !important; }
+    body.theme-light [class*="bg-gray-700"] { background-color: #f8fafc !important; }
+    body.theme-light [class*="bg-gray-600"] { background-color: #e2e8f0 !important; }
+    body.theme-light .text-gray-100 { color: #0f172a !important; }
     body.theme-light .text-gray-200 { color: #1f2937 !important; }
     body.theme-light .text-gray-300 { color: #334155 !important; }
     body.theme-light .text-gray-400 { color: #475569 !important; }
     body.theme-light .text-gray-500 { color: #64748b !important; }
+    body.theme-light .border-gray-700 { border-color: #cbd5e1 !important; }
+    body.theme-light .border-gray-600 { border-color: #cbd5e1 !important; }
+
+    /* Override all gray borders with opacity modifiers in light mode */
+    body.theme-light [class*="border-gray-700"] { border-color: #cbd5e1 !important; }
+    body.theme-light [class*="border-gray-600"] { border-color: #cbd5e1 !important; }
     body.theme-light .shadow-md { box-shadow: 0 10px 15px -3px rgba(100, 116, 139, 0.3), 0 4px 6px -4px rgba(100, 116, 139, 0.3) !important; }
     body.theme-light .bg-gray-700 input,
     body.theme-light .bg-gray-700 select,
@@ -124,6 +136,17 @@
     }
     body.theme-light .text-sky-400 { color: #0284c7 !important; }
     body.theme-light .bg-gray-700 .text-gray-400 { color: #475569 !important; }
+
+    /* Chart and data visualization colors for light mode */
+    body.theme-light .text-red-400 { color: #dc2626 !important; }
+    body.theme-light .text-red-300 { color: #ef4444 !important; }
+    body.theme-light .text-green-400 { color: #16a34a !important; }
+    body.theme-light .text-emerald-400 { color: #059669 !important; }
+    body.theme-light .text-emerald-300 { color: #10b981 !important; }
+    body.theme-light .text-indigo-400 { color: #4f46e5 !important; }
+
+    /* Ensure chart backgrounds are light in light mode */
+    body.theme-light svg path[stroke="#374151"] { stroke: #e2e8f0 !important; }
   </style>
 </head>
 <body class="bg-gray-900 text-gray-200 theme-dark">

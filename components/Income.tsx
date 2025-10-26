@@ -1,4 +1,4 @@
-import React, { useEffect, useImperativeHandle, useState, forwardRef } from 'react';
+import React, { useEffect, useImperativeHandle, useState, forwardRef, useRef } from 'react';
 import { Currency } from '../types';
 import Card from './ui/Card';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
@@ -26,9 +26,16 @@ const formatCurrency = (value: number, currency: Currency, exchangeRate: number)
 
 type SortKey = 'date' | 'category' | 'amount';
 type SortDirection = 'asc' | 'desc';
+type InlineField = 'amount' | 'memo';
 
 const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }, ref) => {
   const { user, profile } = useAuth();
+  const getDesktopPreference = () => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(min-width: 768px)').matches;
+    }
+    return false;
+  };
   const [incomes, setIncomes] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -57,6 +64,16 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
 
   // 선택된 항목들의 ID를 관리하는 state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [statsExpanded, setStatsExpanded] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [inlineEdit, setInlineEdit] = useState<{ id: number; field: InlineField } | null>(null);
+  const [inlineValue, setInlineValue] = useState('');
+  const [inlineSaving, setInlineSaving] = useState(false);
+  const [isDesktopView, setIsDesktopView] = useState(getDesktopPreference);
+  const inlineInputRef = useRef<HTMLInputElement | null>(null);
+  const inlineInputClasses =
+    'w-full rounded-lg border border-emerald-500/40 bg-gray-900/70 px-2 py-1 text-sm text-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30 outline-none transition shadow-[0_0_0_1px_rgba(52,211,153,0.35)] placeholder:text-gray-500';
+  const categoryRingPalette = ['#34d399', '#60a5fa', '#f472b6', '#facc15', '#fb923c', '#a78bfa'];
 
   const fetchData = async () => {
     try {
@@ -91,6 +108,31 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
   useEffect(() => {
     fetchData();
   }, [filters]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const mediaQuery = window.matchMedia('(min-width: 768px)');
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsDesktopView(event.matches);
+    };
+    setIsDesktopView(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+      return () => mediaQuery.removeListener(handleChange);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (inlineEdit && inlineInputRef.current) {
+      inlineInputRef.current.focus();
+      inlineInputRef.current.select();
+    }
+  }, [inlineEdit]);
 
   const getCategoryName = (id: number) => categories.find((category) => category.id === id)?.name || 'N/A';
   const getUserName = (id: string) => users.find(u => u.id === id)?.name || '알 수 없음';
@@ -130,6 +172,68 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
   };
 
   const stats = calculateStatistics();
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
+  const renderCategoryCard = (category: { name: string; amount: number; count: number }, index: number, variant: 'scroll' | 'grid') => {
+    const percentage = stats.totalAmount > 0 ? (category.amount / stats.totalAmount) * 100 : 0;
+    const clampedPercentage = Math.min(Math.max(percentage, 0), 999);
+    const ringColor = categoryRingPalette[index % categoryRingPalette.length];
+
+    const ring = (
+      <div className="relative w-16 h-16">
+        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
+          <path
+            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+            fill="none"
+            stroke="#374151"
+            strokeWidth="3"
+          />
+          <path
+            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+            fill="none"
+            stroke={ringColor}
+            strokeWidth="3"
+            strokeDasharray={`${Math.min(clampedPercentage, 100)}, 100`}
+          />
+        </svg>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-gray-100">
+          {Math.round(clampedPercentage)}%
+        </div>
+      </div>
+    );
+
+    if (variant === 'grid') {
+      return (
+        <div
+          key={`${category.name}-${index}`}
+          className="bg-gray-700/40 border border-gray-600 rounded-xl p-4 flex flex-col items-center text-center hover:border-emerald-400/50 transition"
+        >
+          {ring}
+          <p className="mt-3 text-sm font-semibold surface-text truncate w-full">{category.name}</p>
+          <p className="text-xs text-gray-400">{category.count}개 항목</p>
+          <p className="text-sm font-bold text-emerald-400 mt-1 truncate w-full">
+            {formatCurrency(category.amount, currency, exchangeRate)}
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        key={`${category.name}-${index}`}
+        className="snap-start min-w-[180px] sm:min-w-[200px] md:min-w-[220px] flex-shrink-0 bg-gray-700/40 border border-gray-600 rounded-xl p-3 sm:p-4 hover:border-emerald-400/50 transition flex items-center gap-3"
+      >
+        {ring}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold surface-text truncate">{category.name}</p>
+          <p className="text-xs text-gray-400">{category.count}개 항목</p>
+          <p className="text-sm font-bold text-emerald-400 mt-1 truncate">
+            {formatCurrency(category.amount, currency, exchangeRate)}
+          </p>
+        </div>
+      </div>
+    );
+  };
 
   const handleSort = (key: SortKey) => {
     setSortConfig((prev) => ({
@@ -185,6 +289,84 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
       </svg>
     );
+  };
+
+  const startInlineEdit = (income: any, field: InlineField) => {
+    setInlineEdit({ id: income.id, field });
+    const baseValue =
+      field === 'amount'
+        ? (income.amount !== undefined && income.amount !== null ? String(income.amount) : '')
+        : (income.memo ?? '');
+    setInlineValue(baseValue);
+  };
+
+  const cancelInlineEdit = () => {
+    setInlineEdit(null);
+    setInlineValue('');
+    setInlineSaving(false);
+  };
+
+  const commitInlineEdit = async () => {
+    if (!inlineEdit || inlineSaving) {
+      return;
+    }
+    const target = incomes.find((income) => income.id === inlineEdit.id);
+    if (!target) {
+      cancelInlineEdit();
+      return;
+    }
+
+    const payload: Record<string, any> = {};
+
+    if (inlineEdit.field === 'amount') {
+      const numericValue = Number(inlineValue);
+      if (!Number.isFinite(numericValue) || numericValue <= 0) {
+        alert('유효한 금액을 입력해주세요.');
+        setTimeout(() => inlineInputRef.current?.focus(), 0);
+        return;
+      }
+      if (numericValue === target.amount) {
+        cancelInlineEdit();
+        return;
+      }
+      payload.amount = numericValue;
+    } else if (inlineEdit.field === 'memo') {
+      const trimmed = inlineValue.trim();
+      if ((target.memo ?? '') === trimmed) {
+        cancelInlineEdit();
+        return;
+      }
+      payload.memo = trimmed;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      cancelInlineEdit();
+      return;
+    }
+
+    try {
+      setInlineSaving(true);
+      await api.updateExpense(inlineEdit.id, payload);
+      await fetchData();
+      cancelInlineEdit();
+    } catch (error) {
+      console.error('Failed to save inline edit:', error);
+      alert('값을 저장하지 못했습니다. 다시 시도해주세요.');
+      setTimeout(() => inlineInputRef.current?.focus(), 0);
+    } finally {
+      setInlineSaving(false);
+    }
+  };
+
+  const handleInlineKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitInlineEdit();
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelInlineEdit();
+    }
   };
 
   const handleOpenModal = (income?: any) => {
@@ -344,187 +526,193 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-3 md:gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 md:gap-4">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">수익 관리</h2>
-        <button
-          onClick={() => handleOpenModal()}
-          className="w-full sm:w-auto bg-emerald-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-emerald-700 transition text-sm sm:text-base font-medium"
-        >
-          수익 추가
-        </button>
+        <div className="flex w-full sm:w-auto gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((prev) => !prev)}
+            aria-expanded={filtersOpen}
+            className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1 px-3 sm:px-4 py-2 rounded-lg border transition text-sm font-medium ${
+              filtersOpen
+                ? 'border-emerald-400/70 text-emerald-300 bg-emerald-400/10'
+                : 'border-gray-600 text-gray-200 hover:border-emerald-400 hover:text-emerald-300'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M6 12h12M10 20h4" />
+            </svg>
+            <span>필터</span>
+            {activeFilterCount > 0 && (
+              <span className="ml-1 text-[11px] font-semibold leading-4 px-1.5 rounded-full bg-emerald-500/20 text-emerald-200">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex-1 sm:flex-none bg-emerald-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-emerald-700 transition text-sm sm:text-base font-medium"
+          >
+            수익 추가
+          </button>
+        </div>
       </div>
 
-      <Card title="필터">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
-          <div>
-            <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">시작 날짜</label>
-            <input
-              type="date"
-              value={filters.fromDate}
-              onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
-            className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-            />
-          </div>
-          <div>
-            <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">종료 날짜</label>
-            <input
-              type="date"
-              value={filters.toDate}
-              onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
-              className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-            />
-          </div>
-          <div>
-            <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">카테고리</label>
-            <div className="relative">
-              <select
-                value={filters.categoryId}
-                onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })}
-                className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-              >
-                <option value="" className="bg-gray-800">전체</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id} className="bg-gray-800">
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
-                <svg className="h-4 sm:h-5 w-4 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+      {filtersOpen && (
+        <Card title="필터">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
+            <div>
+              <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">시작 날짜</label>
+              <input
+                type="date"
+                value={filters.fromDate}
+                onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
+                className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">종료 날짜</label>
+              <input
+                type="date"
+                value={filters.toDate}
+                onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
+                className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">카테고리</label>
+              <div className="relative">
+                <select
+                  value={filters.categoryId}
+                  onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })}
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                >
+                  <option value="" className="bg-gray-800">전체</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id} className="bg-gray-800">
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
+                  <svg className="h-4 sm:h-5 w-4 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
               </div>
             </div>
-          </div>
-          <div>
-            <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">작성자</label>
-            <div className="relative">
-              <select
-                value={filters.createdBy}
-                onChange={(e) => setFilters({ ...filters, createdBy: e.target.value })}
-                className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-              >
-                <option value="" className="bg-gray-800">전체</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id} className="bg-gray-800">{u.name}</option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
-                <svg className="h-4 sm:h-5 w-4 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+            <div>
+              <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-300">작성자</label>
+              <div className="relative">
+                <select
+                  value={filters.createdBy}
+                  onChange={(e) => setFilters({ ...filters, createdBy: e.target.value })}
+                  className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                >
+                  <option value="" className="bg-gray-800">전체</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id} className="bg-gray-800">{u.name}</option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
+                  <svg className="h-4 sm:h-5 w-4 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
               </div>
             </div>
+            <div className="flex items-end">
+              <button
+                onClick={handleFilterReset}
+                className="w-full bg-gray-600 text-white px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 rounded-lg hover:bg-gray-700 transition text-xs sm:text-sm font-medium"
+              >
+                초기화
+              </button>
+            </div>
           </div>
-          <div className="flex items-end">
-            <button
-              onClick={handleFilterReset}
-              className="w-full bg-gray-600 text-white px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 rounded-lg hover:bg-gray-700 transition text-xs sm:text-sm font-medium"
-            >
-              초기화
-            </button>
+        </Card>
+      )}
+
+      <Card className="!p-0 overflow-hidden border border-gray-700/60">
+        <button
+          type="button"
+          onClick={() => setStatsExpanded((prev) => !prev)}
+          aria-expanded={statsExpanded}
+          className="flex w-full items-center justify-between gap-3 px-3 sm:px-4 md:px-6 py-3 sm:py-4 bg-gray-800 hover:bg-gray-700 transition"
+        >
+          <div className="text-left">
+            <p className="text-[11px] uppercase tracking-[0.3em] text-gray-500 mb-1">요약</p>
+            <div className="text-base sm:text-lg md:text-xl font-semibold surface-text">
+              {formatCurrency(stats.totalAmount, currency, exchangeRate)}
+              <span className="ml-2 text-xs sm:text-sm text-gray-400">· {incomes.length}개</span>
+            </div>
+            <p className="text-xs sm:text-sm text-gray-500">
+              평균 {formatCurrency(stats.averageAmount || 0, currency, exchangeRate)}
+            </p>
+          </div>
+          <div
+            className={`shrink-0 rounded-full border border-gray-700 p-2 transition-all duration-200 ${
+              statsExpanded ? 'bg-emerald-500/10 text-emerald-300 rotate-180' : 'text-gray-400'
+            }`}
+            aria-hidden="true"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </button>
+        <div
+          className={`px-3 sm:px-4 md:px-6 transition-all duration-300 ease-out overflow-hidden ${
+            statsExpanded ? 'opacity-100 pb-4' : 'opacity-0'
+          }`}
+          style={{ maxHeight: statsExpanded ? 640 : 0 }}
+        >
+          <div className="pt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-gray-700/70 bg-gray-800/70 p-3 sm:p-4">
+              <p className="text-xs uppercase tracking-wide text-gray-400">총 수익</p>
+              <p className="text-lg sm:text-2xl font-bold surface-text mt-1">
+                {formatCurrency(stats.totalAmount, currency, exchangeRate)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">{incomes.length}개 항목</p>
+            </div>
+            <div className="rounded-xl border border-gray-700/70 bg-gray-800/70 p-3 sm:p-4">
+              <p className="text-xs uppercase tracking-wide text-gray-400">평균</p>
+              <p className="text-lg sm:text-2xl font-bold text-emerald-400 mt-1">
+                {formatCurrency(stats.averageAmount || 0, currency, exchangeRate)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">건당 평균</p>
+            </div>
+            <div className="rounded-xl border border-gray-700/70 bg-gray-800/70 p-3 sm:p-4">
+              <p className="text-xs uppercase tracking-wide text-gray-400">최대 건</p>
+              <p className="text-lg sm:text-2xl font-bold text-emerald-400 mt-1">
+                {stats.largestIncome
+                  ? formatCurrency(stats.largestIncome.amount, currency, exchangeRate)
+                  : formatCurrency(0, currency, exchangeRate)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats.largestIncome ? getCategoryName(stats.largestIncome.categoryId) : '데이터 없음'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-gray-700/70 bg-gray-800/70 p-3 sm:p-4">
+              <p className="text-xs uppercase tracking-wide text-gray-400">최다 카테고리</p>
+              <p className="text-lg sm:text-2xl font-bold text-emerald-300 mt-1">
+                {stats.topCategory ? stats.topCategory.name : '데이터 없음'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats.topCategory ? formatCurrency(stats.topCategory.amount, currency, exchangeRate) : ''}
+              </p>
+            </div>
           </div>
         </div>
       </Card>
 
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-        <Card title="총 수익액" className="!p-2 sm:!p-3 md:!p-4">
-          <div className="text-base sm:text-2xl md:text-3xl font-bold surface-text">
-            {formatCurrency(stats.totalAmount, currency, exchangeRate)}
-          </div>
-          <div className="text-xs sm:text-sm text-gray-400 mt-1">{incomes.length}개 항목</div>
-        </Card>
-        <Card title="평균 수익" className="!p-2 sm:!p-3 md:!p-4">
-          <div className="text-base sm:text-2xl md:text-3xl font-bold text-emerald-400">
-            {formatCurrency(stats.averageAmount || 0, currency, exchangeRate)}
-          </div>
-          <div className="text-xs sm:text-sm text-gray-400 mt-1">건당 평균</div>
-        </Card>
-        <Card title="최대 수익" className="!p-2 sm:!p-3 md:!p-4">
-          <div className="text-base sm:text-2xl md:text-3xl font-bold text-emerald-400">
-            {stats.largestIncome ? formatCurrency(stats.largestIncome.amount, currency, exchangeRate) : formatCurrency(0, currency, exchangeRate)}
-          </div>
-          <div className="text-xs sm:text-sm text-gray-400 mt-1">
-            {stats.largestIncome ? `${getCategoryName(stats.largestIncome.categoryId)}` : '데이터 없음'}
-          </div>
-        </Card>
-        <Card title="최다 수익 카테고리" className="!p-2 sm:!p-3 md:!p-4">
-          <div className="text-base sm:text-xl md:text-2xl font-bold text-emerald-300">
-            {stats.topCategory ? stats.topCategory.name : '데이터 없음'}
-          </div>
-          <div className="text-xs sm:text-sm text-gray-400 mt-1">
-            {stats.topCategory ? formatCurrency(stats.topCategory.amount, currency, exchangeRate) : ''}
-          </div>
-        </Card>
-      </div>
-
-      {stats.byCategory.length > 0 && (
+      {statsExpanded && stats.byCategory.length > 0 && (
         <Card title="카테고리별 통계">
-          {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-gray-700">
-                <tr>
-                  <th className="p-3 text-xs sm:text-sm md:text-base">카테고리</th>
-                  <th className="p-3 text-xs sm:text-sm md:text-base">항목 수</th>
-                  <th className="p-3 text-xs sm:text-sm md:text-base">금액</th>
-                  <th className="p-3 text-xs sm:text-sm md:text-base">비율</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.byCategory.map((category, index) => {
-                  const percentage = stats.totalAmount > 0 ? ((category.amount / stats.totalAmount) * 100).toFixed(1) : '0.0';
-                  return (
-                    <tr key={index} className="border-b border-gray-700 hover:bg-gray-600/20">
-                      <td className="p-3 font-medium text-sm">{category.name}</td>
-                      <td className="p-3 text-gray-400 text-sm">{category.count}개</td>
-                      <td className="p-3 font-semibold text-emerald-400 text-sm">
-                        {formatCurrency(category.amount, currency, exchangeRate)}
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-gray-700 rounded-full h-2 overflow-hidden">
-                            <div className="h-full bg-emerald-500" style={{ width: `${percentage}%` }} />
-                          </div>
-                          <span className="text-xs sm:text-sm text-gray-400 w-12">{percentage}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 sm:mx-0 sm:px-0 snap-x md:hidden">
+            {stats.byCategory.map((category, index) => renderCategoryCard(category, index, 'scroll'))}
           </div>
-
-          {/* Mobile Card View */}
-          <div className="block md:hidden space-y-2">
-            {stats.byCategory.map((category, index) => {
-              const percentage = stats.totalAmount > 0 ? ((category.amount / stats.totalAmount) * 100).toFixed(1) : '0.0';
-              return (
-                <div key={index} className="bg-gray-700/50 rounded-lg p-3 border border-gray-600">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-sm sm:text-base font-semibold text-emerald-300">{category.name}</h4>
-                    <span className="text-xs sm:text-sm font-medium text-gray-300 bg-gray-600 px-2 py-1 rounded">
-                      {percentage}%
-                    </span>
-                  </div>
-                  <div className="mb-3">
-                    <div className="w-full bg-gray-600 rounded-full h-2 overflow-hidden">
-                      <div className="h-full bg-emerald-500" style={{ width: `${percentage}%` }} />
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center text-xs sm:text-sm">
-                    <div>
-                      <span className="text-gray-400">항목:</span>
-                      <span className="ml-2 font-medium text-gray-200">{category.count}개</span>
-                    </div>
-                    <div className="font-semibold text-emerald-400">
-                      {formatCurrency(category.amount, currency, exchangeRate)}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {stats.byCategory.map((category, index) => renderCategoryCard(category, index, 'grid'))}
           </div>
         </Card>
       )}
@@ -605,10 +793,79 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
                         {getCategoryName(income.categoryId)}
                       </span>
                     </td>
-                    <td className="p-3 font-semibold text-emerald-400 text-sm">
-                      {formatCurrency(income.amount, currency, exchangeRate)}
+                    <td className="p-3 align-middle">
+                      {inlineEdit?.id === income.id && inlineEdit.field === 'amount' && isDesktopView ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            ref={inlineInputRef}
+                            type="number"
+                            min="0"
+                            step="1"
+                            inputMode="decimal"
+                            value={inlineValue}
+                            onChange={(e) => setInlineValue(e.target.value)}
+                            onBlur={() => commitInlineEdit()}
+                            onKeyDown={handleInlineKeyDown}
+                            className={`${inlineInputClasses} text-right`}
+                            disabled={inlineSaving}
+                          />
+                          <span className="text-[10px] uppercase tracking-wide text-emerald-300">
+                            Enter 저장
+                          </span>
+                        </div>
+                      ) : (
+                        <div
+                          className="group font-semibold text-emerald-400 text-sm cursor-text select-none flex items-center gap-1"
+                          onDoubleClick={() => startInlineEdit(income, 'amount')}
+                          title="더블클릭하여 금액 수정"
+                        >
+                          {formatCurrency(income.amount, currency, exchangeRate)}
+                          <svg
+                            className="w-3.5 h-3.5 text-emerald-300 opacity-0 group-hover:opacity-100 transition"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M4 20h4l10.5-10.5-4-4L4 16v4z" />
+                          </svg>
+                        </div>
+                      )}
                     </td>
-                    <td className="p-3 text-sm">{income.memo}</td>
+                    <td className="p-3 text-sm">
+                      {inlineEdit?.id === income.id && inlineEdit.field === 'memo' && isDesktopView ? (
+                        <input
+                          ref={inlineInputRef}
+                          type="text"
+                          value={inlineValue}
+                          onChange={(e) => setInlineValue(e.target.value)}
+                          onBlur={() => commitInlineEdit()}
+                          onKeyDown={handleInlineKeyDown}
+                          className={inlineInputClasses}
+                          placeholder="메모 입력"
+                          disabled={inlineSaving}
+                        />
+                      ) : (
+                        <div
+                          className="group cursor-text text-gray-200 flex items-center gap-1"
+                          onDoubleClick={() => startInlineEdit(income, 'memo')}
+                          title="더블클릭하여 메모 수정"
+                        >
+                          {income.memo ? (
+                            <span>{income.memo}</span>
+                          ) : (
+                            <span className="text-gray-500">메모 없음 (더블클릭하여 추가)</span>
+                          )}
+                          <svg
+                            className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M4 20h4l10.5-10.5-4-4L4 16v4z" />
+                          </svg>
+                        </div>
+                      )}
+                    </td>
                     <td className="p-3">
                       <span className="px-2 py-1 text-xs font-medium rounded bg-gray-600 text-gray-200">
                         {getUserName(income.createdBy)}
@@ -689,17 +946,87 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
 
                 {/* Amount - Large Font */}
                 <div className="mb-2">
-                  <div className="text-lg sm:text-xl font-bold text-emerald-400">
-                    {formatCurrency(income.amount, currency, exchangeRate)}
-                  </div>
+                  {inlineEdit?.id === income.id && inlineEdit.field === 'amount' && !isDesktopView ? (
+                    <input
+                      ref={inlineInputRef}
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputMode="decimal"
+                      value={inlineValue}
+                      onChange={(e) => setInlineValue(e.target.value)}
+                      onBlur={() => commitInlineEdit()}
+                      onKeyDown={handleInlineKeyDown}
+                      className={`${inlineInputClasses} text-right text-base`}
+                      disabled={inlineSaving}
+                    />
+                  ) : (
+                    <div
+                      className="group text-lg sm:text-xl font-bold text-emerald-400 cursor-text flex items-center gap-1"
+                      onDoubleClick={() => startInlineEdit(income, 'amount')}
+                      title="더블클릭하여 금액 수정"
+                    >
+                      {formatCurrency(income.amount, currency, exchangeRate)}
+                      <svg
+                        className="w-3.5 h-3.5 text-emerald-300 opacity-0 group-hover:opacity-100 transition"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M4 20h4l10.5-10.5-4-4L4 16v4z" />
+                      </svg>
+                    </div>
+                  )}
                 </div>
 
                 {/* Memo - Small Text */}
-                {income.memo && (
-                  <div className="mb-1 text-xs sm:text-sm text-gray-400">
-                    메모: {income.memo}
-                  </div>
-                )}
+                <div className="mb-1 text-xs sm:text-sm text-gray-400">
+                  {inlineEdit?.id === income.id && inlineEdit.field === 'memo' && !isDesktopView ? (
+                    <input
+                      ref={inlineInputRef}
+                      type="text"
+                      value={inlineValue}
+                      onChange={(e) => setInlineValue(e.target.value)}
+                      onBlur={() => commitInlineEdit()}
+                      onKeyDown={handleInlineKeyDown}
+                      className={`${inlineInputClasses} text-xs sm:text-sm`}
+                      placeholder="메모 입력"
+                      disabled={inlineSaving}
+                    />
+                  ) : income.memo ? (
+                    <div
+                      className="group cursor-text flex items-center gap-1"
+                      onDoubleClick={() => startInlineEdit(income, 'memo')}
+                      title="더블클릭하여 메모 수정"
+                    >
+                      <span>메모: {income.memo}</span>
+                      <svg
+                        className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M4 20h4l10.5-10.5-4-4L4 16v4z" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div
+                      className="group cursor-text flex items-center gap-1 text-gray-500"
+                      onDoubleClick={() => startInlineEdit(income, 'memo')}
+                      title="더블클릭하여 메모 추가"
+                    >
+                      <span>메모 없음 (더블클릭하여 추가)</span>
+                      <svg
+                        className="w-3 h-3 text-gray-500 opacity-0 group-hover:opacity-100 transition"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M4 20h4l10.5-10.5-4-4L4 16v4z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
 
                 {/* Created By */}
                 <div className="mt-2 flex items-center gap-1">
