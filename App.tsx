@@ -1,20 +1,24 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { Currency, Page } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import Dashboard from './components/Dashboard';
-import Expenses, { ExpensesHandle } from './components/Expenses';
-import Income, { IncomeHandle } from './components/Income';
-import Investments from './components/Investments';
-import Issues from './components/Issues';
-import Settings from './components/Settings';
-import FixedCosts from './components/FixedCosts';
-import Notes from './components/Notes';
+import { ExpensesHandle } from './components/Expenses';
+import { IncomeHandle } from './components/Income';
 import QuickAddVoiceModal from './components/QuickAddVoiceModal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import AuthModal from './components/AuthModal';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from './constants';
 import { useAuth } from './lib/auth';
+
+// Lazy load components for code splitting
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const Expenses = lazy(() => import('./components/Expenses'));
+const Income = lazy(() => import('./components/Income'));
+const Investments = lazy(() => import('./components/Investments'));
+const Issues = lazy(() => import('./components/Issues'));
+const Settings = lazy(() => import('./components/Settings'));
+const FixedCosts = lazy(() => import('./components/FixedCosts'));
+const Notes = lazy(() => import('./components/Notes'));
 
 const App: React.FC = () => {
   const { user, profile, loading } = useAuth();
@@ -148,38 +152,46 @@ const App: React.FC = () => {
   );
 
   const renderContent = () => {
-    switch (currentPage) {
-      case 'Dashboard':
-        return <Dashboard currency={currency} exchangeRate={exchangeRate} onPageChange={handlePageChange} />;
-      case 'Expenses':
-        return (
+    // Loading fallback component
+    const LoadingFallback = () => (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">로딩 중...</p>
+        </div>
+      </div>
+    );
+
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        {currentPage === 'Dashboard' && (
+          <Dashboard currency={currency} exchangeRate={exchangeRate} onPageChange={handlePageChange} />
+        )}
+        {currentPage === 'Expenses' && (
           <Expenses
             ref={expensesRef}
             currency={currency}
             exchangeRate={exchangeRate}
           />
-        );
-      case 'Income':
-        return (
+        )}
+        {currentPage === 'Income' && (
           <Income
             ref={incomeRef}
             currency={currency}
             exchangeRate={exchangeRate}
           />
-        );
-      case 'Investments':
-        return <Investments currency={currency} exchangeRate={exchangeRate} />;
-      case 'Issues':
-        return <Issues currency={currency} />;
-      case 'FixedCosts':
-        return <FixedCosts currency={currency} exchangeRate={exchangeRate} />;
-      case 'Notes':
-        return <Notes />;
-      case 'Settings':
-        return renderSettings();
-      default:
-        return <Dashboard currency={currency} exchangeRate={exchangeRate} />;
-    }
+        )}
+        {currentPage === 'Investments' && (
+          <Investments currency={currency} exchangeRate={exchangeRate} />
+        )}
+        {currentPage === 'Issues' && <Issues currency={currency} />}
+        {currentPage === 'FixedCosts' && (
+          <FixedCosts currency={currency} exchangeRate={exchangeRate} />
+        )}
+        {currentPage === 'Notes' && <Notes />}
+        {currentPage === 'Settings' && renderSettings()}
+      </Suspense>
+    );
   };
 
   // Show loading screen while checking authentication
