@@ -1,1386 +1,1031 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Currency, InvestmentTransactionType } from '../types';
+import React, { useMemo, useState } from 'react';
+import { Currency } from '../types';
 import Card from './ui/Card';
-import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { api } from '../lib/api';
 import { getLocalDateString } from '../lib/dateUtils';
+
+interface StudyReference {
+  id: string;
+  title: string;
+  url: string;
+}
+
+interface StudyFollowUp {
+  id: string;
+  task: string;
+  owner: string;
+  due: string;
+  completed: boolean;
+}
+
+interface StudySession {
+  id: string;
+  topic: string;
+  date: string;
+  source: string;
+  participants: string;
+  tags: string[];
+  highlights: string[];
+  notes: string;
+  references: StudyReference[];
+  followUps: StudyFollowUp[];
+}
 
 interface InvestmentsProps {
   currency: Currency;
   exchangeRate: number;
 }
 
-const formatCurrency = (value: number, currency: Currency, exchangeRate: number) => {
-  const rate = exchangeRate > 0 ? exchangeRate : DEFAULT_USD_KRW_EXCHANGE_RATE;
-  const amount = currency === 'USD' ? value / rate : value;
-  return new Intl.NumberFormat(currency === 'KRW' ? 'ko-KR' : 'en-US', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 0,
-  }).format(amount);
+const MAX_HIGHLIGHTS = 3;
+const PROMPT_TEMPLATE = `당신은 투자 스터디 기록을 정리하는 전문 분석 어시스턴트입니다.
+
+입력:
+1) 첨부한 PDF 보고서 또는 메모
+2) 내가 제공하는 추가 메모 (있다면)
+
+출력 형식 (JSON):
+{
+  "topic": "<스터디 주제>",
+  "date": "<YYYY-MM-DD, 없으면 오늘>",
+  "source": "<자료 출처>",
+  "participants": "<참여자>",
+  "tags": ["태그1", "태그2", ...],
+  "highlights": [
+    "핵심 요약 1",
+    "핵심 요약 2",
+    "핵심 요약 3"
+  ],
+  "notes": "- 세부 메모를 Markdown bullet로 정리",
+  "references": [
+    {"title": "자료 이름", "url": "링크"}
+  ],
+  "followUps": [
+    {"task": "액션 항목", "owner": "담당자", "due": "YYYY-MM-DD", "completed": false}
+  ]
+}
+
+규칙:
+- PDF에서 추출한 핵심 수치·동향·리스크를 우선적으로 담고, 모호한 문장은 피한다.
+- highlights는 최대 3줄, each <= 120자.
+- notes는 bullet 목록으로 3~6줄.
+- references에는 원문 제목/링크를 가능한 한 채운다.
+- followUps는 필요 시 1~3개 작성. 기한이 없으면 일주일 뒤로 설정.`;
+
+const generateId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+
+const padHighlights = (highlights: string[]) => {
+  const next = [...highlights];
+  while (next.length < MAX_HIGHLIGHTS) {
+    next.push('');
+  }
+  return next.slice(0, MAX_HIGHLIGHTS);
 };
 
-const formatDate = (value: string) => {
-  if (!value) return '-';
-  return new Date(value).toLocaleDateString('ko-KR');
-};
+const cloneSession = (session: StudySession): StudySession => ({
+  ...session,
+  tags: [...session.tags],
+  highlights: padHighlights(session.highlights),
+  references: session.references.map((ref) => ({ ...ref })),
+  followUps: session.followUps.map((item) => ({ ...item })),
+});
 
-const calculateTransactionAmount = (transaction: any) => {
-  const fees = transaction.fees ?? 0;
-  const gross = (transaction.quantity ?? 0) * (transaction.price ?? 0);
-  return transaction.type === 'BUY' ? -(gross + fees) : gross - fees;
-};
+const createEmptySession = (): StudySession => ({
+  id: '',
+  topic: '',
+  date: getLocalDateString(),
+  source: '',
+  participants: '',
+  tags: [],
+  highlights: padHighlights(['']),
+  notes: '',
+  references: [],
+  followUps: [],
+});
+
+const INITIAL_SESSIONS: StudySession[] = [
+  {
+    id: 'session-240520',
+    topic: '금리 사이클이 자산군에 미치는 영향',
+    date: '2024-05-20',
+    source: 'JP Morgan Macro Outlook',
+    participants: 'M, K',
+    tags: ['채권', '매크로', '멀티에셋'],
+    highlights: [
+      '장단기 금리 역전 완화, Q3 채권 비중 +5% 검토',
+      '정책 변곡 시 리스크 헤지 수단 재점검',
+      '성장주 대비 가치주 리스크/보상 분석 필요',
+    ],
+    notes: [
+      '- 연준 점도표와 선물시장의 금리 경로 차이를 비교했고 9월까지 동결 시나리오가 우세함.',
+      '- 10Y-2Y 스프레드는 Q4에 플러스로 돌아설 가능성이 커 보이며 멀티에셋 리밸런싱 시그널로 활용 예정.',
+      '- 기관 고객 채권 편입 비중을 5%p 늘릴 경우 듀레이션 리스크를 커버하기 위한 헤지 비용 추산 필요.',
+    ].join('\n'),
+    references: [
+      { id: 'ref-01', title: 'JP Morgan Macro Outlook', url: 'https://example.com/jpm-macro' },
+      { id: 'ref-02', title: 'BIS Annual Report 2024 (p.42)', url: 'https://example.com/bis-2024' },
+    ],
+    followUps: [
+      { id: 'todo-01', task: '국채 ETF 편입 비중 재산정', owner: 'M', due: '2024-05-25', completed: false },
+      { id: 'todo-02', task: '회사채 스프레드 모니터링 시트 공유', owner: 'K', due: '2024-05-21', completed: true },
+    ],
+  },
+  {
+    id: 'session-240512',
+    topic: '반도체 업황 점검 및 AI CapEx 영향',
+    date: '2024-05-12',
+    source: 'Morgan Stanley Tech Pulse',
+    participants: 'M',
+    tags: ['반도체', 'AI', '성장주'],
+    highlights: [
+      'H2 메모리 ASP 시나리오 상향, DDR5 재고 턴 확인',
+      'AI CapEx → 파운드리 가동률 90% 회복 예상',
+      '대만 공급 차질 시 긴급 대응 플랜 필요',
+    ],
+    notes: [
+      '- DDR5 재고가 7주 수준으로 줄었고 ASP가 QoQ +12% 가이던스.',
+      '- 2025년까지 북미 하이퍼스케일러 CapEx CAGR 19% 전망, 관련 장비 업체 Top pick 재검토.',
+      '- 지정학 리스크 완화 전까지 파운드리 이중 소싱 정책을 유지.',
+    ].join('\n'),
+    references: [
+      { id: 'ref-03', title: 'Morgan Stanley Tech Pulse', url: 'https://example.com/ms-tech' },
+    ],
+    followUps: [
+      { id: 'todo-03', task: 'AI CapEx 민감도 시트 업데이트', owner: 'M', due: '2024-05-18', completed: false },
+    ],
+  },
+  {
+    id: 'session-240503',
+    topic: '배당 ETF 비교 스터디',
+    date: '2024-05-03',
+    source: 'Internal deck',
+    participants: '팀 전체',
+    tags: ['배당', 'ETF'],
+    highlights: [
+      '분배금 성장률과 총수익률을 분리 분석',
+      '국내/미국 배당 ETF 세제 차이 정리',
+      '현금흐름 캘린더 작성 필요',
+    ],
+    notes: [
+      '- 분배금 성장률이 5% 이상인 ETF에 집중하되, 시총 상위 30% 편중 여부를 추가 확인.',
+      '- ETF 분배 스케줄을 월별 현금흐름 테이블로 변환해 고정비 상쇄 계획에 반영.',
+    ].join('\n'),
+    references: [],
+    followUps: [
+      { id: 'todo-04', task: '배당 캘린더 샘플 공유', owner: '팀 전체', due: '2024-05-10', completed: false },
+    ],
+  },
+];
+
+const STORAGE_KEY_SESSIONS = 'investment_study_sessions';
+const STORAGE_KEY_PROMPT = 'investment_study_prompt_template';
 
 const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => {
-  const [holdings, setHoldings] = useState<any[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [portfolioLoading, setPortfolioLoading] = useState(true);
-  const [transactionsLoading, setTransactionsLoading] = useState(true);
-  const [showHoldingModal, setShowHoldingModal] = useState(false);
-  const [showAccountModal, setShowAccountModal] = useState(false);
-  const [showTransactionModal, setShowTransactionModal] = useState(false);
-  const [editingHolding, setEditingHolding] = useState<any>(null);
-  const [editingAccount, setEditingAccount] = useState<any>(null);
-  const [editingTransaction, setEditingTransaction] = useState<any>(null);
-
-  const [holdingFormData, setHoldingFormData] = useState({
-    account_id: '',
-    symbol: '',
-    name: '',
-    qty: '',
-    avg_price: '',
-    current_price: '',
-  });
-
-  const [accountFormData, setAccountFormData] = useState({
-    name: '',
-    broker: '',
-  });
-
-  const [transactionFormData, setTransactionFormData] = useState({
-    account_id: '',
-    symbol: '',
-    name: '',
-    type: 'BUY' as InvestmentTransactionType,
-    trade_date: getLocalDateString(),
-    quantity: '',
-    price: '',
-    fees: '0',
-    memo: '',
-  });
-
-  const [transactionFilters, setTransactionFilters] = useState({
-    fromDate: '',
-    toDate: '',
-    accountId: '',
-    type: '',
-  });
-
-  const fetchPortfolioData = async () => {
+  // Load initial data from localStorage
+  const [sessions, setSessions] = useState<StudySession[]>(() => {
     try {
-      setPortfolioLoading(true);
-      const [holdingsData, accountsData] = await Promise.all([
-        api.getHoldings(),
-        api.getInvestmentAccounts(),
-      ]);
-      setHoldings(Array.isArray(holdingsData) ? holdingsData : []);
-      setAccounts(Array.isArray(accountsData) ? accountsData : []);
+      const stored = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      if (stored) {
+        return JSON.parse(stored);
+      }
     } catch (error) {
-      console.error('Failed to fetch portfolio data:', error);
-      alert('투자 계좌 또는 보유 자산을 불러오는 중 문제가 발생했습니다.');
-    } finally {
-      setPortfolioLoading(false);
+      console.error('Failed to load sessions from localStorage', error);
+    }
+    return INITIAL_SESSIONS;
+  });
+
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      if (stored) {
+        const loadedSessions = JSON.parse(stored);
+        return loadedSessions[0]?.id ?? null;
+      }
+    } catch (error) {
+      console.error('Failed to load active session', error);
+    }
+    return INITIAL_SESSIONS[0]?.id ?? null;
+  });
+
+  const [draft, setDraft] = useState<StudySession>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      if (stored) {
+        const loadedSessions = JSON.parse(stored);
+        return loadedSessions[0] ? cloneSession(loadedSessions[0]) : createEmptySession();
+      }
+    } catch (error) {
+      console.error('Failed to load draft', error);
+    }
+    return INITIAL_SESSIONS[0] ? cloneSession(INITIAL_SESSIONS[0]) : createEmptySession();
+  });
+
+  const [isDirty, setIsDirty] = useState(false);
+  const [isCreatingNew, setIsCreatingNew] = useState(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_SESSIONS);
+      if (stored) {
+        const loadedSessions = JSON.parse(stored);
+        return loadedSessions.length === 0;
+      }
+    } catch (error) {
+      console.error('Failed to check if creating new', error);
+    }
+    return INITIAL_SESSIONS.length === 0;
+  });
+
+  const [tagInput, setTagInput] = useState('');
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [showJsonImportModal, setShowJsonImportModal] = useState(false);
+  const [jsonInput, setJsonInput] = useState('');
+  const [promptTemplate, setPromptTemplate] = useState(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_PROMPT);
+      if (stored) {
+        return stored;
+      }
+    } catch (error) {
+      console.error('Failed to load prompt template', error);
+    }
+    return PROMPT_TEMPLATE;
+  });
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
+
+  // Save sessions to localStorage whenever they change
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+    } catch (error) {
+      console.error('Failed to save sessions to localStorage', error);
+    }
+  }, [sessions]);
+
+  // Save prompt template to localStorage whenever it changes
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_PROMPT, promptTemplate);
+    } catch (error) {
+      console.error('Failed to save prompt template to localStorage', error);
+    }
+  }, [promptTemplate]);
+
+  const sortedSessions = useMemo(() => {
+    return [...sessions].sort((a, b) => b.date.localeCompare(a.date));
+  }, [sessions]);
+
+  const confirmDiscard = () => {
+    if (!isDirty) {
+      return true;
+    }
+    return window.confirm('아직 저장하지 않은 변경 사항이 있습니다. 계속하시겠어요?');
+  };
+
+  const handleSelectSession = (sessionId: string) => {
+    if (!confirmDiscard()) {
+      return;
+    }
+    const session = sessions.find((item) => item.id === sessionId);
+    if (!session) {
+      return;
+    }
+    setActiveSessionId(session.id);
+    setDraft(cloneSession(session));
+    setIsCreatingNew(false);
+    setIsDirty(false);
+  };
+
+  const handleStartNewSession = () => {
+    if (!confirmDiscard()) {
+      return;
+    }
+    setActiveSessionId(null);
+    setDraft(createEmptySession());
+    setIsCreatingNew(true);
+    setIsDirty(false);
+  };
+
+  const updateDraftField = <K extends keyof StudySession>(key: K, value: StudySession[K]) => {
+    setDraft((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+    setIsDirty(true);
+  };
+
+  const handleHighlightChange = (index: number, value: string) => {
+    setDraft((prev) => {
+      const next = [...prev.highlights];
+      next[index] = value;
+      return { ...prev, highlights: next };
+    });
+    setIsDirty(true);
+  };
+
+  const handleAddReference = () => {
+    updateDraftField('references', [
+      ...draft.references,
+      { id: generateId(), title: '', url: '' },
+    ]);
+  };
+
+  const handleReferenceChange = (id: string, field: keyof StudyReference, value: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      references: prev.references.map((ref) => (ref.id === id ? { ...ref, [field]: value } : ref)),
+    }));
+    setIsDirty(true);
+  };
+
+  const handleRemoveReference = (id: string) => {
+    updateDraftField(
+      'references',
+      draft.references.filter((ref) => ref.id !== id)
+    );
+  };
+
+  const handleAddFollowUp = () => {
+    updateDraftField('followUps', [
+      ...draft.followUps,
+      { id: generateId(), task: '', owner: '', due: getLocalDateString(), completed: false },
+    ]);
+  };
+
+  const handleFollowUpChange = (id: string, field: keyof StudyFollowUp, value: string | boolean) => {
+    setDraft((prev) => ({
+      ...prev,
+      followUps: prev.followUps.map((item) =>
+        item.id === id ? { ...item, [field]: value } : item
+      ),
+    }));
+    setIsDirty(true);
+  };
+
+  const handleRemoveFollowUp = (id: string) => {
+    updateDraftField(
+      'followUps',
+      draft.followUps.filter((item) => item.id !== id)
+    );
+  };
+
+  const handleTagAdd = () => {
+    const next = tagInput.trim();
+    if (!next) {
+      return;
+    }
+    if (draft.tags.includes(next)) {
+      setTagInput('');
+      return;
+    }
+    updateDraftField('tags', [...draft.tags, next]);
+    setTagInput('');
+  };
+
+  const handleTagKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' || event.key === ',') {
+      event.preventDefault();
+      handleTagAdd();
     }
   };
 
-  const fetchTransactions = async () => {
-    try {
-      setTransactionsLoading(true);
-      const params: Record<string, any> = {};
-      if (transactionFilters.accountId) {
-        params.account_id = parseInt(transactionFilters.accountId, 10);
+  const handleRemoveTag = (tag: string) => {
+    updateDraftField(
+      'tags',
+      draft.tags.filter((item) => item !== tag)
+    );
+  };
+
+  const handleResetDraft = () => {
+    if (isCreatingNew || !activeSessionId) {
+      setDraft(createEmptySession());
+    } else {
+      const session = sessions.find((item) => item.id === activeSessionId);
+      if (session) {
+        setDraft(cloneSession(session));
       }
-      if (transactionFilters.type) {
-        params.type = transactionFilters.type;
+    }
+    setTagInput('');
+    setIsDirty(false);
+  };
+
+  const handleSaveSession = () => {
+    const topic = draft.topic.trim();
+    if (!topic) {
+      alert('스터디 주제를 입력해주세요.');
+      return;
+    }
+    const cleanedHighlights = draft.highlights.map((line) => line.trim()).filter(Boolean);
+    if (cleanedHighlights.length === 0) {
+      alert('핵심 요약을 최소 한 줄 이상 입력해주세요.');
+      return;
+    }
+    const normalized: StudySession = {
+      ...draft,
+      id: draft.id || generateId(),
+      topic,
+      source: draft.source.trim(),
+      participants: draft.participants.trim(),
+      tags: draft.tags.map((tag) => tag.trim()).filter(Boolean),
+      highlights: cleanedHighlights,
+      references: draft.references
+        .map((ref) => ({
+          ...ref,
+          title: ref.title.trim(),
+          url: ref.url.trim(),
+        }))
+        .filter((ref) => ref.title || ref.url),
+      followUps: draft.followUps.map((item) => ({
+        ...item,
+        task: item.task.trim(),
+        owner: item.owner.trim(),
+        due: item.due,
+      })),
+    };
+
+    if (isCreatingNew || !activeSessionId) {
+      setSessions((prev) => [normalized, ...prev]);
+      setActiveSessionId(normalized.id);
+      setIsCreatingNew(false);
+    } else {
+      setSessions((prev) => prev.map((session) => (session.id === normalized.id ? normalized : session)));
+    }
+
+    setDraft(cloneSession(normalized));
+    setIsDirty(false);
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    if (!window.confirm('이 스터디를 삭제하시겠습니까?')) {
+      return;
+    }
+
+    setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+
+    // If deleting the active session, reset to empty or select another
+    if (sessionId === activeSessionId) {
+      const remainingSessions = sessions.filter((s) => s.id !== sessionId);
+      if (remainingSessions.length > 0) {
+        const nextSession = remainingSessions[0];
+        setActiveSessionId(nextSession.id);
+        setDraft(cloneSession(nextSession));
+        setIsCreatingNew(false);
+      } else {
+        setActiveSessionId(null);
+        setDraft(createEmptySession());
+        setIsCreatingNew(true);
       }
-      if (transactionFilters.fromDate) {
-        params.start_date = transactionFilters.fromDate;
-      }
-      if (transactionFilters.toDate) {
-        params.end_date = transactionFilters.toDate;
-      }
-      const data = await api.getInvestmentTransactions(params);
-      setTransactions(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Failed to fetch transactions:', error);
-      alert('투자 거래 내역을 불러오는 중 문제가 발생했습니다.');
-    } finally {
-      setTransactionsLoading(false);
+      setIsDirty(false);
     }
   };
 
-  useEffect(() => {
-    fetchPortfolioData();
-  }, []);
+  const formatListDate = (date: string) => {
+    try {
+      return new Intl.DateTimeFormat('ko-KR', { month: 'short', day: 'numeric' }).format(new Date(date));
+    } catch {
+      return date;
+    }
+  };
 
-  useEffect(() => {
-    fetchTransactions();
-  }, [transactionFilters]);
+  const currencyBadge = `${currency} 기준 • 환율 ${exchangeRate.toLocaleString('ko-KR')}`;
 
-  useEffect(() => {
-    if (accounts.length > 0) {
-      setTransactionFormData((prev) => ({
+  const handleCopyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(promptTemplate);
+      setCopyMessage('복사 완료!');
+      setTimeout(() => setCopyMessage(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy prompt', error);
+      setCopyMessage('클립보드 복사에 실패했습니다.');
+      setTimeout(() => setCopyMessage(null), 2000);
+    }
+  };
+
+  const handleJsonImport = () => {
+    try {
+      const parsed = JSON.parse(jsonInput);
+
+      // Parse the JSON and populate the draft
+      const importedData: Partial<StudySession> = {
+        topic: parsed.topic || '',
+        date: parsed.date || getLocalDateString(),
+        source: parsed.source || '',
+        participants: parsed.participants || '',
+        tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+        highlights: padHighlights(Array.isArray(parsed.highlights) ? parsed.highlights : []),
+        notes: parsed.notes || '',
+        references: Array.isArray(parsed.references)
+          ? parsed.references.map((ref: any) => ({
+              id: generateId(),
+              title: ref.title || '',
+              url: ref.url || '',
+            }))
+          : [],
+        followUps: Array.isArray(parsed.followUps)
+          ? parsed.followUps.map((item: any) => ({
+              id: generateId(),
+              task: item.task || '',
+              owner: item.owner || '',
+              due: item.due || getLocalDateString(),
+              completed: item.completed || false,
+            }))
+          : [],
+      };
+
+      setDraft((prev) => ({
         ...prev,
-        account_id: prev.accountId || accounts[0].id.toString(),
+        ...importedData,
       }));
 
-      if (
-        transactionFilters.accountId &&
-        !accounts.some((account) => account.id.toString() === transactionFilters.accountId)
-      ) {
-        setTransactionFilters((prev) => ({ ...prev, accountId: '' }));
-      }
-    } else {
-      setTransactionFormData((prev) => ({ ...prev, account_id: '' }));
-    }
-  }, [accounts]);
-
-  const handleOpenHoldingModal = (holding?: any) => {
-    if (holding) {
-      setEditingHolding(holding);
-      setHoldingFormData({
-        account_id: holding.accountId?.toString() ?? '',
-        symbol: holding.symbol ?? '',
-        name: holding.name ?? '',
-        qty: holding.qty?.toString() ?? '',
-        avg_price: holding.avg_price?.toString() ?? '',
-        current_price: holding.current_price?.toString() ?? '',
-      });
-    } else {
-      setEditingHolding(null);
-      setHoldingFormData({
-        account_id: accounts[0]?.id?.toString() ?? '',
-        symbol: '',
-        name: '',
-        qty: '',
-        avg_price: '',
-        current_price: '',
-      });
-    }
-    setShowHoldingModal(true);
-  };
-
-  const handleSubmitHolding = async (event: React.FormEvent) => {
-    event.preventDefault();
-    try {
-      const payload = {
-        account_id: parseInt(holdingFormData.account_id, 10),
-        symbol: holdingFormData.symbol,
-        name: holdingFormData.name,
-        qty: parseFloat(holdingFormData.qty),
-        avg_price: parseFloat(holdingFormData.avg_price),
-        current_price: parseFloat(holdingFormData.current_price),
-      };
-
-      if (editingHolding) {
-        await api.updateHolding(editingHolding.id, payload);
-      } else {
-        await api.createHolding(payload);
-      }
-
-      await fetchPortfolioData();
-      setShowHoldingModal(false);
+      setIsDirty(true);
+      setShowJsonImportModal(false);
+      setJsonInput('');
+      alert('JSON 데이터를 성공적으로 불러왔습니다!');
     } catch (error) {
-      console.error('Failed to save holding:', error);
-      alert('보유 자산을 저장하는 중 문제가 발생했습니다.');
+      console.error('Failed to parse JSON', error);
+      alert('JSON 형식이 올바르지 않습니다. 다시 확인해주세요.');
     }
   };
-
-  const handleDeleteHolding = async (id: number) => {
-    if (!confirm('정말 이 보유 자산을 삭제하시겠습니까?')) {
-      return;
-    }
-    try {
-      await api.deleteHolding(id);
-      await fetchPortfolioData();
-    } catch (error) {
-      console.error('Failed to delete holding:', error);
-      alert('보유 자산을 삭제하는 중 문제가 발생했습니다.');
-    }
-  };
-
-  const handleOpenAccountModal = (account?: any) => {
-    if (account) {
-      setEditingAccount(account);
-      setAccountFormData({
-        name: account.name ?? '',
-        broker: account.broker ?? '',
-      });
-    } else {
-      setEditingAccount(null);
-      setAccountFormData({
-        name: '',
-        broker: '',
-      });
-    }
-    setShowAccountModal(true);
-  };
-
-  const handleSubmitAccount = async (event: React.FormEvent) => {
-    event.preventDefault();
-    try {
-      if (editingAccount) {
-        await api.updateInvestmentAccount(editingAccount.id, accountFormData);
-      } else {
-        await api.createInvestmentAccount(accountFormData);
-      }
-
-      await fetchPortfolioData();
-      setShowAccountModal(false);
-    } catch (error) {
-      console.error('Failed to save account:', error);
-      alert('투자 계좌를 저장하는 중 문제가 발생했습니다.');
-    }
-  };
-
-  const handleDeleteAccount = async (id: number) => {
-    if (!confirm('정말 이 투자 계좌를 삭제하시겠습니까?')) {
-      return;
-    }
-    try {
-      await api.deleteInvestmentAccount(id);
-      await fetchPortfolioData();
-      await fetchTransactions();
-    } catch (error: any) {
-      console.error('Failed to delete account:', error);
-      if (error?.message?.includes('holdings')) {
-        alert('보유 자산이 있는 계좌는 삭제할 수 없습니다. 먼저 해당 자산을 정리해주세요.');
-      } else {
-        alert('투자 계좌를 삭제하는 중 문제가 발생했습니다.');
-      }
-    }
-  };
-
-  const handleOpenTransactionModal = (transaction?: any) => {
-    if (transaction) {
-      setEditingTransaction(transaction);
-      setTransactionFormData({
-        account_id: transaction.accountId?.toString() ?? '',
-        symbol: transaction.symbol ?? '',
-        name: transaction.name ?? '',
-        type: transaction.type ?? 'BUY',
-        trade_date: transaction.trade_date ?? new Date().toISOString().split('T')[0],
-        quantity: transaction.quantity?.toString() ?? '',
-        price: transaction.price?.toString() ?? '',
-        fees: (transaction.fees ?? 0).toString(),
-        memo: transaction.memo ?? '',
-      });
-    } else {
-      setEditingTransaction(null);
-      setTransactionFormData({
-        account_id: accounts[0]?.id?.toString() ?? '',
-        symbol: '',
-        name: '',
-        type: transactionFilters.type
-          ? (transactionFilters.type as InvestmentTransactionType)
-          : 'BUY',
-        trade_date: getLocalDateString(),
-        quantity: '',
-        price: '',
-        fees: '0',
-        memo: '',
-      });
-    }
-    setShowTransactionModal(true);
-  };
-
-  const handleSubmitTransaction = async (event: React.FormEvent) => {
-    event.preventDefault();
-    try {
-      const payload = {
-        account_id: parseInt(transactionFormData.account_id, 10),
-        symbol: transactionFormData.symbol,
-        name: transactionFormData.name || undefined,
-        type: transactionFormData.type,
-        trade_date: transactionFormData.trade_date,
-        quantity: parseFloat(transactionFormData.quantity),
-        price: parseFloat(transactionFormData.price),
-        fees: parseFloat(transactionFormData.fees || '0'),
-        memo: transactionFormData.memo || undefined,
-      };
-
-      if (!Number.isFinite(payload.account_id)) {
-        alert('계좌를 선택해주세요.');
-        return;
-      }
-      if (!payload.symbol) {
-        alert('티커 심볼을 입력해주세요.');
-        return;
-      }
-      if (!Number.isFinite(payload.quantity) || payload.quantity <= 0) {
-        alert('수량은 0보다 커야 합니다.');
-        return;
-      }
-      if (!Number.isFinite(payload.price) || payload.price <= 0) {
-        alert('거래 단가는 0보다 커야 합니다.');
-        return;
-      }
-      if (!Number.isFinite(payload.fees) || payload.fees < 0) {
-        alert('수수료는 0 이상이어야 합니다.');
-        return;
-      }
-
-      if (editingTransaction) {
-        await api.updateInvestmentTransaction(editingTransaction.id, payload);
-      } else {
-        await api.createInvestmentTransaction(payload);
-      }
-
-      await fetchTransactions();
-      setShowTransactionModal(false);
-    } catch (error) {
-      console.error('Failed to save transaction:', error);
-      alert('투자 거래를 저장하는 중 문제가 발생했습니다.');
-    }
-  };
-
-  const handleDeleteTransaction = async (id: number) => {
-    if (!confirm('정말 이 거래를 삭제하시겠습니까?')) {
-      return;
-    }
-    try {
-      await api.deleteInvestmentTransaction(id);
-      await fetchTransactions();
-    } catch (error) {
-      console.error('Failed to delete transaction:', error);
-      alert('투자 거래를 삭제하는 중 문제가 발생했습니다.');
-    }
-  };
-
-  const handleTransactionFilterReset = () => {
-    setTransactionFilters({
-      fromDate: '',
-      toDate: '',
-      accountId: '',
-      type: '',
-    });
-  };
-
-  const totalValue = holdings.reduce(
-    (sum, holding) => sum + (holding.current_price ?? 0) * (holding.qty ?? 0),
-    0,
-  );
-  const totalCost = holdings.reduce(
-    (sum, holding) => sum + (holding.avg_price ?? 0) * (holding.qty ?? 0),
-    0,
-  );
-  const totalProfit = totalValue - totalCost;
-  const profitPercentage = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
-
-  const assetAllocationData = holdings.map((holding) => ({
-    name: holding.name ?? holding.symbol,
-    value: (holding.current_price ?? 0) * (holding.qty ?? 0),
-  }));
-
-  const PIE_COLORS = ['#0EA5E9', '#0284C7', '#38BDF8', '#7DD3FC', '#1D4ED8', '#0369A1'];
-
-  const getAccountName = (id: number) =>
-    accounts.find((account) => account.id === id)?.name || 'N/A';
-
-  const transactionSummary = useMemo(() => {
-    let buyAmount = 0;
-    let sellAmount = 0;
-    let buyCount = 0;
-    let sellCount = 0;
-
-    transactions.forEach((transaction) => {
-      const fees = transaction.fees ?? 0;
-      const gross = (transaction.quantity ?? 0) * (transaction.price ?? 0);
-      if (transaction.type === 'BUY') {
-        buyAmount += gross + fees;
-        buyCount += 1;
-      } else if (transaction.type === 'SELL') {
-        sellAmount += gross - fees;
-        sellCount += 1;
-      }
-    });
-
-    return {
-      buyAmount,
-      sellAmount,
-      netCashFlow: sellAmount - buyAmount,
-      buyCount,
-      sellCount,
-    };
-  }, [transactions]);
-
-  if (portfolioLoading) {
-    return <div className="text-center text-gray-400 p-8">로딩중...</div>;
-  }
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-        <Card>
-          <p className="text-xs sm:text-sm text-gray-400">총 포트폴리오 가치</p>
-          <p className="text-2xl sm:text-3xl md:text-3xl font-bold text-sky-400 mt-2">
-            {formatCurrency(totalValue, currency, exchangeRate)}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-xs sm:text-sm text-gray-400">총 손익</p>
-          <p className={`text-2xl sm:text-3xl md:text-3xl font-bold mt-2 ${totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {formatCurrency(totalProfit, currency, exchangeRate)}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-xs sm:text-sm text-gray-400">총 수익률</p>
-          <p className={`text-2xl sm:text-3xl md:text-3xl font-bold mt-2 ${profitPercentage >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {profitPercentage.toFixed(2)}%
-          </p>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-        <Card title="총 매수금액 (필터 적용)">
-          <div className="text-xl sm:text-2xl font-bold text-red-400">
-            {formatCurrency(transactionSummary.buyAmount, currency, exchangeRate)}
-          </div>
-          <p className="text-xs sm:text-sm text-gray-400 mt-2">
-            {transactionSummary.buyCount}건 · 수수료 포함
-          </p>
-        </Card>
-        <Card title="총 매도금액 (필터 적용)">
-          <div className="text-xl sm:text-2xl font-bold text-green-400">
-            {formatCurrency(transactionSummary.sellAmount, currency, exchangeRate)}
-          </div>
-          <p className="text-xs sm:text-sm text-gray-400 mt-2">
-            {transactionSummary.sellCount}건 · 수수료 차감
-          </p>
-        </Card>
-        <Card title="순현금 흐름">
-          <div
-            className={`text-xl sm:text-2xl font-bold ${
-              transactionSummary.netCashFlow >= 0 ? 'text-emerald-400' : 'text-red-400'
-            }`}
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-100">투자 스터디 기록</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          {isDirty && <span className="rounded-full bg-amber-500/30 border border-amber-600 px-3 py-1 text-amber-200 text-xs">임시 변경사항 있음</span>}
+          <button
+            type="button"
+            onClick={() => setShowPromptModal(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 text-sm"
           >
-            {transactionSummary.netCashFlow >= 0 ? '+' : '-'}
-            {formatCurrency(Math.abs(transactionSummary.netCashFlow), currency, exchangeRate)}
-          </div>
-          <p className="text-xs sm:text-sm text-gray-400 mt-2">
-            매도 금액 - 매수 금액 (필터 조건 적용)
-          </p>
-        </Card>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            프롬프트
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card title="보유 자산" className="lg:col-span-2">
-          <div className="mb-4 flex justify-end">
-            <button
-              onClick={() => handleOpenHoldingModal()}
-              className="bg-sky-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-sky-700 transition text-xs sm:text-sm md:text-base"
-            >
-              자산 추가
-            </button>
-          </div>
-          {holdings.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">
-              보유 자산이 없습니다. &quot;자산 추가&quot;를 클릭하여 생성하세요.
-            </div>
-          ) : (
-            <>
-              {/* Desktop Table (md 이상) */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left text-xs md:text-sm">
-                  <thead className="bg-gray-700">
-                    <tr>
-                      <th className="p-3 font-semibold">자산</th>
-                      <th className="p-3 font-semibold">계좌</th>
-                      <th className="p-3 font-semibold">수량</th>
-                      <th className="p-3 font-semibold">평균 단가</th>
-                      <th className="p-3 font-semibold">현재 가격</th>
-                      <th className="p-3 font-semibold">시장 가치</th>
-                      <th className="p-3 font-semibold">손익</th>
-                      <th className="p-3 font-semibold">작업</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {holdings.map((holding) => {
-                      const marketValue = (holding.qty ?? 0) * (holding.current_price ?? 0);
-                      const profit = (holding.current_price ?? 0 - (holding.avg_price ?? 0)) * (holding.qty ?? 0);
-                      return (
-                        <tr key={holding.id} className="border-b border-gray-700 hover:bg-gray-600/20 transition-colors">
-                          <td className="p-3 font-semibold">
-                            {holding.name ?? holding.symbol} ({holding.symbol})
-                          </td>
-                          <td className="p-3">{getAccountName(holding.accountId)}</td>
-                          <td className="p-3">{holding.qty}</td>
-                          <td className="p-3">
-                            {formatCurrency(holding.avg_price ?? 0, currency, exchangeRate)}
-                          </td>
-                          <td className="p-3">
-                            {formatCurrency(holding.current_price ?? 0, currency, exchangeRate)}
-                          </td>
-                          <td className="p-3">
-                            {formatCurrency(marketValue, currency, exchangeRate)}
-                          </td>
-                          <td
-                            className={`p-3 font-semibold ${
-                              profit >= 0 ? 'text-green-400' : 'text-red-400'
-                            }`}
-                          >
-                            {formatCurrency(profit, currency, exchangeRate)}
-                          </td>
-                          <td className="p-3 whitespace-nowrap space-x-2">
-                            <button
-                              onClick={() => handleOpenHoldingModal(holding)}
-                              className="text-sky-400 hover:text-sky-300 transition-colors text-xs sm:text-sm"
-                            >
-                              수정
-                            </button>
-                            <button
-                              onClick={() => handleDeleteHolding(holding.id)}
-                              className="text-red-400 hover:text-red-300 transition-colors text-xs sm:text-sm"
-                            >
-                              삭제
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="lg:w-1/3 space-y-4">
+          <Card title="스터디 히스토리">
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={handleStartNewSession}
+                className="w-full rounded-lg border-2 border-dashed border-blue-500/40 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-400 hover:bg-blue-500/20 transition"
+              >
+                <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                새 스터디 추가
+              </button>
 
-              {/* Mobile Card Layout (md 미만) */}
-              <div className="md:hidden space-y-3">
-                {holdings.map((holding) => {
-                  const marketValue = (holding.qty ?? 0) * (holding.current_price ?? 0);
-                  const profit = (holding.current_price ?? 0 - (holding.avg_price ?? 0)) * (holding.qty ?? 0);
+              {sortedSessions.length === 0 && (
+                <p className="text-sm text-gray-500">아직 저장된 스터디가 없습니다. 새로운 세션을 추가해보세요.</p>
+              )}
+
+              <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
+                {sortedSessions.map((session) => {
+                  const isActive = session.id === activeSessionId && !isCreatingNew;
                   return (
                     <div
-                      key={holding.id}
-                      className="bg-gray-700 rounded-lg p-3 sm:p-4 relative hover:bg-gray-600/50 transition-colors"
+                      key={session.id}
+                      className={`relative w-full rounded-lg border px-4 py-3 shadow-sm transition ${
+                        isActive
+                          ? 'border-blue-500/50 bg-blue-500/10'
+                          : 'border-gray-700 bg-gray-800 hover:border-blue-400/50 hover:bg-gray-700'
+                      }`}
                     >
-                      {/* Card Header with Actions */}
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex-1 pr-2">
-                          <h3 className="font-semibold text-sm sm:text-base text-white">
-                            {holding.symbol}
-                          </h3>
-                          <p className="text-xs sm:text-xs text-gray-400 mt-0.5">
-                            {holding.name || 'N/A'}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            계좌: {getAccountName(holding.accountId)}
-                          </p>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectSession(session.id)}
+                        className="w-full text-left"
+                      >
+                        <div className="flex items-center justify-between text-xs text-gray-500 mb-1 pr-6">
+                          <span>{formatListDate(session.date)}</span>
+                          {session.tags[0] && <span className="font-medium text-blue-400">#{session.tags[0]}</span>}
                         </div>
-                        <div className="flex gap-1 flex-shrink-0">
-                          <button
-                            onClick={() => handleOpenHoldingModal(holding)}
-                            className="text-sky-400 hover:text-sky-300 p-1.5 transition-colors"
-                            title="수정"
-                            aria-label="수정"
-                          >
-                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteHolding(holding.id)}
-                            className="text-red-400 hover:text-red-300 p-1.5 transition-colors"
-                            title="삭제"
-                            aria-label="삭제"
-                          >
-                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
+                        <div
+                          className="text-sm font-semibold text-gray-100 overflow-hidden pr-6"
+                          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+                        >
+                          {session.topic}
                         </div>
-                      </div>
-
-                      {/* Main Info - Market Value */}
-                      <div className="mb-3 pb-3 border-b border-gray-600">
-                        <p className="text-xs text-gray-400 mb-1">시장 가치</p>
-                        <div className="text-base sm:text-lg font-bold text-sky-400 mb-2">
-                          {formatCurrency(marketValue, currency, exchangeRate)}
-                        </div>
-                        <div className="flex justify-between text-xs sm:text-sm text-gray-300">
-                          <span className="font-medium">{holding.qty} 주</span>
-                          <span>현가: {formatCurrency(holding.current_price ?? 0, currency, exchangeRate)}</span>
-                        </div>
-                      </div>
-
-                      {/* Secondary Info */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <p className="text-xs text-gray-400 mb-1">평균 단가</p>
-                          <p className="text-xs sm:text-sm font-semibold text-gray-200">
-                            {formatCurrency(holding.avg_price ?? 0, currency, exchangeRate)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-gray-400 mb-1">손익</p>
-                          <p className={`text-xs sm:text-sm font-semibold ${profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {formatCurrency(profit, currency, exchangeRate)}
-                          </p>
-                        </div>
-                      </div>
+                        {session.source && (
+                          <div className="text-xs text-gray-400 mt-1 pr-6">{session.source}</div>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSession(session.id);
+                        }}
+                        className="absolute top-2 right-2 p-1 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                        title="삭제"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
                   );
                 })}
               </div>
-            </>
-          )}
-        </Card>
-        <Card title="자산 배분" className="h-96">
-          {assetAllocationData.length === 0 || totalValue === 0 ? (
-            <p className="text-center text-gray-400 py-6">자산 배분을 표시할 데이터가 없습니다.</p>
-          ) : (
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie
-                  data={assetAllocationData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  fill="#8884d8"
+            </div>
+          </Card>
+        </div>
+
+        <div className="lg:flex-1 space-y-4">
+          <Card>
+            <div className="flex flex-col gap-2 border-b border-gray-700 pb-4 mb-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">현재 편집 중</p>
+                  <h2 className="text-2xl font-bold text-gray-100">{draft.topic || '제목 없는 스터디'}</h2>
+                  <p className="text-sm text-gray-400">
+                    스터디마다 동일한 템플릿을 사용해 요약 · 참고 자료 · 후속 액션을 빠르게 정리할 수 있습니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowJsonImportModal(true)}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm whitespace-nowrap flex items-center gap-2"
                 >
-                  {assetAllocationData.map((entry, index) => (
-                    <Cell key={`cell-${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                  ChatGPT가 도와줬음:)
+                </button>
+              </div>
+            </div>
+
+            <form className="space-y-6">
+              <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="flex flex-col gap-1 text-sm text-gray-300">
+                  주제
+                  <input
+                    type="text"
+                    value={draft.topic}
+                    onChange={(event) => updateDraftField('topic', event.target.value)}
+                    className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+                    placeholder="예: 금리 사이클 분석"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm text-gray-300">
+                  날짜
+                  <input
+                    type="date"
+                    value={draft.date}
+                    onChange={(event) => updateDraftField('date', event.target.value)}
+                    className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm text-gray-300">
+                  자료 출처
+                  <input
+                    type="text"
+                    value={draft.source}
+                    onChange={(event) => updateDraftField('source', event.target.value)}
+                    className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+                    placeholder="보고서, 영상 등"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm text-gray-300">
+                  참여자
+                  <input
+                    type="text"
+                    value={draft.participants}
+                    onChange={(event) => updateDraftField('participants', event.target.value)}
+                    className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+                    placeholder="예: M, K"
+                  />
+                </label>
+              </section>
+
+              <section>
+                <p className="text-sm font-semibold text-gray-100 mb-2">태그</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {draft.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 rounded-full bg-blue-500/20 border border-blue-500/40 px-3 py-1 text-sm text-blue-300"
+                    >
+                      #{tag}
+                      <button type="button" onClick={() => handleRemoveTag(tag)} className="text-xs text-blue-400 hover:text-blue-200">
+                        ×
+                      </button>
+                    </span>
                   ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1F2937', border: 'none' }}
-                  formatter={(value) => formatCurrency(value as number, currency, exchangeRate)}
-                />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
-      </div>
-
-      <Card title="투자 거래 내역">
-        <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-end lg:justify-between mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3 flex-1">
-            <div>
-              <label className="block text-xs font-medium mb-1.5 text-gray-400">시작일</label>
-              <input
-                type="date"
-                value={transactionFilters.fromDate}
-                onChange={(event) =>
-                  setTransactionFilters((prev) => ({ ...prev, fromDate: event.target.value }))
-                }
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5 text-gray-400">종료일</label>
-              <input
-                type="date"
-                value={transactionFilters.toDate}
-                onChange={(event) =>
-                  setTransactionFilters((prev) => ({ ...prev, toDate: event.target.value }))
-                }
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5 text-gray-400">계좌</label>
-              <select
-                value={transactionFilters.accountId}
-                onChange={(event) =>
-                  setTransactionFilters((prev) => ({ ...prev, accountId: event.target.value }))
-                }
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-xs sm:text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all"
-              >
-                <option value="">전체</option>
-                {accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5 text-gray-400">유형</label>
-              <select
-                value={transactionFilters.type}
-                onChange={(event) =>
-                  setTransactionFilters((prev) => ({ ...prev, type: event.target.value }))
-                }
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-xs sm:text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all"
-              >
-                <option value="">전체</option>
-                <option value="BUY">매수</option>
-                <option value="SELL">매도</option>
-              </select>
-            </div>
-            <div>
-              <button
-                onClick={handleTransactionFilterReset}
-                className="w-full bg-gray-600 text-white px-3 py-2 rounded-lg text-xs sm:text-sm hover:bg-gray-700 transition-colors"
-              >
-                필터 초기화
-              </button>
-            </div>
-          </div>
-          <button
-            onClick={() => handleOpenTransactionModal()}
-            className="w-full sm:w-auto bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors text-xs sm:text-sm md:text-base whitespace-nowrap"
-          >
-            거래 추가
-          </button>
-        </div>
-
-        {transactionsLoading ? (
-          <div className="text-center text-gray-400 py-6">거래 내역을 불러오는 중입니다...</div>
-        ) : transactions.length === 0 ? (
-          <div className="text-center text-gray-400 py-6">
-            조건에 해당하는 거래가 없습니다. 거래를 추가하거나 필터를 조정해보세요.
-          </div>
-        ) : (
-          <>
-            {/* Desktop Table (lg 이상) */}
-            <div className="hidden lg:block overflow-x-auto">
-              <table className="w-full text-left text-xs lg:text-sm">
-                <thead className="bg-gray-700 sticky top-0">
-                  <tr>
-                    <th className="p-3 font-semibold">거래일</th>
-                    <th className="p-3 font-semibold">유형</th>
-                    <th className="p-3 font-semibold">계좌</th>
-                    <th className="p-3 font-semibold">티커</th>
-                    <th className="p-3 font-semibold">종목명</th>
-                    <th className="p-3 font-semibold">수량</th>
-                    <th className="p-3 font-semibold">단가</th>
-                    <th className="p-3 font-semibold">수수료</th>
-                    <th className="p-3 font-semibold">금액</th>
-                    <th className="p-3 font-semibold">메모</th>
-                    <th className="p-3 font-semibold">작업</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.map((transaction) => {
-                    const amount = calculateTransactionAmount(transaction);
-                    const amountClass =
-                      amount >= 0 ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold';
-
-                    return (
-                      <tr key={transaction.id} className="border-b border-gray-700 hover:bg-gray-600/20 transition-colors">
-                        <td className="p-3">{formatDate(transaction.trade_date)}</td>
-                        <td className="p-3">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-semibold inline-block ${
-                              transaction.type === 'BUY'
-                                ? 'bg-rose-500/20 text-rose-300'
-                                : 'bg-emerald-500/20 text-emerald-300'
-                            }`}
-                          >
-                            {transaction.type === 'BUY' ? '매수' : '매도'}
-                          </span>
-                        </td>
-                        <td className="p-3">{getAccountName(transaction.accountId)}</td>
-                        <td className="p-3 font-semibold">{transaction.symbol}</td>
-                        <td className="p-3 max-w-[100px] truncate">{transaction.name || '-'}</td>
-                        <td className="p-3">{transaction.quantity}</td>
-                        <td className="p-3">
-                          {formatCurrency(transaction.price ?? 0, currency, exchangeRate)}
-                        </td>
-                        <td className="p-3 text-gray-400">
-                          {formatCurrency(transaction.fees ?? 0, currency, exchangeRate)}
-                        </td>
-                        <td className={`p-3 ${amountClass}`}>
-                          {amount >= 0 ? '+' : '-'}
-                          {formatCurrency(Math.abs(amount), currency, exchangeRate)}
-                        </td>
-                        <td className="p-3 text-gray-400 max-w-[120px] truncate text-xs">
-                          {transaction.memo || '-'}
-                        </td>
-                        <td className="p-3 whitespace-nowrap space-x-2">
-                          <button
-                            onClick={() => handleOpenTransactionModal(transaction)}
-                            className="text-sky-400 hover:text-sky-300 transition-colors text-xs lg:text-sm"
-                          >
-                            수정
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTransaction(transaction.id)}
-                            className="text-red-400 hover:text-red-300 transition-colors text-xs lg:text-sm"
-                          >
-                            삭제
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Card Layout (lg 미만) */}
-            <div className="lg:hidden space-y-3">
-              {transactions.map((transaction) => {
-                const amount = calculateTransactionAmount(transaction);
-                const amountClass = amount >= 0 ? 'text-emerald-400' : 'text-red-400';
-
-                return (
-                  <div
-                    key={transaction.id}
-                    className="bg-gray-700 rounded-lg p-3 sm:p-4 relative hover:bg-gray-600/50 transition-colors"
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(event) => setTagInput(event.target.value)}
+                    onKeyDown={handleTagKeyDown}
+                    className="flex-1 min-w-[140px] rounded-md border border-gray-600 bg-gray-700 px-3 py-1 text-sm text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+                    placeholder="엔터로 태그 추가"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleTagAdd}
+                    className="rounded-md border border-blue-500/40 bg-blue-500/20 px-3 py-1 text-sm font-medium text-blue-300 hover:bg-blue-500/30"
                   >
-                    {/* Card Header */}
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1 pr-2">
-                        <p className="text-xs sm:text-sm text-gray-400 mb-1 font-medium">
-                          {formatDate(transaction.trade_date)}
-                        </p>
-                        <span
-                          className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
-                            transaction.type === 'BUY'
-                              ? 'bg-rose-500/20 text-rose-300'
-                              : 'bg-emerald-500/20 text-emerald-300'
-                          }`}
-                        >
-                          {transaction.type === 'BUY' ? '매수' : '매도'}
-                        </span>
-                      </div>
-                      <div className="flex gap-1 flex-shrink-0">
-                        <button
-                          onClick={() => handleOpenTransactionModal(transaction)}
-                          className="text-sky-400 hover:text-sky-300 p-1.5 transition-colors"
-                          title="수정"
-                          aria-label="수정"
-                        >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTransaction(transaction.id)}
-                          className="text-red-400 hover:text-red-300 p-1.5 transition-colors"
-                          title="삭제"
-                          aria-label="삭제"
-                        >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </button>
-                      </div>
+                    추가
+                  </button>
+                </div>
+              </section>
+
+              <section>
+                <p className="text-sm font-semibold text-gray-100 mb-2">핵심 요약 (최대 {MAX_HIGHLIGHTS}줄)</p>
+                <div className="space-y-2">
+                  {draft.highlights.map((line, index) => (
+                    <div key={`highlight-${index}`} className="flex items-start gap-2">
+                      <span className="mt-2 text-xs font-semibold text-gray-500">{index + 1}.</span>
+                      <textarea
+                        value={line}
+                        onChange={(event) => handleHighlightChange(index, event.target.value)}
+                        rows={2}
+                        className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+                        placeholder="핵심 메시지를 한 줄로 정리"
+                      />
                     </div>
+                  ))}
+                </div>
+              </section>
 
-                    {/* Main Content */}
-                    <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-3 pb-3 border-b border-gray-600">
-                      <div className="col-span-1">
-                        <p className="text-xs text-gray-400 mb-1 font-medium">종목</p>
-                        <p className="font-semibold text-xs sm:text-sm text-white">{transaction.symbol}</p>
-                        <p className="text-xs text-gray-400">{transaction.name || '-'}</p>
-                      </div>
-                      <div className="col-span-1">
-                        <p className="text-xs text-gray-400 mb-1 font-medium">계좌</p>
-                        <p className="text-xs sm:text-sm text-gray-200">
-                          {getAccountName(transaction.accountId)}
-                        </p>
-                      </div>
-                      <div className="col-span-1 text-right">
-                        <p className="text-xs text-gray-400 mb-1 font-medium">금액</p>
-                        <p className={`text-base sm:text-lg font-bold ${amountClass}`}>
-                          {amount >= 0 ? '+' : '-'}
-                          {formatCurrency(Math.abs(amount), currency, exchangeRate)}
-                        </p>
-                      </div>
+              <section>
+                <p className="text-sm font-semibold text-gray-100 mb-2">세부 노트</p>
+                <textarea
+                  value={draft.notes}
+                  onChange={(event) => updateDraftField('notes', event.target.value)}
+                  rows={6}
+                  className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-3 text-sm text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="- 자유롭게 메모를 남겨두세요."
+                />
+              </section>
+
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-100">참고 자료 / 링크</p>
+                  <button
+                    type="button"
+                    onClick={handleAddReference}
+                    className="text-sm font-medium text-blue-400 hover:text-blue-300"
+                  >
+                    + 자료 추가
+                  </button>
+                </div>
+                {draft.references.length === 0 && (
+                  <p className="text-sm text-gray-400">URL을 붙여 제목과 출처를 기록해두세요.</p>
+                )}
+                <div className="space-y-3">
+                  {draft.references.map((ref) => (
+                    <div key={ref.id} className="flex flex-col gap-2 rounded-lg border border-gray-700 bg-gray-800 p-3 md:flex-row md:items-center">
+                      <input
+                        type="text"
+                        value={ref.title}
+                        onChange={(event) => handleReferenceChange(ref.id, 'title', event.target.value)}
+                        className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-gray-100 focus:border-blue-500 focus:ring-blue-500 md:flex-1"
+                        placeholder="자료 제목"
+                      />
+                      <input
+                        type="url"
+                        value={ref.url}
+                        onChange={(event) => handleReferenceChange(ref.id, 'url', event.target.value)}
+                        className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-gray-100 focus:border-blue-500 focus:ring-blue-500 md:flex-[1.2]"
+                        placeholder="https://"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveReference(ref.id)}
+                        className="text-sm text-gray-400 hover:text-red-400"
+                      >
+                        삭제
+                      </button>
                     </div>
+                  ))}
+                </div>
+              </section>
 
-                    {/* Secondary Info */}
-                    <div className="grid grid-cols-2 gap-3 mb-3 text-xs sm:text-sm">
-                      <div>
-                        <p className="text-gray-400 mb-1 font-medium">수량 × 단가</p>
-                        <p className="text-gray-200">
-                          {transaction.quantity} × {formatCurrency(transaction.price ?? 0, currency, exchangeRate)}
-                        </p>
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-100">Follow-up</p>
+                  <button
+                    type="button"
+                    onClick={handleAddFollowUp}
+                    className="text-sm font-medium text-blue-400 hover:text-blue-300"
+                  >
+                    + 할 일 추가
+                  </button>
+                </div>
+                {draft.followUps.length === 0 && (
+                  <p className="text-sm text-gray-400">스터디 후 필요한 실행 과제를 체크리스트로 관리하세요.</p>
+                )}
+                <div className="space-y-3">
+                  {draft.followUps.map((item) => (
+                    <div key={item.id} className="rounded-lg border border-gray-700 bg-gray-800 p-3 space-y-2">
+                      <div className="grid gap-3 md:grid-cols-12">
+                        <label className="md:col-span-6 text-sm text-gray-300 flex flex-col gap-1">
+                          할 일
+                          <input
+                            type="text"
+                            value={item.task}
+                            onChange={(event) => handleFollowUpChange(item.id, 'task', event.target.value)}
+                            className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+                            placeholder="예: 국채 ETF 비중 재산정"
+                          />
+                        </label>
+                        <label className="md:col-span-3 text-sm text-gray-300 flex flex-col gap-1">
+                          담당자
+                          <input
+                            type="text"
+                            value={item.owner}
+                            onChange={(event) => handleFollowUpChange(item.id, 'owner', event.target.value)}
+                            className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+                            placeholder="이름/팀"
+                          />
+                        </label>
+                        <label className="md:col-span-3 text-sm text-gray-300 flex flex-col gap-1">
+                          기한
+                          <input
+                            type="date"
+                            value={item.due}
+                            onChange={(event) => handleFollowUpChange(item.id, 'due', event.target.value)}
+                            className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+                          />
+                        </label>
                       </div>
-                      <div className="text-right">
-                        <p className="text-gray-400 mb-1 font-medium">수수료</p>
-                        <p className="text-gray-300">
-                          {formatCurrency(transaction.fees ?? 0, currency, exchangeRate)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Memo */}
-                    {transaction.memo && (
-                      <div className="pt-3 border-t border-gray-600">
-                        <p className="text-xs text-gray-400 mb-1 font-medium">메모</p>
-                        <p className="text-xs text-gray-400 line-clamp-2">{transaction.memo}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </Card>
-
-      <Card title="투자 계좌">
-        <div className="mb-4 flex justify-end">
-          <button
-            onClick={() => handleOpenAccountModal()}
-            className="bg-sky-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-sky-700 transition-colors text-xs sm:text-sm md:text-base"
-          >
-            계좌 추가
-          </button>
-        </div>
-        {accounts.length === 0 ? (
-          <div className="p-6 sm:p-8 text-center text-gray-400 text-sm">
-            투자 계좌가 없습니다. &quot;계좌 추가&quot;를 클릭하여 생성하세요.
-          </div>
-        ) : (
-          <>
-            {/* Desktop Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-xs md:text-sm">
-                <thead className="bg-gray-700">
-                  <tr>
-                    <th className="p-3 font-semibold">계좌명</th>
-                    <th className="p-3 font-semibold">증권사</th>
-                    <th className="p-3 font-semibold">작업</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accounts.map((account) => (
-                    <tr key={account.id} className="border-b border-gray-700 hover:bg-gray-600/20 transition-colors">
-                      <td className="p-3 font-semibold">{account.name}</td>
-                      <td className="p-3">{account.broker}</td>
-                      <td className="p-3 whitespace-nowrap space-x-2">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 text-sm text-gray-300">
+                          <input
+                            type="checkbox"
+                            checked={item.completed}
+                            onChange={(event) => handleFollowUpChange(item.id, 'completed', event.target.checked)}
+                            className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                          />
+                          완료
+                        </label>
                         <button
-                          onClick={() => handleOpenAccountModal(account)}
-                          className="text-sky-400 hover:text-sky-300 transition-colors text-xs md:text-sm"
-                        >
-                          수정
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAccount(account.id)}
-                          className="text-red-400 hover:text-red-300 transition-colors text-xs md:text-sm"
+                          type="button"
+                          onClick={() => handleRemoveFollowUp(item.id)}
+                          className="text-sm text-gray-400 hover:text-red-400"
                         >
                           삭제
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Card Layout */}
-            <div className="md:hidden space-y-3">
-              {accounts.map((account) => (
-                <div
-                  key={account.id}
-                  className="bg-gray-700 rounded-lg p-3 sm:p-4 flex justify-between items-start hover:bg-gray-600/50 transition-colors"
-                >
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-sm sm:text-base text-white">{account.name}</h3>
-                    <p className="text-xs sm:text-sm text-gray-400 mt-1">증권사: {account.broker}</p>
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => handleOpenAccountModal(account)}
-                      className="text-sky-400 hover:text-sky-300 p-1.5 transition-colors"
-                      title="수정"
-                      aria-label="수정"
-                    >
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => handleDeleteAccount(account.id)}
-                      className="text-red-400 hover:text-red-300 p-1.5 transition-colors"
-                      title="삭제"
-                      aria-label="삭제"
-                    >
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </Card>
-
-      {showHoldingModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">{editingHolding ? '자산 수정' : '자산 추가'}</h2>
-            <form onSubmit={handleSubmitHolding} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-300">계좌</label>
-                <div className="relative">
-                  <select
-                    value={holdingFormData.account_id}
-                    onChange={(event) =>
-                      setHoldingFormData((prev) => ({ ...prev, account_id: event.target.value }))
-                    }
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
-                    required
-                  >
-                    <option value="">계좌 선택</option>
-                    {accounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name} ({account.broker})
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-300">티커 심볼</label>
-                <input
-                  type="text"
-                  value={holdingFormData.symbol}
-                  onChange={(event) =>
-                    setHoldingFormData((prev) => ({ ...prev, symbol: event.target.value }))
-                  }
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
-                  placeholder="예: AAPL"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-300">종목명</label>
-                <input
-                  type="text"
-                  value={holdingFormData.name}
-                  onChange={(event) =>
-                    setHoldingFormData((prev) => ({ ...prev, name: event.target.value }))
-                  }
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
-                  placeholder="예: Apple Inc."
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-300">수량</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value={holdingFormData.qty}
-                    onChange={(event) =>
-                      setHoldingFormData((prev) => ({ ...prev, qty: event.target.value }))
-                    }
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-300">평균 단가</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={holdingFormData.avg_price}
-                    onChange={(event) =>
-                      setHoldingFormData((prev) => ({ ...prev, avg_price: event.target.value }))
-                    }
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-300">현재 가격</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={holdingFormData.current_price}
-                    onChange={(event) =>
-                      setHoldingFormData((prev) => ({ ...prev, current_price: event.target.value }))
-                    }
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowHoldingModal(false)}
-                  className="px-4 py-2 bg-gray-600 rounded-lg text-white hover:bg-gray-700 transition"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-sky-600 rounded-lg text-white hover:bg-sky-700 transition"
-                >
-                  저장
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showAccountModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">{editingAccount ? '계좌 수정' : '계좌 추가'}</h2>
-            <form onSubmit={handleSubmitAccount} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-300">계좌명</label>
-                <input
-                  type="text"
-                  value={accountFormData.name}
-                  onChange={(event) =>
-                    setAccountFormData((prev) => ({ ...prev, name: event.target.value }))
-                  }
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
-                  placeholder="예: 국내 주식"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-300">증권사</label>
-                <input
-                  type="text"
-                  value={accountFormData.broker}
-                  onChange={(event) =>
-                    setAccountFormData((prev) => ({ ...prev, broker: event.target.value }))
-                  }
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
-                  placeholder="예: 키움증권"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAccountModal(false)}
-                  className="px-4 py-2 bg-gray-600 rounded-lg text-white hover:bg-gray-700 transition"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-sky-600 rounded-lg text-white hover:bg-sky-700 transition"
-                >
-                  저장
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showTransactionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">
-              {editingTransaction ? '거래 수정' : '거래 추가'}
-            </h2>
-            <form onSubmit={handleSubmitTransaction} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-300">계좌</label>
-                  <div className="relative">
-                    <select
-                      value={transactionFormData.account_id}
-                      onChange={(event) =>
-                        setTransactionFormData((prev) => ({
-                          ...prev,
-                          account_id: event.target.value,
-                        }))
-                      }
-                      className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-                      required
-                    >
-                      <option value="">계좌 선택</option>
-                      {accounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.name} ({account.broker})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-300">거래일</label>
-                  <input
-                    type="date"
-                    value={transactionFormData.trade_date}
-                    onChange={(event) =>
-                      setTransactionFormData((prev) => ({ ...prev, trade_date: event.target.value }))
-                    }
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-300">거래 유형</label>
-                  <select
-                    value={transactionFormData.type}
-                    onChange={(event) =>
-                      setTransactionFormData((prev) => ({
-                        ...prev,
-                        type: event.target.value as InvestmentTransactionType,
-                      }))
-                    }
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white appearance-none cursor-pointer hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-                    required
-                  >
-                    <option value="BUY">매수</option>
-                    <option value="SELL">매도</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-300">티커 심볼</label>
-                  <input
-                    type="text"
-                    value={transactionFormData.symbol}
-                    onChange={(event) =>
-                      setTransactionFormData((prev) => ({ ...prev, symbol: event.target.value }))
-                    }
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-                    placeholder="예: TSLA"
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-300">종목명 (선택)</label>
-                <input
-                  type="text"
-                  value={transactionFormData.name}
-                  onChange={(event) =>
-                    setTransactionFormData((prev) => ({ ...prev, name: event.target.value }))
-                  }
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-                  placeholder="예: Tesla Inc."
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-300">수량</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value={transactionFormData.quantity}
-                    onChange={(event) =>
-                      setTransactionFormData((prev) => ({ ...prev, quantity: event.target.value }))
-                    }
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-300">거래 단가</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={transactionFormData.price}
-                    onChange={(event) =>
-                      setTransactionFormData((prev) => ({ ...prev, price: event.target.value }))
-                    }
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-300">수수료 (선택)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={transactionFormData.fees}
-                    onChange={(event) =>
-                      setTransactionFormData((prev) => ({ ...prev, fees: event.target.value }))
-                    }
-                    className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-300">메모 (선택)</label>
-                <textarea
-                  value={transactionFormData.memo}
-                  onChange={(event) =>
-                    setTransactionFormData((prev) => ({ ...prev, memo: event.target.value }))
-                  }
-                  rows={3}
-                  className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-4 py-2.5 text-white hover:border-emerald-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-                  placeholder="거래에 대한 메모를 입력하세요."
-                />
-              </div>
-              <div className="flex justify-end gap-2">
+              </section>
+
+              <div className="flex flex-col gap-3 border-t border-gray-700 pt-4 md:flex-row md:justify-end">
                 <button
                   type="button"
-                  onClick={() => setShowTransactionModal(false)}
-                  className="px-4 py-2 bg-gray-600 rounded-lg text-white hover:bg-gray-700 transition"
+                  onClick={handleResetDraft}
+                  className="rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 hover:bg-gray-600 transition-colors"
                 >
-                  취소
+                  {isCreatingNew || !activeSessionId ? '초안 초기화' : '변경사항 취소'}
                 </button>
                 <button
-                  type="submit"
-                  className="px-4 py-2 bg-emerald-600 rounded-lg text-white hover:bg-emerald-700 transition"
+                  type="button"
+                  onClick={handleSaveSession}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
                 >
-                  저장
+                  {isCreatingNew || !activeSessionId ? '새 스터디 저장' : '업데이트 저장'}
                 </button>
               </div>
             </form>
+          </Card>
+        </div>
+      </div>
+
+      {showPromptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-gray-800 p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-100">PDF 요약 자동화 프롬프트</h3>
+                <p className="text-sm text-gray-400 mt-1">ChatGPT에 PDF와 함께 붙여넣으면 스터디 템플릿에 맞춰 정리해 줍니다.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPromptModal(false)}
+                className="text-gray-400 hover:text-gray-200 text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <textarea
+              value={promptTemplate}
+              onChange={(e) => setPromptTemplate(e.target.value)}
+              className="mt-4 h-72 w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-3 text-sm text-gray-100 focus:border-blue-500 focus:ring-blue-500"
+            />
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-gray-400">{copyMessage || '프롬프트를 수정하고 저장할 수 있습니다.'}</div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopyPrompt}
+                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+                >
+                  복사
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCopyMessage('프롬프트가 저장되었습니다!');
+                    setTimeout(() => {
+                      setCopyMessage(null);
+                      setShowPromptModal(false);
+                    }, 1500);
+                  }}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+                >
+                  저장
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPromptModal(false)}
+                  className="rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 hover:bg-gray-600 transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* JSON Import Modal */}
+      {showJsonImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-gray-800 p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-100">JSON 데이터 불러오기</h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  ChatGPT에서 생성한 JSON을 붙여넣으면 자동으로 폼에 입력됩니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowJsonImportModal(false);
+                  setJsonInput('');
+                }}
+                className="text-gray-400 hover:text-gray-200 text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                JSON 데이터 붙여넣기
+              </label>
+              <textarea
+                value={jsonInput}
+                onChange={(e) => setJsonInput(e.target.value)}
+                className="w-full h-96 rounded-md border border-gray-600 bg-gray-700 px-3 py-3 text-sm text-gray-100 font-mono focus:border-blue-500 focus:ring-blue-500"
+                placeholder={`예시:
+{
+  "topic": "금리 사이클 분석",
+  "date": "2025-10-26",
+  "source": "JP Morgan Report",
+  "participants": "팀 전체",
+  "tags": ["금리", "채권"],
+  "highlights": [
+    "핵심 요약 1",
+    "핵심 요약 2"
+  ],
+  "notes": "- 상세 메모\\n- 추가 내용",
+  "references": [
+    {"title": "참고자료", "url": "https://example.com"}
+  ],
+  "followUps": [
+    {"task": "할 일", "owner": "담당자", "due": "2025-11-01", "completed": false}
+  ]
+}`}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowJsonImportModal(false);
+                  setJsonInput('');
+                }}
+                className="rounded-lg border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 hover:bg-gray-600 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleJsonImport}
+                className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 transition-colors"
+              >
+                불러오기
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1389,4 +1034,3 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
 };
 
 export default Investments;
-

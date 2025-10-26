@@ -21,8 +21,10 @@ npm run build            # dist/ 폴더에 빌드 결과 생성
 # 빌드된 앱 미리보기
 npm run preview
 
-# Supabase 마이그레이션 적용
-npx supabase db push     # 최신 마이그레이션 반영 (스키마 변경 후 필수)
+# Supabase 마이그레이션 적용 (CLI)
+npx supabase login                    # 최초 1회만 로그인
+npx supabase link --project-ref XXX   # 최초 1회만 프로젝트 연결
+npx supabase db push                  # 마이그레이션 적용 (Docker 불필요)
 ```
 
 **중요**:
@@ -76,7 +78,7 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
    - `auth.users`: Supabase 인증 정보 (이메일, 비밀번호)
    - `public.users`: 앱 프로필 정보 (이름, 역할, 아바타)
    - 두 테이블 모두 UUID 기반 `id` 사용
-   - `lib/auth.tsx`의 `ensureProfile()`이 auth.users → public.users 자동 동기화
+   - 사용자 프로필은 앱에서 자동으로 생성 및 동기화
 
 4. **날짜 및 타임존 처리**
    - 모든 날짜는 KST(Asia/Seoul) 기준으로 처리
@@ -112,6 +114,7 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
 │   ├── Investments.tsx  # 투자 관리 (계좌, 보유종목, 거래내역)
 │   ├── Issues.tsx       # 이슈 보드 (칸반 스타일, 댓글 기능)
 │   ├── FixedCosts.tsx   # 고정비 관리 (구독료, 월세 등)
+│   ├── Notes.tsx        # 노트 관리 (간단한 메모, 체크리스트)
 │   ├── Settings.tsx     # 설정 (카테고리, 예산, 사용자)
 │   ├── Sidebar.tsx      # 사이드바 네비게이션
 │   ├── Header.tsx       # 헤더 (페이지 전환, 통화 토글, 인증)
@@ -121,14 +124,15 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
 ├── lib/
 │   ├── api.ts           # Supabase API 래퍼 (모든 CRUD 함수)
 │   ├── supabase.ts      # Supabase 클라이언트 초기화
-│   ├── auth.tsx         # 인증 컨텍스트 (useAuth, AuthProvider)
 │   ├── database.ts      # DB 헬퍼 (TableQuery, toCamelCase, toSnakeCase)
 │   ├── gemini.ts        # Gemini AI API 통합 (지출 자동 분석)
-│   └── dateUtils.ts     # 날짜 유틸리티 (KST 기준, 타임존 처리)
+│   ├── fixedCostGemini.ts  # Gemini AI 고정비 분석
+│   ├── dateUtils.ts     # 날짜 유틸리티 (KST 기준, 타임존 처리)
+│   └── sw-utils.ts      # Service Worker 유틸리티 (캐싱, 동기화)
 ├── types.ts             # TypeScript 타입 정의
 ├── constants.ts         # 상수 정의
 ├── supabase/migrations/ # SQL 마이그레이션
-│   └── 009_add_fixed_cost_amount_mode.sql  # 최신 마이그레이션
+│   └── 010_add_notes.sql  # 최신 마이그레이션
 ├── docs/                # 프로젝트 문서
 │   ├── frontend.md      # 프론트엔드 아키텍처
 │   ├── backend.md       # 백엔드 API (참조용)
@@ -170,8 +174,11 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
 - `issue_comments` (id: int, issue_id, user_id: UUID, content, created_at, updated_at)
 
 **고정비 관리**:
-- `fixed_costs` (id: int, name, category_id, amount, payment_day, start_date, end_date, is_active, created_by: UUID)
+- `fixed_costs` (id: int, name, category_id, amount, payment_day, start_date, end_date, is_active, is_fixed_amount, created_by: UUID)
 - `fixed_cost_payments` (id: int, fixed_cost_id, year_month: 'YYYY-MM', scheduled_amount, actual_amount, payment_date, status, created_by: UUID)
+
+**노트 관리**:
+- `notes` (id: int, content, is_completed, created_by: UUID, created_at, completed_at)
 
 ## 개발 워크플로
 
@@ -206,26 +213,54 @@ await api.deleteExpense(id);
 
 **인증 사용**:
 ```tsx
-import { useAuth } from '../lib/auth';
+import { supabase } from '../lib/supabase';
 
-function MyComponent() {
-  const { user, profile, signIn, signOut } = useAuth();
+// 현재 사용자 가져오기
+const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return <LoginPrompt />;
-  }
+// 로그인
+await supabase.auth.signInWithPassword({
+  email: 'user@example.com',
+  password: 'password'
+});
 
-  return <div>안녕하세요, {profile?.name}</div>;
-}
+// 로그아웃
+await supabase.auth.signOut();
 ```
 
 ### 2. 데이터베이스 마이그레이션
 
-스키마 변경 시:
-1. Supabase 대시보드 → SQL Editor에서 쿼리 실행
-2. 또는 `supabase/migrations/` 폴더에 새 `.sql` 파일 추가
-3. `types.ts`의 `Database` 타입 업데이트
-4. `lib/api.ts`에 필요한 API 함수 추가
+**방법 1: Supabase CLI 사용 (권장)**
+
+```bash
+# 1. 프로젝트 연결 (최초 1회만)
+npx supabase login
+npx supabase link --project-ref your-project-ref
+
+# 2. 마이그레이션 적용
+npx supabase db push  # supabase/migrations/ 폴더의 모든 마이그레이션을 원격 DB에 적용
+
+# 3. 마이그레이션 목록 확인
+npx supabase migration list
+
+# 4. 새 마이그레이션 파일 생성
+npx supabase migration new add_feature_name
+```
+
+**방법 2: Supabase 웹 대시보드 사용**
+
+1. Supabase 대시보드 → SQL Editor
+2. `supabase/migrations/` 폴더의 `.sql` 파일 내용 복사
+3. SQL Editor에서 실행
+
+**마이그레이션 후 필수 작업:**
+1. `types.ts`의 `Database` 타입 업데이트
+2. `lib/api.ts`에 필요한 API 함수 추가
+
+**주의사항:**
+- `npx supabase db push`는 Docker 없이 사용 가능 (원격 DB에 직접 적용)
+- `npx supabase db diff`는 Docker 필요 (로컬 shadow DB 사용)
+- Project Ref는 Supabase Dashboard → Settings → General에서 확인
 
 **기존 마이그레이션 파일**:
 - `001_initial_schema.sql`: 초기 데이터베이스 스키마 (테이블 생성)
@@ -237,6 +272,10 @@ function MyComponent() {
   - 일반 사용자는 본인 프로필만 수정 가능
 - `005_add_fixed_costs.sql`: 고정비 관리 기능 (fixed_costs, fixed_cost_payments 테이블)
 - `006_add_issue_comments.sql`: 이슈 댓글 기능 (issue_comments 테이블)
+- `007_add_fixed_cost_summary_rpc.sql`: 고정비 요약 함수
+- `008_add_expense_link_to_payments.sql`: 고정비 납부와 지출 연동
+- `009_add_fixed_cost_amount_mode.sql`: 고정비 금액 고정/변동 모드
+- `010_add_notes.sql`: 노트 관리 기능 (notes 테이블)
 
 **예시**:
 ```sql
@@ -441,6 +480,28 @@ const handleBulkDelete = async () => {
   setSelectedIds(new Set());
   await fetchData();
 };
+```
+
+### 노트 관리
+간단한 메모 및 체크리스트 기능:
+```tsx
+// 노트 조회
+const notes = await api.getNotes();
+
+// 새 노트 추가 (created_by는 자동 설정됨)
+await api.createNote({
+  content: '할 일 내용',
+  isCompleted: false
+});
+
+// 노트 완료 처리
+await api.updateNote(noteId, {
+  isCompleted: true,
+  completedAt: new Date().toISOString()
+});
+
+// 노트 삭제
+await api.deleteNote(noteId);
 ```
 
 ## 코딩 스타일 & 규칙
