@@ -80,24 +80,38 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
     'w-full rounded-lg border border-red-500/40 bg-gray-900/70 px-2 py-1 text-sm text-white focus:border-red-400 focus:ring-2 focus:ring-red-400/30 outline-none transition shadow-[0_0_0_1px_rgba(248,113,113,0.35)] placeholder:text-gray-500';
   const categoryRingPalette = ['#f87171', '#fb923c', '#facc15', '#34d399', '#60a5fa', '#a78bfa'];
 
-  // 초기 데이터 로드 (categories, users는 한 번만)
-  const fetchInitialData = async () => {
+  // 초기 데이터 로드 (모든 데이터를 한 번에)
+  const fetchAllData = async () => {
     try {
       setLoading(true);
-      const [categoriesData, usersData] = await Promise.all([
+      const params: any = {};
+      if (filters.fromDate) params.from_date = filters.fromDate;
+      if (filters.toDate) params.to_date = filters.toDate;
+      if (filters.categoryId) params.category_id = parseInt(filters.categoryId);
+      if (filters.createdBy) params.created_by = filters.createdBy;
+
+      const [expensesData, categoriesData, usersData] = await Promise.all([
+        api.getExpenses(params),
         api.getCategories(),
         api.getUsers()
       ]);
+
       const expenseCategories = (categoriesData as any[]).filter((category) => category.type === 'expense');
+      const expenseCategoryIds = new Set(expenseCategories.map((category) => category.id));
+      const filteredExpenses = (expensesData as any[]).filter((expense) => expenseCategoryIds.has(expense.categoryId));
+
+      setExpenses(filteredExpenses);
       setCategories(expenseCategories);
       setUsers(usersData as any[]);
     } catch (error) {
-      console.error('Failed to fetch initial data:', error);
-      alert('초기 데이터를 불러오는데 실패했습니다.');
+      console.error('Failed to fetch data:', error);
+      alert('데이터를 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // expenses만 다시 불러오기 (필터 변경 시)
+  // expenses만 다시 불러오기 (필터 변경 시 - categories는 이미 로드됨)
   const fetchExpenses = async () => {
     try {
       setLoading(true);
@@ -121,17 +135,12 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
 
   // 전체 데이터 다시 불러오기 (외부 호출용)
   const fetchData = async () => {
-    await Promise.all([fetchInitialData(), fetchExpenses()]);
+    await fetchAllData();
   };
 
   // 초기 로드
   useEffect(() => {
-    const init = async () => {
-      await fetchInitialData();
-      await fetchExpenses();
-      setLoading(false);
-    };
-    init();
+    fetchAllData();
   }, []);
 
   // 필터 변경 시 expenses만 다시 불러오기
