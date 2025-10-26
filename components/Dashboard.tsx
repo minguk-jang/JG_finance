@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Currency, Page } from '../types';
 import Card from './ui/Card';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
-import { api } from '../lib/api';
 import { getLocalDateString } from '../lib/dateUtils';
+import { useDashboardData } from '../lib/hooks/useQueries';
 
 interface DashboardProps {
   currency: Currency;
@@ -43,108 +43,40 @@ const formatCurrency = (value: number, currency: Currency, exchangeRate: number)
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageChange }) => {
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [budgets, setBudgets] = useState<any[]>([]);
-  const [holdings, setHoldings] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [notes, setNotes] = useState<any[]>([]);
-  const [fixedCostPayments, setFixedCostPayments] = useState<any[]>([]);
-  const [issues, setIssues] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [showDetails, setShowDetails] = useState(false);
 
+  // Use React Query for optimized data fetching
+  const {
+    expenses,
+    categories,
+    budgets,
+    holdings,
+    transactions,
+    notes,
+    issues,
+    fixedCostPayments,
+    isLoading: loading,
+    error: queryError,
+  } = useDashboardData(selectedMonth);
+
+  const error = queryError ? '대시보드 데이터를 불러오지 못했습니다.' : null;
+
+  // Normalize budgets for compatibility
+  const normalizedBudgets = (Array.isArray(budgets) ? budgets : []).map((budget: any) => ({
+    id: budget.id,
+    categoryId: budget.categoryId,
+    month: budget.month,
+    limitAmount: budget.limitAmount ?? budget.limit_amount,
+  }));
+
+  // Initialize selectedMonth to current month if not set
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [expensesData, categoriesData, budgetsData, holdingsData, transactionsData, notesData, issuesData] = await Promise.all([
-          api.getExpenses(),
-          api.getCategories(),
-          api.getBudgets(),
-          api.getHoldings(),
-          api.getInvestmentTransactions(),
-          api.getNotes().catch(() => []),
-          api.getIssues().catch(() => []),
-        ]);
-
-        setExpenses(Array.isArray(expensesData) ? expensesData : []);
-        setCategories(Array.isArray(categoriesData) ? categoriesData : []);
-
-        const normalizedBudgets = (Array.isArray(budgetsData) ? budgetsData : []).map((budget: any) => ({
-          id: budget.id,
-          categoryId: budget.categoryId,
-          month: budget.month,
-          limitAmount: budget.limitAmount ?? budget.limit_amount,
-        }));
-        setBudgets(normalizedBudgets);
-
-        setHoldings(Array.isArray(holdingsData) ? holdingsData : []);
-        setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
-        setNotes(Array.isArray(notesData) ? notesData : []);
-        setIssues(Array.isArray(issuesData) ? issuesData : []);
-      } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
-        setError('대시보드 데이터를 불러오지 못했습니다.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  // Fetch fixed cost payments when month changes
-  useEffect(() => {
-    if (!selectedMonth) return;
-    const fetchFixedCostPayments = async () => {
-      try {
-        const paymentsData = await api.getFixedCostPayments(selectedMonth).catch(() => []);
-        setFixedCostPayments(Array.isArray(paymentsData) ? paymentsData : []);
-      } catch (err) {
-        console.error('Failed to fetch fixed cost payments:', err);
-      }
-    };
-    fetchFixedCostPayments();
-  }, [selectedMonth]);
-
-  useEffect(() => {
-    if (loading) return;
-
-    const nowMonth = getLocalDateString().slice(0, 7); // YYYY-MM
-    const monthsFromExpenses = expenses
-      .map((expense) => (typeof expense.date === 'string' ? expense.date.slice(0, 7) : null))
-      .filter((month): month is string => Boolean(month));
-    const monthsFromBudgets = budgets
-      .map((budget) => budget.month)
-      .filter((month): month is string => Boolean(month));
-    const monthsFromTransactions = transactions
-      .map((transaction) =>
-        typeof transaction.trade_date === 'string' ? transaction.trade_date.slice(0, 7) : null
-      )
-      .filter((month): month is string => Boolean(month));
-    const availableMonths = Array.from(
-      new Set([...monthsFromExpenses, ...monthsFromBudgets, ...monthsFromTransactions])
-    ).sort(
-      (a, b) => b.localeCompare(a)
-    );
-
-    if (availableMonths.length === 0) {
+    if (!selectedMonth && !loading) {
+      const nowMonth = getLocalDateString().slice(0, 7); // YYYY-MM
       setSelectedMonth(nowMonth);
-      return;
     }
-
-    if (!selectedMonth) {
-      if (availableMonths.includes(nowMonth)) {
-        setSelectedMonth(nowMonth);
-      } else {
-        setSelectedMonth(availableMonths[0]);
-      }
-    } else if (!availableMonths.includes(selectedMonth)) {
-      setSelectedMonth(availableMonths[0]);
-    }
-  }, [loading, expenses, budgets, transactions, selectedMonth]);
+  }, [selectedMonth, loading]);
 
   if (loading) {
     return (
@@ -166,9 +98,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
     );
   }
 
-  const nowMonth = new Date().toISOString().slice(0, 7);
-  const activeMonth = selectedMonth || nowMonth;
-  const categoriesById = new Map(categories.map((cat: any) => [cat.id, cat]));
+  const activeMonth = selectedMonth || getLocalDateString().slice(0, 7);
+  const categoriesById = new Map((categories || []).map((cat: any) => [cat.id, cat]));
 
   const monthlyExpenses = expenses.filter(
     (expense: any) =>
@@ -188,7 +119,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
   const totalIncome = monthlyIncomes.reduce((sum: number, inc: any) => sum + (inc.amount || 0), 0);
   const netIncome = totalIncome - totalExpense;
 
-  const monthBudgets = budgets.filter((budget: any) => budget.month === activeMonth);
+  const monthBudgets = normalizedBudgets.filter((budget: any) => budget.month === activeMonth);
   const totalBudgetLimit = monthBudgets.reduce((sum: number, budget: any) => sum + (budget.limitAmount || 0), 0);
   const budgetUsage = totalBudgetLimit > 0 ? (totalExpense / totalBudgetLimit) * 100 : 0;
 
@@ -236,22 +167,18 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
   const monthlyNetCash = monthlyTotals.sellAmount - monthlyTotals.buyAmount;
   const monthlyTransactionCount = monthlyTransactions.length;
 
-  const monthsFromExpenses = expenses
-    .map((expense) => (typeof expense.date === 'string' ? expense.date.slice(0, 7) : null))
-    .filter((month): month is string => Boolean(month));
-  const monthsFromBudgets = budgets
-    .map((budget) => budget.month)
-    .filter((month): month is string => Boolean(month));
-  const monthsFromTransactions = transactions
-    .map((transaction) =>
-      typeof transaction.trade_date === 'string' ? transaction.trade_date.slice(0, 7) : null
-    )
-    .filter((month): month is string => Boolean(month));
-  const availableMonths = Array.from(
-    new Set([...monthsFromExpenses, ...monthsFromBudgets, ...monthsFromTransactions])
-  ).sort(
-    (a, b) => b.localeCompare(a)
-  );
+  // For month selector, show last 12 months
+  const generateMonthOptions = () => {
+    const months: string[] = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      months.push(monthStr);
+    }
+    return months;
+  };
+  const availableMonths = generateMonthOptions();
 
   const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedMonth(event.target.value);
@@ -278,7 +205,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
               onChange={handleMonthChange}
               className="w-full theme-field bg-gray-700 border-2 border-gray-600 rounded-lg px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-2.5 text-xs sm:text-sm appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
             >
-              {availableMonths.length === 0 && <option value={nowMonth} className="bg-gray-800">{nowMonth}</option>}
               {availableMonths.map((month) => (
                 <option key={month} value={month} className="bg-gray-800">{month}</option>
               ))}
