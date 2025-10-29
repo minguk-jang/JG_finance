@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -8,7 +9,7 @@ from app.models.investment import TransactionType
 
 # Holding Schemas
 class HoldingBase(BaseModel):
-    account_id: int
+    account_id: UUID
     symbol: str
     name: str
     qty: float
@@ -21,7 +22,7 @@ class HoldingCreate(HoldingBase):
 
 
 class HoldingUpdate(BaseModel):
-    account_id: Optional[int] = None
+    account_id: Optional[UUID] = None
     symbol: Optional[str] = None
     name: Optional[str] = None
     qty: Optional[float] = None
@@ -30,7 +31,7 @@ class HoldingUpdate(BaseModel):
 
 
 class Holding(HoldingBase):
-    id: int
+    id: UUID
 
     class Config:
         from_attributes = True
@@ -52,7 +53,7 @@ class InvestmentAccountUpdate(BaseModel):
 
 
 class InvestmentAccount(InvestmentAccountBase):
-    id: int
+    id: UUID
 
     class Config:
         from_attributes = True
@@ -60,7 +61,7 @@ class InvestmentAccount(InvestmentAccountBase):
 
 # Investment Transaction Schemas
 class InvestmentTransactionBase(BaseModel):
-    account_id: int
+    account_id: UUID
     symbol: str
     name: Optional[str] = None
     type: TransactionType
@@ -76,7 +77,7 @@ class InvestmentTransactionCreate(InvestmentTransactionBase):
 
 
 class InvestmentTransactionUpdate(BaseModel):
-    account_id: Optional[int] = None
+    account_id: Optional[UUID] = None
     symbol: Optional[str] = None
     name: Optional[str] = None
     type: Optional[TransactionType] = None
@@ -88,7 +89,7 @@ class InvestmentTransactionUpdate(BaseModel):
 
 
 class InvestmentTransaction(InvestmentTransactionBase):
-    id: int
+    id: UUID
     created_at: datetime
     account: Optional[InvestmentAccount] = None
 

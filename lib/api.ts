@@ -42,7 +42,7 @@ const normalizeIssue = (rawIssue: any) => {
   return normalized;
 };
 
-const fetchIssueWithLabels = async (issueId: number) => {
+const fetchIssueWithLabels = async (issueId: string) => {
   const issue = await handleRequest(
     supabase
       .from('issues')
@@ -69,7 +69,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  getCategory: async (id: number) => {
+  getCategory: async (id: string) => {
     const data = await handleRequest(
       supabase.from('categories').select('*').eq('id', id).single()
     );
@@ -84,7 +84,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateCategory: async (id: number, categoryData: any) => {
+  updateCategory: async (id: string, categoryData: any) => {
     const snakeData = toSnakeCase(categoryData);
     const data = await handleRequest(
       supabase.from('categories').update(snakeData).eq('id', id).select().single()
@@ -92,7 +92,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteCategory: async (id: number) => {
+  deleteCategory: async (id: string) => {
     await handleRequest(supabase.from('categories').delete().eq('id', id));
   },
 
@@ -102,7 +102,7 @@ export const api = {
   getExpenses: async (params?: {
     from_date?: string;
     to_date?: string;
-    category_id?: number;
+    category_id?: string;
     created_by?: string;
   }) => {
     let query = supabase.from('expenses').select('*').order('date', { ascending: false });
@@ -124,7 +124,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  getExpense: async (id: number) => {
+  getExpense: async (id: string) => {
     const data = await handleRequest(
       supabase.from('expenses').select('*').eq('id', id).single()
     );
@@ -150,7 +150,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateExpense: async (id: number, expenseData: any) => {
+  updateExpense: async (id: string, expenseData: any) => {
     const snakeData = toSnakeCase(expenseData);
     const data = await handleRequest(
       supabase.from('expenses').update(snakeData).eq('id', id).select().single()
@@ -158,11 +158,11 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteExpense: async (id: number) => {
+  deleteExpense: async (id: string) => {
     await handleRequest(supabase.from('expenses').delete().eq('id', id));
   },
 
-  deleteExpenses: async (ids: number[]) => {
+  deleteExpenses: async (ids: string[]) => {
     if (ids.length === 0) return;
     await handleRequest(supabase.from('expenses').delete().in('id', ids));
   },
@@ -177,7 +177,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  getHolding: async (id: number) => {
+  getHolding: async (id: string) => {
     const data = await handleRequest(
       supabase.from('holdings').select('*').eq('id', id).single()
     );
@@ -192,7 +192,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateHolding: async (id: number, holdingData: any) => {
+  updateHolding: async (id: string, holdingData: any) => {
     const snakeData = toSnakeCase(holdingData);
     const data = await handleRequest(
       supabase.from('holdings').update(snakeData).eq('id', id).select().single()
@@ -200,7 +200,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteHolding: async (id: number) => {
+  deleteHolding: async (id: string) => {
     await handleRequest(supabase.from('holdings').delete().eq('id', id));
   },
 
@@ -214,7 +214,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  getInvestmentAccount: async (id: number) => {
+  getInvestmentAccount: async (id: string) => {
     const data = await handleRequest(
       supabase.from('investment_accounts').select('*').eq('id', id).single()
     );
@@ -229,7 +229,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateInvestmentAccount: async (id: number, accountData: any) => {
+  updateInvestmentAccount: async (id: string, accountData: any) => {
     const snakeData = toSnakeCase(accountData);
     const data = await handleRequest(
       supabase.from('investment_accounts').update(snakeData).eq('id', id).select().single()
@@ -237,7 +237,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteInvestmentAccount: async (id: number) => {
+  deleteInvestmentAccount: async (id: string) => {
     await handleRequest(supabase.from('investment_accounts').delete().eq('id', id));
   },
 
@@ -245,7 +245,7 @@ export const api = {
   // Investments - Transactions
   // ============================================
   getInvestmentTransactions: async (params?: {
-    account_id?: number;
+    account_id?: string;
     symbol?: string;
     type?: 'BUY' | 'SELL';
     start_date?: string;
@@ -276,7 +276,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  getInvestmentTransaction: async (id: number) => {
+  getInvestmentTransaction: async (id: string) => {
     const data = await handleRequest(
       supabase.from('investment_transactions').select('*').eq('id', id).single()
     );
@@ -291,7 +291,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateInvestmentTransaction: async (id: number, transactionData: any) => {
+  updateInvestmentTransaction: async (id: string, transactionData: any) => {
     const snakeData = toSnakeCase(transactionData);
     const data = await handleRequest(
       supabase.from('investment_transactions').update(snakeData).eq('id', id).select().single()
@@ -299,7 +299,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteInvestmentTransaction: async (id: number) => {
+  deleteInvestmentTransaction: async (id: string) => {
     await handleRequest(supabase.from('investment_transactions').delete().eq('id', id));
   },
 
@@ -324,7 +324,7 @@ export const api = {
     return issues.map(normalizeIssue);
   },
 
-  getIssue: async (id: number) => {
+  getIssue: async (id: string) => {
     return fetchIssueWithLabels(id);
   },
 
@@ -340,7 +340,7 @@ export const api = {
     }
 
     if (Array.isArray(label_ids) && label_ids.length > 0) {
-      const relations = label_ids.map((labelId: number) => ({
+      const relations = label_ids.map((labelId: string) => ({
         issue_id: createdIssue.id,
         label_id: labelId,
       }));
@@ -352,7 +352,7 @@ export const api = {
     return fetchIssueWithLabels(createdIssue.id);
   },
 
-  updateIssue: async (id: number, issueData: any) => {
+  updateIssue: async (id: string, issueData: any) => {
     const { label_ids, ...issueFields } = issueData;
     const snakeData = toSnakeCase(issueFields);
     await handleRequest(
@@ -365,7 +365,7 @@ export const api = {
       );
 
       if (label_ids.length > 0) {
-        const relations = label_ids.map((labelId: number) => ({
+        const relations = label_ids.map((labelId: string) => ({
           issue_id: id,
           label_id: labelId,
         }));
@@ -378,14 +378,14 @@ export const api = {
     return fetchIssueWithLabels(id);
   },
 
-  deleteIssue: async (id: number) => {
+  deleteIssue: async (id: string) => {
     await handleRequest(supabase.from('issues').delete().eq('id', id));
   },
 
   // ============================================
   // Issue Comments
   // ============================================
-  getIssueComments: async (issueId: number) => {
+  getIssueComments: async (issueId: string) => {
     const data = await handleRequest(
       supabase
         .from('issue_comments')
@@ -404,7 +404,7 @@ export const api = {
     }));
   },
 
-  getIssueComment: async (id: number) => {
+  getIssueComment: async (id: string) => {
     const data = await handleRequest(
       supabase
         .from('issue_comments')
@@ -468,7 +468,7 @@ export const api = {
     }
   },
 
-  updateIssueComment: async (id: number, commentData: any) => {
+  updateIssueComment: async (id: string, commentData: any) => {
     const snakeData = toSnakeCase(commentData);
     const data = await handleRequest(
       supabase
@@ -490,7 +490,7 @@ export const api = {
     return comment;
   },
 
-  deleteIssueComment: async (id: number) => {
+  deleteIssueComment: async (id: string) => {
     await handleRequest(supabase.from('issue_comments').delete().eq('id', id));
   },
 
@@ -548,6 +548,30 @@ export const api = {
 
   deleteUser: async (id: string) => {
     await handleRequest(supabase.from('users').delete().eq('id', id));
+  },
+
+  /**
+   * Approve a pending user (Admin only)
+   * @param userId - User ID to approve
+   */
+  approveUser: async (userId: string) => {
+    const data = await handleRequest(
+      supabase.from('users').update({ status: 'approved' }).eq('id', userId).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  /**
+   * Reject and delete a user account completely (Admin only)
+   * This deletes the user from both auth.users and public.users
+   * @param userId - User ID to delete
+   */
+  deleteUserAccount: async (userId: string) => {
+    // Call the database function to delete user from auth.users
+    // This will cascade delete from public.users as well
+    await handleRequest(
+      supabase.rpc('delete_user_account', { user_id: userId })
+    );
   },
 
   /**
@@ -636,7 +660,7 @@ export const api = {
   // ============================================
   // Budgets
   // ============================================
-  getBudgets: async (params?: { month?: string; category_id?: number }) => {
+  getBudgets: async (params?: { month?: string; category_id?: string }) => {
     let query = supabase.from('budgets').select('*').order('month', { ascending: false });
 
     if (params?.month) {
@@ -650,7 +674,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  getBudget: async (id: number) => {
+  getBudget: async (id: string) => {
     const data = await handleRequest(
       supabase.from('budgets').select('*').eq('id', id).single()
     );
@@ -665,7 +689,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateBudget: async (id: number, budgetData: any) => {
+  updateBudget: async (id: string, budgetData: any) => {
     const snakeData = toSnakeCase(budgetData);
     const data = await handleRequest(
       supabase.from('budgets').update(snakeData).eq('id', id).select().single()
@@ -673,7 +697,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteBudget: async (id: number) => {
+  deleteBudget: async (id: string) => {
     await handleRequest(supabase.from('budgets').delete().eq('id', id));
   },
 
@@ -706,7 +730,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  getFixedCost: async (id: number) => {
+  getFixedCost: async (id: string) => {
     const data = await handleRequest(
       supabase
         .from('fixed_costs')
@@ -738,7 +762,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateFixedCost: async (id: number, fixedCostData: any) => {
+  updateFixedCost: async (id: string, fixedCostData: any) => {
     const snakeData = toSnakeCase(fixedCostData);
     const data = await handleRequest(
       supabase.from('fixed_costs').update(snakeData).eq('id', id).select().single()
@@ -746,14 +770,31 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteFixedCost: async (id: number) => {
-    await handleRequest(supabase.from('fixed_costs').delete().eq('id', id));
+  deleteFixedCost: async (id: string) => {
+    // 스마트 삭제 로직: 납부 내역이 있으면 soft delete, 없으면 hard delete
+    const payments = await handleRequest(
+      supabase.from('fixed_cost_payments').select('id').eq('fixed_cost_id', id).limit(1)
+    );
+
+    if (payments && payments.length > 0) {
+      // 납부 내역이 있음 → Soft Delete (과거 기록 보존)
+      const today = new Date().toISOString().split('T')[0];
+      await handleRequest(
+        supabase
+          .from('fixed_costs')
+          .update({ is_active: false, end_date: today })
+          .eq('id', id)
+      );
+    } else {
+      // 납부 내역이 없음 → Hard Delete (완전 삭제)
+      await handleRequest(supabase.from('fixed_costs').delete().eq('id', id));
+    }
   },
 
   // ============================================
   // Fixed Cost Payments
   // ============================================
-  getFixedCostPayments: async (params?: { year_month?: string; fixed_cost_id?: number; status?: string }) => {
+  getFixedCostPayments: async (params?: { year_month?: string; fixed_cost_id?: string; status?: string }) => {
     let query = supabase
       .from('fixed_cost_payments')
       .select('*, fixed_cost:fixed_costs(*, category:categories(*))')
@@ -773,7 +814,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  getFixedCostPayment: async (id: number) => {
+  getFixedCostPayment: async (id: string) => {
     const data = await handleRequest(
       supabase
         .from('fixed_cost_payments')
@@ -805,7 +846,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateFixedCostPayment: async (id: number, paymentData: any) => {
+  updateFixedCostPayment: async (id: string, paymentData: any) => {
     const snakeData = toSnakeCase(paymentData);
     const data = await handleRequest(
       supabase
@@ -818,7 +859,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteFixedCostPayment: async (id: number) => {
+  deleteFixedCostPayment: async (id: string) => {
     await handleRequest(supabase.from('fixed_cost_payments').delete().eq('id', id));
   },
 
@@ -907,7 +948,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  getNote: async (id: number) => {
+  getNote: async (id: string) => {
     const data = await handleRequest(
       supabase.from('notes').select('*').eq('id', id).single()
     );
@@ -922,7 +963,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateNote: async (id: number, noteData: any) => {
+  updateNote: async (id: string, noteData: any) => {
     const snakeData = toSnakeCase(noteData);
     const data = await handleRequest(
       supabase.from('notes').update(snakeData).eq('id', id).select().single()
@@ -930,7 +971,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteNote: async (id: number) => {
+  deleteNote: async (id: string) => {
     await handleRequest(supabase.from('notes').delete().eq('id', id));
   },
 
@@ -963,7 +1004,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  getStudySession: async (id: number) => {
+  getStudySession: async (id: string) => {
     const data = await handleRequest(
       supabase.from('study_sessions').select('*').eq('id', id).single()
     );
@@ -978,7 +1019,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateStudySession: async (id: number, sessionData: any) => {
+  updateStudySession: async (id: string, sessionData: any) => {
     const snakeData = toSnakeCase(sessionData);
     const data = await handleRequest(
       supabase.from('study_sessions').update(snakeData).eq('id', id).select().single()
@@ -986,7 +1027,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteStudySession: async (id: number) => {
+  deleteStudySession: async (id: string) => {
     await handleRequest(supabase.from('study_sessions').delete().eq('id', id));
   },
 
@@ -994,7 +1035,7 @@ export const api = {
   // Study References
   // ============================================
 
-  getStudyReferences: async (sessionId: number) => {
+  getStudyReferences: async (sessionId: string) => {
     const data = await handleRequest(
       supabase
         .from('study_references')
@@ -1013,7 +1054,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateStudyReference: async (id: number, referenceData: any) => {
+  updateStudyReference: async (id: string, referenceData: any) => {
     const snakeData = toSnakeCase(referenceData);
     const data = await handleRequest(
       supabase.from('study_references').update(snakeData).eq('id', id).select().single()
@@ -1021,7 +1062,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteStudyReference: async (id: number) => {
+  deleteStudyReference: async (id: string) => {
     await handleRequest(supabase.from('study_references').delete().eq('id', id));
   },
 
@@ -1029,7 +1070,7 @@ export const api = {
   // Study Follow-ups
   // ============================================
 
-  getStudyFollowUps: async (sessionId: number) => {
+  getStudyFollowUps: async (sessionId: string) => {
     const data = await handleRequest(
       supabase
         .from('study_followups')
@@ -1048,7 +1089,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  updateStudyFollowUp: async (id: number, followUpData: any) => {
+  updateStudyFollowUp: async (id: string, followUpData: any) => {
     const snakeData = toSnakeCase(followUpData);
     const data = await handleRequest(
       supabase.from('study_followups').update(snakeData).eq('id', id).select().single()
@@ -1056,7 +1097,7 @@ export const api = {
     return toCamelCase(data);
   },
 
-  deleteStudyFollowUp: async (id: number) => {
+  deleteStudyFollowUp: async (id: string) => {
     await handleRequest(supabase.from('study_followups').delete().eq('id', id));
   },
 };

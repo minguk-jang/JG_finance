@@ -39,7 +39,7 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [budgetFormData, setBudgetFormData] = useState({
-    categoryId: 0,
+    categoryId: '',
     month: getLocalDateString().slice(0, 7), // YYYY-MM
     limitAmount: 0
   });
@@ -266,11 +266,52 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
     }
   };
 
+  // User approval handlers
+  const handleApproveUser = async (userId: string) => {
+    if (!isAdmin()) {
+      alert('사용자 승인은 관리자만 가능합니다.');
+      return;
+    }
+
+    if (!confirm('이 사용자를 승인하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      await api.approveUser(userId);
+      alert('사용자가 승인되었습니다.');
+      await fetchData();
+    } catch (error: any) {
+      console.error('Failed to approve user:', error);
+      alert(error.message || '사용자 승인에 실패했습니다.');
+    }
+  };
+
+  const handleRejectUser = async (userId: string) => {
+    if (!isAdmin()) {
+      alert('사용자 거부는 관리자만 가능합니다.');
+      return;
+    }
+
+    if (!confirm('이 사용자를 거부하고 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+      return;
+    }
+
+    try {
+      await api.deleteUserAccount(userId);
+      alert('사용자 계정이 삭제되었습니다.');
+      await fetchData();
+    } catch (error: any) {
+      console.error('Failed to reject user:', error);
+      alert(error.message || '사용자 거부에 실패했습니다.');
+    }
+  };
+
   // Budget CRUD handlers
   const handleCreateBudget = () => {
     setEditingBudget(null);
     setBudgetFormData({
-      categoryId: categories.find(c => c.type === 'expense')?.id || 0,
+      categoryId: categories.find(c => c.type === 'expense')?.id || '',
       month: new Date().toISOString().slice(0, 7),
       limitAmount: 0
     });
@@ -311,7 +352,7 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
     }
   };
 
-  const handleDeleteBudget = async (budgetId: number) => {
+  const handleDeleteBudget = async (budgetId: string) => {
     if (!confirm('정말로 이 예산을 삭제하시겠습니까?')) {
       return;
     }
@@ -373,7 +414,7 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
     }
   };
 
-  const handleDeleteCategory = async (categoryId: number) => {
+  const handleDeleteCategory = async (categoryId: string) => {
     if (!confirm('정말로 이 카테고리를 삭제하시겠습니까? 연관된 지출/예산도 영향을 받을 수 있습니다.')) {
       return;
     }
@@ -388,7 +429,7 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
     }
   };
 
-  const getCategoryName = (categoryId: number) => {
+  const getCategoryName = (categoryId: string) => {
     return categories.find(c => c.id === categoryId)?.name || 'Unknown';
   };
 
@@ -500,6 +541,7 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
                     </div>
                   </div>
                 </th>
+                <th className="p-3">상태</th>
                 <th className="p-3">작업</th>
               </tr>
             </thead>
@@ -526,21 +568,50 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
                     </span>
                   </td>
                   <td className="p-3">
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        user.status === 'approved' ? 'bg-green-500 text-white' :
+                        user.status === 'pending' ? 'bg-yellow-500 text-gray-900' :
+                        'bg-red-500 text-white'
+                    }`}>
+                      {user.status === 'approved' ? '승인됨' :
+                       user.status === 'pending' ? '대기중' : '거부됨'}
+                    </span>
+                  </td>
+                  <td className="p-3">
                     {isAdmin() && (
                       <>
-                        <button
-                          onClick={() => handleEditUser(user)}
-                          className="text-sky-400 hover:text-sky-300 mr-2"
-                        >
-                          수정
-                        </button>
-                        {user.id !== currentUser?.id && (
-                          <button
-                            onClick={() => handleDeleteUser(user.id)}
-                            className="text-red-400 hover:text-red-300"
-                          >
-                            삭제
-                          </button>
+                        {user.status === 'pending' ? (
+                          <>
+                            <button
+                              onClick={() => handleApproveUser(user.id)}
+                              className="text-green-400 hover:text-green-300 mr-2"
+                            >
+                              승인
+                            </button>
+                            <button
+                              onClick={() => handleRejectUser(user.id)}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              거부
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleEditUser(user)}
+                              className="text-sky-400 hover:text-sky-300 mr-2"
+                            >
+                              수정
+                            </button>
+                            {user.id !== currentUser?.id && (
+                              <button
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="text-red-400 hover:text-red-300"
+                              >
+                                삭제
+                              </button>
+                            )}
+                          </>
                         )}
                       </>
                     )}
@@ -1053,7 +1124,7 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
                   <div className="relative">
                     <select
                       value={budgetFormData.categoryId}
-                      onChange={(e) => setBudgetFormData({ ...budgetFormData, categoryId: Number(e.target.value) })}
+                      onChange={(e) => setBudgetFormData({ ...budgetFormData, categoryId: e.target.value })}
                       className="w-full bg-gray-700 border-2 border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white appearance-none cursor-pointer hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none transition-all"
                     >
                       <option value={0} className="bg-gray-800">카테고리 선택</option>

@@ -1,25 +1,37 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The Vite + React frontend lives at the repo root, with `src/index.tsx` bootstrapping the app and `src/App.tsx` plus `components/Sidebar.tsx` shaping layout chrome. Feature views reside under `components/` (`Dashboard`, `Income`, `Expenses`, `FixedCosts`, `Settings`) while shared helpers live in `types.ts`, `lib/api.ts`, and `constants.ts`. Supabase SQL migrations are versioned in `supabase/migrations/` (e.g., `009_add_fixed_cost_amount_mode.sql`). FastAPI code sits in `backend/app/`, and test fixtures in `backend/tests/`. Co-locate frontend tests beside components in `__tests__/`, and keep docs/specs under `docs/`.
+- React frontend sits at repo root with Vite entry `src/index.tsx`, layout in `src/App.tsx`, and shared chrome under `components/Sidebar.tsx`.
+- Feature views (Dashboard, Income, Expenses, FixedCosts, Settings) live in `components/`, while shared types/utilities stay in `types.ts`, `lib/api.ts`, and `constants.ts`.
+- FastAPI backend code resides in `backend/app/` with pytest suites in `backend/tests/`.
+- Supabase migrations belong to `supabase/migrations/`; docs stay in `docs/`.
+- Frontend specs live alongside components inside `__tests__/` directories.
 
 ## Build, Test, and Development Commands
-- `npm install` — sync frontend dependencies after editing `package*.json`.
-- `npm run dev` — start Vite on port 5173 using `.env` for proxy config.
-- `npm run build` — emit the production bundle to `dist/` for smoke tests.
-- `npx supabase db push` — apply new Supabase migrations before API runs.
-- `cd backend && source venv/bin/activate && uvicorn app.main:app --reload` — launch FastAPI locally.
-- `cd backend && pytest` — execute backend test suite (uses in-memory SQLite).
-- `cd backend && alembic upgrade head` — bring the DB schema to the latest revision.
+- `npm install` — sync frontend dependencies after touching `package*.json`.
+- `npm run dev` — start the Vite dev server on port 5173 (requires `.env`).
+- `npm run build` — emit production assets into `dist/` for smoke tests.
+- `npm run test` — run Vitest + React Testing Library suites.
+- `cd backend && source venv/bin/activate && uvicorn app.main:app --reload` — launch the FastAPI server locally.
+- `cd backend && pytest` — execute backend tests (SQLite fixtures).
+- Schema parity: `npx supabase db push` and `cd backend && alembic upgrade head`.
 
 ## Coding Style & Naming Conventions
-Use 2-space indentation and single quotes in React files; keep components in PascalCase and hooks/utilities in camelCase. Python follows Black-compatible 4-space indentation and snake_case names. Preserve the fixed-cost contract: variable entries keep `scheduled_amount` null until the UI saves a typed value. Update `.env.example` whenever adding config keys.
+- React: 2-space indentation, single quotes, PascalCase components, camelCase hooks/utilities.
+- Python: Black-compatible 4-space indentation, snake_case identifiers, keep config in `backend/app/core/config.py`.
+- Preserve fixed-cost contract: keep `scheduled_amount = null` for variable entries until the UI persists a value.
+- Update `.env.example` whenever adding configuration keys; never commit `.env`.
 
 ## Testing Guidelines
-Frontend tests rely on Vitest + React Testing Library; place files like `components/FixedCosts/__tests__/FixedCosts.test.tsx` alongside their subjects. Backend tests run with `pytest` and SQLite fixtures—add deterministic coverage for income/expense APIs, cross-budget validation, and fixed-cost payment flows. Run `npm run test` or `cd backend && pytest` before committing substantial work.
+- Frontend: Vitest + React Testing Library; co-locate specs such as `components/FixedCosts/__tests__/FixedCosts.test.tsx`.
+- Backend: pytest covering income/expense APIs, cross-budget validation, and fixed-cost flows.
+- Run `npm run test` and `cd backend && pytest` before opening a PR; add targeted tests for regressions.
 
 ## Commit & Pull Request Guidelines
-Use Conventional Commits (e.g., `feat(frontend): sidebar tweaks`, `fix(backend): expenses schema`). Each PR should describe intent, list manual verification steps, reference issues, and include screenshots when UI changes. Keep migrations, schema docs, and `.env.example` updates within the same PR to avoid drift.
+- Use Conventional Commits (e.g., `feat(frontend): sidebar tweaks`, `fix(backend): expenses schema`) and keep scope narrow.
+- PRs should describe intent, outline manual verification (commands run, screenshots for UI updates), reference related issues, and include schema/docs changes when relevant.
+- Keep Supabase migrations, backend schemas, and `.env.example` updates in the same PR to avoid drift.
 
 ## Security & Configuration Tips
-Configuration loads through `backend/app/core/config.py`; ensure `.env` matches `.env.example` and never commit secrets. Enforce HTTPS and restrict CORS to the frontend domain before release. Rotate tokens used in docs and scrub sample data when sharing logs.
+- Configuration loads via `backend/app/core/config.py`; keep `.env` synchronized with `.env.example`.
+- Enforce HTTPS, restrict CORS to the frontend domain before release, rotate tokens mentioned in docs, and scrub sample data from shared logs.

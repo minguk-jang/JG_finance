@@ -294,43 +294,63 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
 
       {/* 주요 재무 지표 */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-        <Card title="총 수입">
-          <div className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-green-400">
-            {formatCurrency(totalIncome, currency, exchangeRate)}
-          </div>
-          <p className="text-xs sm:text-sm text-gray-400 mt-1">{monthlyIncomes.length}개</p>
-        </Card>
+        <button
+          onClick={() => onPageChange('Income')}
+          className="text-left cursor-pointer hover:scale-105 transition-transform duration-200"
+        >
+          <Card title="총 수입">
+            <div className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-green-400">
+              {formatCurrency(totalIncome, currency, exchangeRate)}
+            </div>
+            <p className="text-xs sm:text-sm text-gray-400 mt-1">{monthlyIncomes.length}개</p>
+          </Card>
+        </button>
 
-        <Card title="총 지출">
-          <div className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-red-400">
-            {formatCurrency(totalExpense, currency, exchangeRate)}
-          </div>
-          <p className="text-xs sm:text-sm text-gray-400 mt-1">{monthlyExpenses.length}개</p>
-        </Card>
+        <button
+          onClick={() => onPageChange('Expenses')}
+          className="text-left cursor-pointer hover:scale-105 transition-transform duration-200"
+        >
+          <Card title="총 지출">
+            <div className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-red-400">
+              {formatCurrency(totalExpense, currency, exchangeRate)}
+            </div>
+            <p className="text-xs sm:text-sm text-gray-400 mt-1">{monthlyExpenses.length}개</p>
+          </Card>
+        </button>
 
-        <Card title="순수입">
-          <div className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-sky-400">
-            {formatCurrency(netIncome, currency, exchangeRate)}
-          </div>
-          <p className="text-xs sm:text-sm text-gray-400 mt-1">
-            {netIncome >= 0 ? '흑자' : '적자'}
-          </p>
-        </Card>
+        <button
+          onClick={() => onPageChange('Income')}
+          className="text-left cursor-pointer hover:scale-105 transition-transform duration-200"
+        >
+          <Card title="순수입">
+            <div className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-sky-400">
+              {formatCurrency(netIncome, currency, exchangeRate)}
+            </div>
+            <p className="text-xs sm:text-sm text-gray-400 mt-1">
+              {netIncome >= 0 ? '흑자' : '적자'}
+            </p>
+          </Card>
+        </button>
 
-        <Card title="예산 사용률">
-          {totalBudgetLimit > 0 ? (
-            <>
-              <div className={`text-base sm:text-lg md:text-xl lg:text-2xl font-bold ${budgetUsage > 100 ? 'text-red-400' : 'text-indigo-400'}`}>
-                {budgetUsage.toFixed(1)}%
-              </div>
-              <p className="text-xs sm:text-sm text-gray-400 mt-1">
-                {formatCurrency(totalExpense, currency, exchangeRate)}
-              </p>
-            </>
-          ) : (
-            <div className="text-xs sm:text-sm md:text-base text-gray-400">예산 없음</div>
-          )}
-        </Card>
+        <button
+          onClick={() => onPageChange('Expenses')}
+          className="text-left cursor-pointer hover:scale-105 transition-transform duration-200"
+        >
+          <Card title="예산 사용률">
+            {totalBudgetLimit > 0 ? (
+              <>
+                <div className={`text-base sm:text-lg md:text-xl lg:text-2xl font-bold ${budgetUsage > 100 ? 'text-red-400' : 'text-indigo-400'}`}>
+                  {budgetUsage.toFixed(1)}%
+                </div>
+                <p className="text-xs sm:text-sm text-gray-400 mt-1">
+                  {formatCurrency(totalExpense, currency, exchangeRate)}
+                </p>
+              </>
+            ) : (
+              <div className="text-xs sm:text-sm md:text-base text-gray-400">예산 없음</div>
+            )}
+          </Card>
+        </button>
       </div>
 
       {/* Quick Access */}

@@ -1,5 +1,7 @@
-from pydantic import BaseModel
 from typing import Literal, Optional
+from uuid import UUID
+
+from pydantic import BaseModel
 
 
 class CategoryBase(BaseModel):
@@ -17,7 +19,7 @@ class CategoryUpdate(BaseModel):
 
 
 class Category(CategoryBase):
-    id: int
+    id: UUID
 
     class Config:
         from_attributes = True

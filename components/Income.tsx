@@ -63,10 +63,10 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
   });
 
   // 선택된 항목들의 ID를 관리하는 state
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [statsExpanded, setStatsExpanded] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [inlineEdit, setInlineEdit] = useState<{ id: number; field: InlineField } | null>(null);
+  const [inlineEdit, setInlineEdit] = useState<{ id: string; field: InlineField } | null>(null);
   const [inlineValue, setInlineValue] = useState('');
   const [inlineSaving, setInlineSaving] = useState(false);
   const [isDesktopView, setIsDesktopView] = useState(getDesktopPreference);
@@ -81,7 +81,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
       const params: any = {};
       if (filters.fromDate) params.from_date = filters.fromDate;
       if (filters.toDate) params.to_date = filters.toDate;
-      if (filters.categoryId) params.category_id = parseInt(filters.categoryId, 10);
+      if (filters.categoryId) params.category_id = filters.categoryId;
       if (filters.createdBy) params.created_by = filters.createdBy;
 
       const [expensesData, categoriesData, usersData] = await Promise.all([
@@ -134,7 +134,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
     }
   }, [inlineEdit]);
 
-  const getCategoryName = (id: number) => categories.find((category) => category.id === id)?.name || 'N/A';
+  const getCategoryName = (id: string) => categories.find((category) => category.id === id)?.name || 'N/A';
   const getUserName = (id: string) => users.find(u => u.id === id)?.name || '알 수 없음';
 
   const calculateStatistics = () => {
@@ -142,7 +142,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
     const count = incomes.length;
     const averageAmount = count > 0 ? totalAmount / count : 0;
 
-    const byCategoryMap = new Map<number, { name: string; amount: number; count: number }>();
+    const byCategoryMap = new Map<string, { name: string; amount: number; count: number }>();
     incomes.forEach((income) => {
       const categoryId = income.categoryId;
       const categoryName = getCategoryName(categoryId);
@@ -373,7 +373,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
     if (income) {
       setEditingIncome(income);
       setFormData({
-        category_id: income.categoryId.toString(),
+        category_id: income.categoryId,
         date: (income.date ?? '').slice(0, 10),
         amount: income.amount.toString(),
         memo: income.memo
@@ -402,8 +402,8 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
-      const categoryId = Number.parseInt(formData.category_id, 10);
-      if (!Number.isInteger(categoryId)) {
+      const categoryId = formData.category_id.trim();
+      if (!categoryId) {
         alert('카테고리를 선택해주세요.');
         return;
       }
@@ -452,7 +452,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('정말 이 수익을 삭제하시겠습니까?')) {
       return;
     }
@@ -467,7 +467,7 @@ const Income = forwardRef<IncomeHandle, IncomeProps>(({ currency, exchangeRate }
   };
 
   // 체크박스 관련 핸들러
-  const handleToggleSelect = (id: number) => {
+  const handleToggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);

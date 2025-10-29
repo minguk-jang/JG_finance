@@ -1,6 +1,8 @@
+from typing import List
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
 
 from app.core.deps import get_db
 from app.core.security import get_password_hash
@@ -19,7 +21,7 @@ def get_users(db: Session = Depends(get_db)):
 
 
 @router.get("/{user_id}", response_model=User)
-def get_user(user_id: int, db: Session = Depends(get_db)):
+def get_user(user_id: UUID, db: Session = Depends(get_db)):
     """Get a specific user by ID"""
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not user:
@@ -53,7 +55,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{user_id}", response_model=User)
-def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
+def update_user(user_id: UUID, user: UserUpdate, db: Session = Depends(get_db)):
     """Update an existing user"""
     db_user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not db_user:
@@ -75,7 +77,7 @@ def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
 
 
 @router.delete("/{user_id}")
-def delete_user(user_id: int, db: Session = Depends(get_db)):
+def delete_user(user_id: UUID, db: Session = Depends(get_db)):
     """Delete a user"""
     db_user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not db_user:

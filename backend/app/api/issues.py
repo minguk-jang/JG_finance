@@ -1,6 +1,8 @@
+from typing import List, Optional
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
 
 from app.core.deps import get_db
 from app.models.issue import Issue as IssueModel, Label as LabelModel, IssueStatus
@@ -34,8 +36,8 @@ def create_label(label: LabelCreate, db: Session = Depends(get_db)):
 # Issue endpoints
 @router.get("", response_model=List[Issue])
 def get_issues(
-    status: IssueStatus = None,
-    assignee_id: int = None,
+    status: Optional[IssueStatus] = None,
+    assignee_id: Optional[UUID] = None,
     db: Session = Depends(get_db)
 ):
     """Get all issues with optional filters"""
@@ -50,7 +52,7 @@ def get_issues(
 
 
 @router.get("/{issue_id}", response_model=Issue)
-def get_issue(issue_id: int, db: Session = Depends(get_db)):
+def get_issue(issue_id: UUID, db: Session = Depends(get_db)):
     """Get a specific issue by ID"""
     issue = db.query(IssueModel).filter(IssueModel.id == issue_id).first()
     if not issue:
@@ -77,7 +79,7 @@ def create_issue(issue: IssueCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{issue_id}", response_model=Issue)
-def update_issue(issue_id: int, issue: IssueUpdate, db: Session = Depends(get_db)):
+def update_issue(issue_id: UUID, issue: IssueUpdate, db: Session = Depends(get_db)):
     """Update an existing issue"""
     db_issue = db.query(IssueModel).filter(IssueModel.id == issue_id).first()
     if not db_issue:
@@ -99,7 +101,7 @@ def update_issue(issue_id: int, issue: IssueUpdate, db: Session = Depends(get_db
 
 
 @router.delete("/{issue_id}")
-def delete_issue(issue_id: int, db: Session = Depends(get_db)):
+def delete_issue(issue_id: UUID, db: Session = Depends(get_db)):
     """Delete an issue"""
     db_issue = db.query(IssueModel).filter(IssueModel.id == issue_id).first()
     if not db_issue:

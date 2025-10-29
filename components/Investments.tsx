@@ -84,7 +84,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
 
   // State management
   const [sessions, setSessions] = useState<StudySession[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [draft, setDraft] = useState<StudySession>(createEmptySession());
   const [isDirty, setIsDirty] = useState(false);
   const [isCreatingNew, setIsCreatingNew] = useState(true);
@@ -156,7 +156,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
     return window.confirm('아직 저장하지 않은 변경 사항이 있습니다. 계속하시겠어요?');
   };
 
-  const handleSelectSession = async (sessionId: number) => {
+  const handleSelectSession = async (sessionId: string) => {
     if (!confirmDiscard()) {
       return;
     }
@@ -451,7 +451,7 @@ const Investments: React.FC<InvestmentsProps> = ({ currency, exchangeRate }) => 
     }
   };
 
-  const handleDeleteSession = async (sessionId: number) => {
+  const handleDeleteSession = async (sessionId: string) => {
     if (!window.confirm('이 스터디를 삭제하시겠습니까?')) {
       return;
     }

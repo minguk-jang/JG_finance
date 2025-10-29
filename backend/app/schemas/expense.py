@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import datetime
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
 
 class ExpenseBase(BaseModel):
-    category_id: int
+    category_id: UUID
     date: datetime.date
     amount: float
     memo: str
@@ -23,11 +24,11 @@ class ExpenseBase(BaseModel):
 
 
 class ExpenseCreate(ExpenseBase):
-    created_by: Optional[int] = None
+    created_by: Optional[UUID] = None
 
 
 class ExpenseUpdate(BaseModel):
-    category_id: Optional[int] = None
+    category_id: Optional[UUID] = None
     date: Optional[datetime.date] = Field(
         default=None,
         description="Expense date in ISO format (YYYY-MM-DD)",
@@ -35,7 +36,7 @@ class ExpenseUpdate(BaseModel):
     )
     amount: Optional[float] = None
     memo: Optional[str] = None
-    created_by: Optional[int] = None
+    created_by: Optional[UUID] = None
 
     @field_validator("date", mode="before")
     @classmethod
@@ -48,8 +49,8 @@ class ExpenseUpdate(BaseModel):
 
 
 class Expense(ExpenseBase):
-    id: int
-    created_by: int
+    id: UUID
+    created_by: UUID
 
     class Config:
         from_attributes = True

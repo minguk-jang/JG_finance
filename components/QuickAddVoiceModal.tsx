@@ -103,7 +103,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
   }, [isOpen, resetState]);
 
   const matchCategoryId = useCallback(
-    (name: string | undefined | null): number | null => {
+    (name: string | undefined | null): string | null => {
       if (!name) return null;
       const normalized = name.trim().toLowerCase();
       if (!normalized) return null;
@@ -137,7 +137,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
       const matchedId = matchCategoryId(generated.categoryName);
       setFormData({
         amount: generated.amount.toString(),
-        categoryId: matchedId ? String(matchedId) : '',
+        categoryId: matchedId ?? '',
         date: generated.date,
         memo: generated.memo ?? '',
       });
@@ -172,7 +172,7 @@ const QuickAddVoiceModal: React.FC<QuickAddVoiceModalProps> = ({
         return;
       }
 
-      const categoryId = parseInt(formData.categoryId, 10);
+      const categoryId = formData.categoryId.trim();
       if (!categoryId) {
         setError('카테고리를 선택해주세요.');
         return;

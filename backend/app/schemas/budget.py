@@ -1,9 +1,11 @@
-from pydantic import BaseModel
 from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel
 
 
 class BudgetBase(BaseModel):
-    category_id: int
+    category_id: UUID
     month: str  # Format: YYYY-MM
     limit_amount: float
 
@@ -13,13 +15,13 @@ class BudgetCreate(BudgetBase):
 
 
 class BudgetUpdate(BaseModel):
-    category_id: Optional[int] = None
+    category_id: Optional[UUID] = None
     month: Optional[str] = None
     limit_amount: Optional[float] = None
 
 
 class Budget(BudgetBase):
-    id: int
+    id: UUID
 
     class Config:
         from_attributes = True

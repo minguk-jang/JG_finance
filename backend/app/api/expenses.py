@@ -1,5 +1,6 @@
 from datetime import date
 from typing import List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -12,10 +13,8 @@ from app.schemas.expense import Expense, ExpenseCreate, ExpenseUpdate
 
 router = APIRouter()
 
-DEFAULT_USER_ID = 1
 
-
-def _get_expense_or_404(db: Session, expense_id: int) -> ExpenseModel:
+def _get_expense_or_404(db: Session, expense_id: UUID) -> ExpenseModel:
     expense = (
         db.query(ExpenseModel)
         .filter(ExpenseModel.id == expense_id)
@@ -26,7 +25,7 @@ def _get_expense_or_404(db: Session, expense_id: int) -> ExpenseModel:
     return expense
 
 
-def _ensure_category_exists(db: Session, category_id: int) -> None:
+def _ensure_category_exists(db: Session, category_id: UUID) -> None:
     exists = (
         db.query(CategoryModel.id)
         .filter(CategoryModel.id == category_id)
@@ -36,7 +35,7 @@ def _ensure_category_exists(db: Session, category_id: int) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
 
-def _ensure_user_exists(db: Session, user_id: int) -> None:
+def _ensure_user_exists(db: Session, user_id: UUID) -> None:
     exists = (
         db.query(UserModel.id)
         .filter(UserModel.id == user_id)
@@ -46,11 +45,25 @@ def _ensure_user_exists(db: Session, user_id: int) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid created_by user id")
 
 
+def _resolve_created_by(db: Session, provided: Optional[UUID]) -> UUID:
+    if provided:
+        _ensure_user_exists(db, provided)
+        return provided
+
+    fallback = db.query(UserModel).first()
+    if not fallback:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="created_by is required when no users exist"
+        )
+    return fallback.id
+
+
 @router.get("", response_model=List[Expense], summary="List all expenses")
 def list_expenses(
     from_date: Optional[date] = Query(None, description="Filter expenses from this date"),
     to_date: Optional[date] = Query(None, description="Filter expenses to this date"),
-    category_id: Optional[int] = Query(None, description="Filter by category ID"),
+    category_id: Optional[UUID] = Query(None, description="Filter by category ID"),
     db: Session = Depends(get_db),
 ):
     """
@@ -69,7 +82,7 @@ def list_expenses(
 
 
 @router.get("/{expense_id}", response_model=Expense, summary="Get expense by ID")
-def get_expense(expense_id: int, db: Session = Depends(get_db)):
+def get_expense(expense_id: UUID, db: Session = Depends(get_db)):
     """
     Get a specific expense by its ID.
     """
@@ -84,8 +97,7 @@ def create_expense(expense: ExpenseCreate, db: Session = Depends(get_db)):
     """
     _ensure_category_exists(db, expense.category_id)
 
-    created_by = expense.created_by or DEFAULT_USER_ID
-    _ensure_user_exists(db, created_by)
+    created_by = _resolve_created_by(db, expense.created_by)
 
     db_expense = ExpenseModel(
         category_id=expense.category_id,
@@ -101,7 +113,7 @@ def create_expense(expense: ExpenseCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{expense_id}", response_model=Expense, summary="Update expense")
-def update_expense(expense_id: int, expense_update: ExpenseUpdate, db: Session = Depends(get_db)):
+def update_expense(expense_id: UUID, expense_update: ExpenseUpdate, db: Session = Depends(get_db)):
     """
     Update an existing expense.
     """
@@ -131,7 +143,7 @@ def update_expense(expense_id: int, expense_update: ExpenseUpdate, db: Session =
 
 
 @router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete expense")
-def delete_expense(expense_id: int, db: Session = Depends(get_db)):
+def delete_expense(expense_id: UUID, db: Session = Depends(get_db)):
     """
     Delete an expense by ID.
     """

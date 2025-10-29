@@ -1,6 +1,10 @@
-from sqlalchemy import Column, Integer, String, Enum
-from app.core.database import Base
 import enum
+import uuid
+
+from sqlalchemy import Column, Enum, String
+
+from app.core.database import Base
+from app.models.types import GUID
 
 
 class UserRole(str, enum.Enum):
@@ -12,7 +16,7 @@ class UserRole(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(GUID(), primary_key=True, index=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)

@@ -35,7 +35,7 @@ interface IssueCardProps {
   users: any[];
   onView: (issue: Issue) => void;
   onEdit: (issue: Issue) => void;
-  onDelete: (issueId: number) => void;
+  onDelete: (issueId: string) => void;
 }
 
 const IssueCard: React.FC<IssueCardProps> = ({ issue, users, onView, onEdit, onDelete }) => {
@@ -136,7 +136,7 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
   const [viewingIssue, setViewingIssue] = useState<Issue | null>(null);
   const [comments, setComments] = useState<IssueComment[]>([]);
   const [newComment, setNewComment] = useState('');
-  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentContent, setEditingCommentContent] = useState('');
   const [formData, setFormData] = useState({
     title: '',
@@ -241,7 +241,7 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
     }
   };
 
-  const handleUpdateComment = async (commentId: number) => {
+  const handleUpdateComment = async (commentId: string) => {
     if (!editingCommentContent.trim()) return;
 
     try {
@@ -261,7 +261,7 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
     }
   };
 
-  const handleDeleteComment = async (commentId: number) => {
+  const handleDeleteComment = async (commentId: string) => {
     if (!confirm('정말 이 댓글을 삭제하시겠습니까?')) return;
 
     try {
@@ -294,7 +294,7 @@ const Issues: React.FC<IssuesProps> = ({ currency }) => {
     }));
   };
 
-  const handleDeleteIssue = async (issueId: number) => {
+  const handleDeleteIssue = async (issueId: string) => {
     if (confirm('정말 이 이슈를 삭제하시겠습니까?')) {
       try {
         await api.deleteIssue(issueId);

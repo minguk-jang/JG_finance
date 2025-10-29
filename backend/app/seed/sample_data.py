@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -43,7 +44,7 @@ def upsert_category(session: Session, *, name: str, type_: CategoryType) -> Cate
 
 
 def upsert_budget(
-    session: Session, *, category_id: int, month: str, limit_amount: float
+    session: Session, *, category_id: UUID, month: str, limit_amount: float
 ) -> Budget:
     budget = (
         session.query(Budget)
@@ -79,7 +80,7 @@ def upsert_holding(
     session: Session,
     *,
     symbol: str,
-    account_id: int,
+    account_id: UUID,
     name: str,
     qty: float,
     avg_price: float,
@@ -111,7 +112,7 @@ def upsert_holding(
 def create_transaction(
     session: Session,
     *,
-    account_id: int,
+    account_id: UUID,
     symbol: str,
     name: str,
     type_: TransactionType,
@@ -152,7 +153,7 @@ def create_issue(
     title: str,
     status: IssueStatus,
     priority: IssuePriority,
-    assignee_id: int,
+    assignee_id: UUID,
     body: str,
     label_names: list[str],
 ):
@@ -185,11 +186,11 @@ def create_issue(
 def create_expense(
     session: Session,
     *,
-    category_id: int,
+    category_id: UUID,
     date_: date,
     amount: float,
     memo: str,
-    created_by: int,
+    created_by: UUID,
 ):
     exists = (
         session.query(Expense)

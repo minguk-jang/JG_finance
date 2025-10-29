@@ -45,14 +45,16 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showTrendModal, setShowTrendModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editingCost, setEditingCost] = useState<FixedCost | null>(null);
   const [processingPayment, setProcessingPayment] = useState<{ payment: FixedCostPayment; cost: FixedCost } | null>(null);
   const [showExpenseSelectModal, setShowExpenseSelectModal] = useState(false);
+  const [deletingPayment, setDeletingPayment] = useState<{ payment: FixedCostPayment; cost: FixedCost } | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
     name: '',
-    categoryId: 0,
+    categoryId: '',
     amount: '',
     paymentDay: 1,
     startDate: '',
@@ -77,8 +79,8 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
   });
   const [expenseLoading, setExpenseLoading] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
-  const [scheduledAmountEdits, setScheduledAmountEdits] = useState<Record<number, string>>({});
-  const [savingScheduledAmountId, setSavingScheduledAmountId] = useState<number | null>(null);
+  const [scheduledAmountEdits, setScheduledAmountEdits] = useState<Record<string, string>>({});
+  const [savingScheduledAmountId, setSavingScheduledAmountId] = useState<string | null>(null);
 
   // Initialize selected month to current month
   useEffect(() => {
@@ -113,7 +115,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
   }, []);
 
   useEffect(() => {
-    const next: Record<number, string> = {};
+    const next: Record<string, string> = {};
     payments.forEach(payment => {
       next[payment.id] =
         payment.scheduledAmount !== null && payment.scheduledAmount !== undefined
@@ -137,7 +139,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       };
 
       if (expenseFilters.categoryId) {
-        params.category_id = Number(expenseFilters.categoryId);
+        params.category_id = expenseFilters.categoryId;
       }
       if (expenseFilters.createdBy) {
         params.created_by = expenseFilters.createdBy;
@@ -169,7 +171,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       const prevYearMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
 
       const [fixedCostsData, paymentsData, categoriesData, currentSummary, prevSummary] = await Promise.all([
-        api.getFixedCosts({ year_month: selectedMonth }),
+        api.getFixedCosts({ year_month: selectedMonth, is_active: true }),
         api.getFixedCostPayments({ year_month: selectedMonth }),
         api.getCategories(),
         api.getFixedCostMonthlySummary(selectedMonth),
@@ -308,8 +310,8 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       });
 
       // 3. 카테고리별 지출 집계
-      const categoryMap = new Map<number, {
-        categoryId: number;
+      const categoryMap = new Map<string, {
+        categoryId: string;
         categoryName: string;
         totalAmount: number;
         count: number;
@@ -452,7 +454,9 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       const dayA = a.fixedCost?.paymentDay ?? 31;
       const dayB = b.fixedCost?.paymentDay ?? 31;
       if (dayA === dayB) {
-        return a.fixedCostId - b.fixedCostId;
+        const idA = a.fixedCostId ?? '';
+        const idB = b.fixedCostId ?? '';
+        return idA.localeCompare(idB);
       }
       return dayA - dayB;
     });
@@ -472,7 +476,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     return diffDays;
   };
 
-  const getCategoryName = (categoryId: number) => {
+  const getCategoryName = (categoryId: string) => {
     return categories.find(c => c.id === categoryId)?.name || '-';
   };
 
@@ -558,7 +562,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     }
   };
 
-  const handleScheduledAmountChange = (paymentId: number, value: string) => {
+  const handleScheduledAmountChange = (paymentId: string, value: string) => {
     setScheduledAmountEdits(prev => ({
       ...prev,
       [paymentId]: value,
@@ -594,7 +598,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     try {
       const data: any = {
         name: formData.name,
-        categoryId: Number(formData.categoryId),
+        categoryId: formData.categoryId,
         amount: Number(formData.amount),
         paymentDay: Number(formData.paymentDay),
         startDate: formData.startDate,
@@ -632,7 +636,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
   const resetForm = () => {
     setFormData({
       name: '',
-      categoryId: 0,
+      categoryId: '',
       amount: '',
       paymentDay: 1,
       startDate: '',
@@ -693,12 +697,25 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     setShowAddModal(true);
   };
 
+  // Open delete modal
+  const openDeleteModal = (payment: FixedCostPayment) => {
+    const fixedCost = getCostForPayment(payment);
+    if (!fixedCost) {
+      setError('고정비 정보를 찾을 수 없습니다.');
+      return;
+    }
+    setDeletingPayment({ payment, cost: fixedCost });
+    setShowDeleteModal(true);
+  };
+
   // Delete only this month's payment
-  const handleDeletePayment = async (payment: FixedCostPayment) => {
-    if (!confirm('이번 달의 고정비 항목을 삭제하시겠습니까?\n\n(다른 달의 같은 고정비는 유지됩니다)')) return;
+  const handleDeleteThisMonth = async () => {
+    if (!deletingPayment) return;
 
     try {
-      await api.deleteFixedCostPayment(payment.id);
+      await api.deleteFixedCostPayment(deletingPayment.payment.id);
+      setShowDeleteModal(false);
+      setDeletingPayment(null);
       await fetchData();
     } catch (err: any) {
       setError(err.message || '삭제에 실패했습니다.');
@@ -706,11 +723,13 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
   };
 
   // Delete the entire fixed cost (all months)
-  const handleDeleteFixedCost = async (costId: number) => {
-    if (!confirm('이 고정비 항목을 완전히 삭제하시겠습니까?\n\n⚠️ 모든 달의 납부 내역이 삭제됩니다!')) return;
+  const handleDeleteAllMonths = async () => {
+    if (!deletingPayment) return;
 
     try {
-      await api.deleteFixedCost(costId);
+      await api.deleteFixedCost(deletingPayment.cost.id);
+      setShowDeleteModal(false);
+      setDeletingPayment(null);
       setShowEditModal(false);
       setEditingCost(null);
       await fetchData();
@@ -844,7 +863,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
         <button
           onClick={generatePayments}
           className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2"
-          title="지난 달과 동일한 고정비 항목을 선택한 달에 생성합니다."
+          title="활성화된 고정비만 선택한 달에 자동 생성합니다. '이번 달만 삭제'한 항목도 다시 생성됩니다. 완전히 제거하려면 '수정' → '항목 완전 삭제'를 사용하세요."
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -994,9 +1013,9 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                           수정
                         </button>
                         <button
-                          onClick={() => handleDeletePayment(payment)}
+                          onClick={() => openDeleteModal(payment)}
                           className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
-                          title="이번 달 항목만 삭제 (다른 달은 유지)"
+                          title="이번 달만 또는 모든 달 삭제"
                         >
                           삭제
                         </button>
@@ -1119,9 +1138,9 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                     수정
                   </button>
                   <button
-                    onClick={() => handleDeletePayment(payment)}
+                    onClick={() => openDeleteModal(payment)}
                     className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
-                    title="이번 달 항목만 삭제"
+                    title="이번 달만 또는 모든 달 삭제"
                   >
                     삭제
                   </button>
@@ -1365,7 +1384,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                   <select
                     required
                     value={formData.categoryId}
-                    onChange={(e) => setFormData({ ...formData, categoryId: Number(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
                     className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
                   >
                     <option value={0}>선택하세요</option>
@@ -1459,40 +1478,26 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-3 pt-4">
-                  {editingCost && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteFixedCost(editingCost.id)}
-                      className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      항목 완전 삭제 (모든 달)
-                    </button>
-                  )}
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAddModal(false);
-                        setShowEditModal(false);
-                        setEditingCost(null);
-                        setSelectedExpense(null);
-                        setShowExpenseSelectModal(false);
-                      }}
-                      className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-                    >
-                      취소
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                    >
-                      저장
-                    </button>
-                  </div>
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddModal(false);
+                      setShowEditModal(false);
+                      setEditingCost(null);
+                      setSelectedExpense(null);
+                      setShowExpenseSelectModal(false);
+                    }}
+                    className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  >
+                    저장
+                  </button>
                 </div>
               </form>
             </div>
@@ -1734,6 +1739,90 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && deletingPayment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">삭제 옵션 선택</h2>
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeletingPayment(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="mb-6 p-4 bg-gray-700 rounded-lg">
+                <p className="text-sm text-gray-400 mb-1">고정비 항목</p>
+                <p className="text-lg font-semibold">{deletingPayment.cost.name}</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  {deletingPayment.cost.category?.name || '-'} · 매월 {deletingPayment.cost.paymentDay}일
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {/* 이번 달만 삭제 */}
+                <button
+                  onClick={handleDeleteThisMonth}
+                  className="w-full p-4 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors text-left"
+                >
+                  <div className="flex items-start gap-3">
+                    <svg className="w-6 h-6 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="font-semibold">이번 달만 삭제</p>
+                      <p className="text-sm text-orange-200 mt-1">
+                        • {selectedMonth}의 납부 내역만 삭제됩니다<br />
+                        • 고정비 자체는 유지됩니다<br />
+                        • 다음 달에 다시 생성됩니다
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                {/* 모든 달 삭제 */}
+                <button
+                  onClick={handleDeleteAllMonths}
+                  className="w-full p-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-left"
+                >
+                  <div className="flex items-start gap-3">
+                    <svg className="w-6 h-6 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <div>
+                      <p className="font-semibold">모든 달 삭제 (고정비 제거)</p>
+                      <p className="text-sm text-red-200 mt-1">
+                        • 고정비 자체를 비활성화합니다<br />
+                        • 과거 납부 내역은 유지됩니다<br />
+                        • 다음 달부터 자동 생성되지 않습니다
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletingPayment(null);
+                }}
+                className="w-full mt-4 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+              >
+                취소
+              </button>
             </div>
           </div>
         </div>

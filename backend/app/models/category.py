@@ -1,6 +1,10 @@
-from sqlalchemy import Column, Integer, String, Enum
-from app.core.database import Base
 import enum
+import uuid
+
+from sqlalchemy import Column, Enum, String
+
+from app.core.database import Base
+from app.models.types import GUID
 
 
 class CategoryType(str, enum.Enum):
@@ -11,6 +15,6 @@ class CategoryType(str, enum.Enum):
 class Category(Base):
     __tablename__ = "categories"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(GUID(), primary_key=True, index=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     type = Column(Enum(CategoryType), nullable=False)

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../lib/auth';
+import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -29,6 +31,24 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         if (error) {
           setError(error.message);
         } else {
+          // Check user approval status after successful login
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const users = await api.getUsers();
+            const profile = users.find((u: any) => u.id === user.id);
+
+            if (profile && profile.status !== 'approved') {
+              // User is not approved - logout and show message
+              await supabase.auth.signOut();
+              if (profile.status === 'pending') {
+                setError('관리자의 승인을 기다려주세요. 승인 후 로그인할 수 있습니다.');
+              } else if (profile.status === 'rejected') {
+                setError('계정이 거부되었습니다. 관리자에게 문의해주세요.');
+              }
+              setLoading(false);
+              return;
+            }
+          }
           onClose();
         }
       } else {
@@ -41,7 +61,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         if (error) {
           setError(error.message);
         } else {
-          onClose();
+          // Inform user about approval requirement
+          setError('회원가입이 완료되었습니다. 관리자의 승인을 기다려주세요.');
+          setMode('signin'); // Switch to signin mode
+          setPassword(''); // Clear password for security
         }
       }
     } catch (err: any) {

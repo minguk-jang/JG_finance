@@ -1,5 +1,6 @@
 from datetime import date
 from typing import List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -35,7 +36,7 @@ def get_holdings(db: Session = Depends(get_db)):
 
 
 @router.get("/holdings/{holding_id}", response_model=HoldingSchema)
-def get_holding(holding_id: int, db: Session = Depends(get_db)):
+def get_holding(holding_id: UUID, db: Session = Depends(get_db)):
     """Get a specific holding by ID"""
     holding = db.query(Holding).filter(Holding.id == holding_id).first()
     if not holding:
@@ -58,7 +59,7 @@ def create_holding(holding: HoldingCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/holdings/{holding_id}", response_model=HoldingSchema)
-def update_holding(holding_id: int, holding: HoldingUpdate, db: Session = Depends(get_db)):
+def update_holding(holding_id: UUID, holding: HoldingUpdate, db: Session = Depends(get_db)):
     """Update a holding"""
     db_holding = db.query(Holding).filter(Holding.id == holding_id).first()
     if not db_holding:
@@ -74,7 +75,7 @@ def update_holding(holding_id: int, holding: HoldingUpdate, db: Session = Depend
 
 
 @router.delete("/holdings/{holding_id}")
-def delete_holding(holding_id: int, db: Session = Depends(get_db)):
+def delete_holding(holding_id: UUID, db: Session = Depends(get_db)):
     """Delete a holding"""
     db_holding = db.query(Holding).filter(Holding.id == holding_id).first()
     if not db_holding:
@@ -94,7 +95,7 @@ def get_accounts(db: Session = Depends(get_db)):
 
 
 @router.get("/accounts/{account_id}", response_model=InvestmentAccountSchema)
-def get_account(account_id: int, db: Session = Depends(get_db)):
+def get_account(account_id: UUID, db: Session = Depends(get_db)):
     """Get a specific investment account by ID"""
     account = db.query(InvestmentAccount).filter(InvestmentAccount.id == account_id).first()
     if not account:
@@ -113,7 +114,7 @@ def create_account(account: InvestmentAccountCreate, db: Session = Depends(get_d
 
 
 @router.put("/accounts/{account_id}", response_model=InvestmentAccountSchema)
-def update_account(account_id: int, account: InvestmentAccountUpdate, db: Session = Depends(get_db)):
+def update_account(account_id: UUID, account: InvestmentAccountUpdate, db: Session = Depends(get_db)):
     """Update an investment account"""
     db_account = db.query(InvestmentAccount).filter(InvestmentAccount.id == account_id).first()
     if not db_account:
@@ -129,7 +130,7 @@ def update_account(account_id: int, account: InvestmentAccountUpdate, db: Sessio
 
 
 @router.delete("/accounts/{account_id}")
-def delete_account(account_id: int, db: Session = Depends(get_db)):
+def delete_account(account_id: UUID, db: Session = Depends(get_db)):
     """Delete an investment account"""
     db_account = db.query(InvestmentAccount).filter(InvestmentAccount.id == account_id).first()
     if not db_account:
@@ -152,7 +153,7 @@ def delete_account(account_id: int, db: Session = Depends(get_db)):
 @router.get("/transactions", response_model=List[InvestmentTransactionSchema])
 def list_transactions(
     db: Session = Depends(get_db),
-    account_id: Optional[int] = None,
+    account_id: Optional[UUID] = None,
     symbol: Optional[str] = None,
     type: Optional[TransactionType] = Query(None, alias="transaction_type"),
     start_date: Optional[date] = None,
@@ -179,7 +180,7 @@ def list_transactions(
 
 
 @router.get("/transactions/{transaction_id}", response_model=InvestmentTransactionSchema)
-def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
+def get_transaction(transaction_id: UUID, db: Session = Depends(get_db)):
     """Get a specific investment transaction"""
     transaction = (
         db.query(InvestmentTransaction)
@@ -207,7 +208,7 @@ def create_transaction(payload: InvestmentTransactionCreate, db: Session = Depen
 
 @router.put("/transactions/{transaction_id}", response_model=InvestmentTransactionSchema)
 def update_transaction(
-    transaction_id: int,
+    transaction_id: UUID,
     payload: InvestmentTransactionUpdate,
     db: Session = Depends(get_db),
 ):
@@ -236,7 +237,7 @@ def update_transaction(
 
 
 @router.delete("/transactions/{transaction_id}", status_code=204)
-def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
+def delete_transaction(transaction_id: UUID, db: Session = Depends(get_db)):
     """Delete an investment transaction"""
     transaction = (
         db.query(InvestmentTransaction)

@@ -1,6 +1,8 @@
+from typing import List, Optional
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
 
 from app.core.deps import get_db
 from app.models.budget import Budget as BudgetModel
@@ -12,7 +14,7 @@ router = APIRouter()
 @router.get("", response_model=List[Budget])
 def get_budgets(
     month: Optional[str] = None,
-    category_id: Optional[int] = None,
+    category_id: Optional[UUID] = None,
     db: Session = Depends(get_db)
 ):
     """Get all budgets with optional filters"""
@@ -27,7 +29,7 @@ def get_budgets(
 
 
 @router.get("/{budget_id}", response_model=Budget)
-def get_budget(budget_id: int, db: Session = Depends(get_db)):
+def get_budget(budget_id: UUID, db: Session = Depends(get_db)):
     """Get a specific budget by ID"""
     budget = db.query(BudgetModel).filter(BudgetModel.id == budget_id).first()
     if not budget:
@@ -58,7 +60,7 @@ def create_budget(budget: BudgetCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{budget_id}", response_model=Budget)
-def update_budget(budget_id: int, budget: BudgetUpdate, db: Session = Depends(get_db)):
+def update_budget(budget_id: UUID, budget: BudgetUpdate, db: Session = Depends(get_db)):
     """Update an existing budget"""
     db_budget = db.query(BudgetModel).filter(BudgetModel.id == budget_id).first()
     if not db_budget:
@@ -92,7 +94,7 @@ def update_budget(budget_id: int, budget: BudgetUpdate, db: Session = Depends(ge
 
 
 @router.delete("/{budget_id}")
-def delete_budget(budget_id: int, db: Session = Depends(get_db)):
+def delete_budget(budget_id: UUID, db: Session = Depends(get_db)):
     """Delete a budget"""
     db_budget = db.query(BudgetModel).filter(BudgetModel.id == budget_id).first()
     if not db_budget:

@@ -1,5 +1,7 @@
-from pydantic import BaseModel
 from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel
 from enum import Enum
 
 
@@ -29,7 +31,7 @@ class UserUpdate(BaseModel):
 
 
 class User(UserBase):
-    id: int
+    id: UUID
 
     class Config:
         from_attributes = True

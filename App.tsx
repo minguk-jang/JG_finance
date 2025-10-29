@@ -31,14 +31,26 @@ const App: React.FC = () => {
   const swRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
   // Show auth modal if user is not authenticated (after loading completes)
+  // Also check if user is approved
   useEffect(() => {
     if (!loading && !user) {
       setShowAuthModal(true);
-    } else if (user) {
-      // User is logged in, close modal
-      setShowAuthModal(false);
+    } else if (user && profile) {
+      // Check if user is approved
+      if (profile.status !== 'approved') {
+        // User is not approved, show modal and force logout
+        setShowAuthModal(true);
+        alert(
+          profile.status === 'pending'
+            ? '관리자의 승인을 기다려주세요.'
+            : '계정이 거부되었습니다. 관리자에게 문의해주세요.'
+        );
+      } else {
+        // User is logged in and approved, close modal
+        setShowAuthModal(false);
+      }
     }
-  }, [loading, user]);
+  }, [loading, user, profile]);
 
   // Register Service Worker
   useEffect(() => {

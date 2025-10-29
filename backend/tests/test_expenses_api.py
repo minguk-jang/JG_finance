@@ -67,7 +67,7 @@ def test_create_and_list_expense(client, db_session):
     response = client.post(
         "/api/expenses",
         json={
-            "category_id": category.id,
+            "category_id": str(category.id),
             "date": "2024-07-01",
             "amount": 12000,
             "memo": "점심 식사",
@@ -75,8 +75,8 @@ def test_create_and_list_expense(client, db_session):
     )
     assert response.status_code == 201
     created = response.json()
-    assert created["category_id"] == category.id
-    assert created["created_by"] == user.id
+    assert created["category_id"] == str(category.id)
+    assert created["created_by"] == str(user.id)
     assert created["amount"] == 12000
 
     list_response = client.get("/api/expenses")
@@ -92,7 +92,7 @@ def test_update_expense(client, db_session):
     create_resp = client.post(
         "/api/expenses",
         json={
-            "category_id": category.id,
+            "category_id": str(category.id),
             "date": "2024-07-10",
             "amount": 5000,
             "memo": "지하철",
@@ -130,7 +130,7 @@ def test_delete_expense(client, db_session):
     create_resp = client.post(
         "/api/expenses",
         json={
-            "category_id": category.id,
+            "category_id": str(category.id),
             "date": "2024-07-12",
             "amount": 30000,
             "memo": "장보기",

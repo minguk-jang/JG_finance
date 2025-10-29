@@ -1,9 +1,11 @@
 import enum
+import uuid
 
-from sqlalchemy import Column, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Column, Date, DateTime, Enum, Float, ForeignKey, String, Text, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.types import GUID
 
 
 class TransactionType(enum.Enum):
@@ -14,7 +16,7 @@ class TransactionType(enum.Enum):
 class InvestmentAccount(Base):
     __tablename__ = "investment_accounts"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(GUID(), primary_key=True, index=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     broker = Column(String, nullable=False)
 
@@ -25,8 +27,8 @@ class InvestmentAccount(Base):
 class Holding(Base):
     __tablename__ = "holdings"
 
-    id = Column(Integer, primary_key=True, index=True)
-    account_id = Column(Integer, ForeignKey("investment_accounts.id"), nullable=False)
+    id = Column(GUID(), primary_key=True, index=True, default=uuid.uuid4)
+    account_id = Column(GUID(), ForeignKey("investment_accounts.id"), nullable=False)
     symbol = Column(String, nullable=False)
     name = Column(String, nullable=False)
     qty = Column(Float, nullable=False)
@@ -39,8 +41,8 @@ class Holding(Base):
 class InvestmentTransaction(Base):
     __tablename__ = "investment_transactions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    account_id = Column(Integer, ForeignKey("investment_accounts.id"), nullable=False, index=True)
+    id = Column(GUID(), primary_key=True, index=True, default=uuid.uuid4)
+    account_id = Column(GUID(), ForeignKey("investment_accounts.id"), nullable=False, index=True)
     symbol = Column(String, nullable=False, index=True)
     name = Column(String, nullable=True)
     type = Column(Enum(TransactionType, name="transactiontype"), nullable=False)

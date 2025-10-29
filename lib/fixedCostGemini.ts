@@ -1,7 +1,7 @@
 import { Currency } from '../types';
 
 export interface FixedCostRecommendation {
-  fixedCostId: number;
+  fixedCostId: string;
   fixedCostName: string;
   recommendedAmount: number;
   reason?: string;
@@ -10,7 +10,7 @@ export interface FixedCostRecommendation {
 const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 
 interface CategoryExpenseSummary {
-  categoryId: number;
+  categoryId: string;
   categoryName: string;
   totalAmount: number;
   count: number;
@@ -18,9 +18,9 @@ interface CategoryExpenseSummary {
 }
 
 interface VariableFixedCostInfo {
-  id: number;
+  id: string;
   name: string;
-  categoryId: number;
+  categoryId: string;
   categoryName: string;
   paymentDay: number;
 }
@@ -118,10 +118,17 @@ function validateRecommendations(payload: any): FixedCostRecommendation[] {
   const recommendations: FixedCostRecommendation[] = [];
 
   for (const item of payload) {
-    const fixedCostId = Number(item?.fixedCostId);
+    const rawId = item?.fixedCostId ?? item?.fixed_cost_id;
+    const fixedCostId =
+      typeof rawId === 'string'
+        ? rawId.trim()
+        : rawId !== undefined && rawId !== null
+          ? String(rawId)
+          : '';
+
     const recommendedAmount = Number(item?.recommendedAmount);
 
-    if (!Number.isFinite(fixedCostId) || fixedCostId <= 0) {
+    if (!fixedCostId) {
       console.warn('Invalid fixedCostId in recommendation:', item);
       continue;
     }

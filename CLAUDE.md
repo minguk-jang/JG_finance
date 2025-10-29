@@ -111,7 +111,7 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
 │   ├── Dashboard.tsx    # 대시보드 (차트, 통계)
 │   ├── Expenses.tsx     # 지출 관리 (Gemini AI Quick Add 포함)
 │   ├── Income.tsx       # 수익 관리
-│   ├── Investments.tsx  # 투자 관리 (계좌, 보유종목, 거래내역)
+│   ├── Investments.tsx  # 학습 세션 관리 (토픽, 참고자료, 후속작업)
 │   ├── Issues.tsx       # 이슈 보드 (칸반 스타일, 댓글 기능)
 │   ├── FixedCosts.tsx   # 고정비 관리 (구독료, 월세 등)
 │   ├── Notes.tsx        # 노트 관리 (간단한 메모, 체크리스트)
@@ -132,7 +132,8 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
 ├── types.ts             # TypeScript 타입 정의
 ├── constants.ts         # 상수 정의
 ├── supabase/migrations/ # SQL 마이그레이션
-│   └── 010_add_notes.sql  # 최신 마이그레이션
+│   ├── 011_add_study_sessions.sql  # 최신 마이그레이션
+│   └── 012_share_notes.sql         # 노트 공유 정책
 ├── docs/                # 프로젝트 문서
 │   ├── frontend.md      # 프론트엔드 아키텍처
 │   ├── backend.md       # 백엔드 API (참조용)
@@ -162,7 +163,7 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
   - 카테고리의 `type` 필드로 수익/지출 구분 ('income' vs 'expense')
 - `budgets` (id: int, category_id, month: 'YYYY-MM', limit_amount)
 
-**투자 관리**:
+**투자 관리** (참조용 - 현재는 학습 세션으로 대체됨):
 - `investment_accounts` (id: int, name, broker)
 - `holdings` (id: int, account_id, symbol, name, qty, avg_price, current_price)
 - `investment_transactions` (id: int, account_id, symbol, type: 'BUY'|'SELL', trade_date, quantity, price, fees)
@@ -179,6 +180,11 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
 
 **노트 관리**:
 - `notes` (id: int, content, is_completed, created_by: UUID, created_at, completed_at)
+
+**학습 세션 관리**:
+- `study_sessions` (id: int, topic, date, source, participants, tags: text[], highlights: text[], notes, created_by: UUID, created_at, updated_at)
+- `study_references` (id: int, study_session_id, title, url, created_at) - 1:N 관계
+- `study_followups` (id: int, study_session_id, task, owner, due, completed, created_at) - 1:N 관계
 
 ## 개발 워크플로
 
@@ -276,6 +282,8 @@ npx supabase migration new add_feature_name
 - `008_add_expense_link_to_payments.sql`: 고정비 납부와 지출 연동
 - `009_add_fixed_cost_amount_mode.sql`: 고정비 금액 고정/변동 모드
 - `010_add_notes.sql`: 노트 관리 기능 (notes 테이블)
+- `011_add_study_sessions.sql`: 학습 세션 관리 기능 (study_sessions, study_references, study_followups 테이블)
+- `012_share_notes.sql`: 노트 공유 정책 (모든 인증 사용자가 조회 가능)
 
 **예시**:
 ```sql
@@ -504,6 +512,44 @@ await api.updateNote(noteId, {
 await api.deleteNote(noteId);
 ```
 
+**주의**: 노트는 모든 인증 사용자가 조회 가능합니다 (공유 기능).
+
+### 학습 세션 관리
+학습 세션, 참고 자료, 후속 작업을 관리하는 기능:
+```tsx
+// 학습 세션 조회
+const sessions = await api.getStudySessions();
+
+// 새 학습 세션 추가 (created_by는 자동 설정됨)
+await api.createStudySession({
+  topic: 'React Hooks 심화',
+  date: '2025-10-29',
+  source: 'React 공식 문서',
+  participants: 'John, Jane',
+  tags: ['react', 'hooks'],
+  highlights: ['useCallback 최적화', 'useMemo 활용'],
+  notes: '상세 학습 내용...'
+});
+
+// 참고 자료 추가
+await api.createStudyReference({
+  studySessionId: 1,
+  title: 'React Hooks API Reference',
+  url: 'https://react.dev/reference/react'
+});
+
+// 후속 작업 추가
+await api.createStudyFollowup({
+  studySessionId: 1,
+  task: 'Custom Hook 작성 실습',
+  owner: 'John',
+  due: '2025-11-05',
+  completed: false
+});
+```
+
+**RLS 정책**: 모든 사용자가 조회 가능하지만, 생성자만 수정/삭제 가능합니다.
+
 ## 코딩 스타일 & 규칙
 
 **React/TypeScript**:
@@ -536,6 +582,8 @@ await api.deleteNote(noteId);
 6. **Income/Expense 테이블**: 동일한 `expenses` 테이블 공유, 카테고리 타입으로 구분
 7. **날짜 처리**: 모든 날짜는 KST 기준이며 UTC 변환 없이 처리됨 - `lib/dateUtils.ts` 사용 필수
 8. **PWA 테스트**: Service Worker 수정 후 반드시 프로덕션 빌드로 테스트 (`npm run build && npm run preview`)
+9. **Investments 컴포넌트 변경**: `Investments.tsx`는 투자 관리에서 학습 세션 관리로 변경됨 (투자 DB 테이블은 남아있지만 UI는 사용 중지)
+10. **노트 공유**: 노트는 작성자만 수정/삭제 가능하지만 모든 인증 사용자가 조회 가능 (공유 노트)
 
 ## 문제 해결
 

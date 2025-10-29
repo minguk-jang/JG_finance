@@ -1,4 +1,5 @@
 from typing import List
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
@@ -22,7 +23,7 @@ def list_categories(db: Session = Depends(get_db)):
 
 
 @router.get("/{category_id}", response_model=Category, summary="Get category by ID")
-def get_category(category_id: int, db: Session = Depends(get_db)):
+def get_category(category_id: UUID, db: Session = Depends(get_db)):
     """
     Get a specific category by its ID.
 
@@ -71,7 +72,7 @@ def create_category(category: CategoryCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{category_id}", response_model=Category, summary="Update category")
-def update_category(category_id: int, category: CategoryUpdate, db: Session = Depends(get_db)):
+def update_category(category_id: UUID, category: CategoryUpdate, db: Session = Depends(get_db)):
     """
     Update an existing category.
 
@@ -120,7 +121,7 @@ def update_category(category_id: int, category: CategoryUpdate, db: Session = De
 
 
 @router.delete("/{category_id}", summary="Delete category")
-def delete_category(category_id: int, db: Session = Depends(get_db)):
+def delete_category(category_id: UUID, db: Session = Depends(get_db)):
     """
     Delete a category.
 

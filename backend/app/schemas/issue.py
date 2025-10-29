@@ -1,6 +1,8 @@
-from pydantic import BaseModel
-from typing import List, Optional
 from enum import Enum
+from typing import List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel
 
 
 class IssueStatus(str, Enum):
@@ -31,11 +33,11 @@ class IssueBase(BaseModel):
     body: str
     status: IssueStatus
     priority: IssuePriority
-    assignee_id: int
+    assignee_id: UUID
 
 
 class IssueCreate(IssueBase):
-    label_ids: Optional[List[int]] = []
+    label_ids: Optional[List[UUID]] = None
 
 
 class IssueUpdate(BaseModel):
@@ -43,12 +45,12 @@ class IssueUpdate(BaseModel):
     body: Optional[str] = None
     status: Optional[IssueStatus] = None
     priority: Optional[IssuePriority] = None
-    assignee_id: Optional[int] = None
-    label_ids: Optional[List[int]] = None
+    assignee_id: Optional[UUID] = None
+    label_ids: Optional[List[UUID]] = None
 
 
 class Issue(IssueBase):
-    id: int
+    id: UUID
     labels: List[IssueLabel]
 
     class Config:
@@ -61,7 +63,7 @@ class LabelCreate(BaseModel):
 
 
 class Label(LabelCreate):
-    id: int
+    id: UUID
 
     class Config:
         from_attributes = True
