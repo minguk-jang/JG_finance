@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Currency, Page } from '../types';
 import Card from './ui/Card';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
@@ -19,7 +19,7 @@ interface QuickAccessCardProps {
   onClick: () => void;
 }
 
-const QuickAccessCard: React.FC<QuickAccessCardProps> = ({ icon, label, count, color, onClick }) => {
+const QuickAccessCard: React.FC<QuickAccessCardProps> = React.memo(({ icon, label, count, color, onClick }) => {
   return (
     <button
       onClick={onClick}
@@ -30,7 +30,7 @@ const QuickAccessCard: React.FC<QuickAccessCardProps> = ({ icon, label, count, c
       <div className="text-sm sm:text-base text-gray-700 opacity-90 font-medium">{label}</div>
     </button>
   );
-};
+});
 
 const formatCurrency = (value: number, currency: Currency, exchangeRate: number) => {
   const rate = exchangeRate > 0 ? exchangeRate : DEFAULT_USD_KRW_EXCHANGE_RATE;
@@ -59,12 +59,21 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
   useEffect(() => {
     const fetchData = async () => {
       try {
+        console.log('[Dashboard] Starting data fetch...');
+        // 현재 월만 필터링하여 가져오기 (성능 최적화)
+        const currentMonth = getLocalDateString().slice(0, 7); // YYYY-MM
+        const [year, month] = currentMonth.split('-').map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        const fromDate = `${currentMonth}-01`;
+        const toDate = `${currentMonth}-${lastDay.toString().padStart(2, '0')}`;
+        console.log('[Dashboard] Fetching data for:', fromDate, 'to', toDate);
+
         const [expensesData, categoriesData, budgetsData, holdingsData, transactionsData, notesData, issuesData] = await Promise.all([
-          api.getExpenses(),
+          api.getExpenses({ from_date: fromDate, to_date: toDate }), // 현재 월만 가져오기
           api.getCategories(),
-          api.getBudgets(),
+          api.getBudgets(), // 예산은 모든 데이터 필요
           api.getHoldings(),
-          api.getInvestmentTransactions(),
+          api.getInvestmentTransactions(), // 거래 내역은 누적 계산에 필요
           api.getNotes().catch(() => []),
           api.getIssues().catch(() => []),
         ]);
@@ -84,10 +93,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
         setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
         setNotes(Array.isArray(notesData) ? notesData : []);
         setIssues(Array.isArray(issuesData) ? issuesData : []);
+        console.log('[Dashboard] Data fetch completed successfully');
       } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
+        console.error('[Dashboard] Failed to fetch dashboard data:', err);
         setError('대시보드 데이터를 불러오지 못했습니다.');
       } finally {
+        console.log('[Dashboard] Setting loading to false');
         setLoading(false);
       }
     };
@@ -146,58 +157,59 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
     }
   }, [loading, expenses, budgets, transactions, selectedMonth]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="text-2xl text-gray-400">로딩중...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-8">
-        <Card title="대시보드 에러">
-          <p className="text-red-400 text-sm">{error}</p>
-        </Card>
-      </div>
-    );
-  }
-
   const nowMonth = new Date().toISOString().slice(0, 7);
   const activeMonth = selectedMonth || nowMonth;
-  const categoriesById = new Map(categories.map((cat: any) => [cat.id, cat]));
 
-  const monthlyExpenses = expenses.filter(
-    (expense: any) =>
-      expense.date &&
-      expense.date.startsWith(activeMonth) &&
-      categoriesById.get(expense.categoryId)?.type === 'expense'
+  // 카테고리 매핑 (useMemo로 캐싱)
+  const categoriesById = useMemo(
+    () => new Map(categories.map((cat: any) => [cat.id, cat])),
+    [categories]
   );
 
-  const monthlyIncomes = expenses.filter(
-    (expense: any) =>
-      expense.date &&
-      expense.date.startsWith(activeMonth) &&
-      categoriesById.get(expense.categoryId)?.type === 'income'
-  );
+  // 월별 지출/수입 필터링 (useMemo로 캐싱)
+  const { monthlyExpenses, monthlyIncomes } = useMemo(() => {
+    const expenses_filtered = expenses.filter(
+      (expense: any) =>
+        expense.date &&
+        expense.date.startsWith(activeMonth) &&
+        categoriesById.get(expense.categoryId)?.type === 'expense'
+    );
 
-  const totalExpense = monthlyExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
-  const totalIncome = monthlyIncomes.reduce((sum: number, inc: any) => sum + (inc.amount || 0), 0);
-  const netIncome = totalIncome - totalExpense;
+    const incomes_filtered = expenses.filter(
+      (expense: any) =>
+        expense.date &&
+        expense.date.startsWith(activeMonth) &&
+        categoriesById.get(expense.categoryId)?.type === 'income'
+    );
 
-  const monthBudgets = budgets.filter((budget: any) => budget.month === activeMonth);
-  const totalBudgetLimit = monthBudgets.reduce((sum: number, budget: any) => sum + (budget.limitAmount || 0), 0);
-  const budgetUsage = totalBudgetLimit > 0 ? (totalExpense / totalBudgetLimit) * 100 : 0;
+    return { monthlyExpenses: expenses_filtered, monthlyIncomes: incomes_filtered };
+  }, [expenses, activeMonth, categoriesById]);
 
-  const totalHoldingsValue = holdings.reduce((sum: number, holding: any) => {
-    const qty = holding.qty ?? 0;
-    const price = holding.current_price ?? holding.currentPrice ?? 0;
-    return sum + price * qty;
-  }, 0);
+  // 총 지출/수입 계산 (useMemo로 캐싱)
+  const { totalExpense, totalIncome, netIncome } = useMemo(() => {
+    const expense = monthlyExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
+    const income = monthlyIncomes.reduce((sum: number, inc: any) => sum + (inc.amount || 0), 0);
+    return { totalExpense: expense, totalIncome: income, netIncome: income - expense };
+  }, [monthlyExpenses, monthlyIncomes]);
 
+  // 예산 관련 계산 (useMemo로 캐싱)
+  const { monthBudgets, totalBudgetLimit, budgetUsage } = useMemo(() => {
+    const budgets_filtered = budgets.filter((budget: any) => budget.month === activeMonth);
+    const limit = budgets_filtered.reduce((sum: number, budget: any) => sum + (budget.limitAmount || 0), 0);
+    const usage = limit > 0 ? (totalExpense / limit) * 100 : 0;
+    return { monthBudgets: budgets_filtered, totalBudgetLimit: limit, budgetUsage: usage };
+  }, [budgets, activeMonth, totalExpense]);
+
+  // 투자 자산 평가액 (useMemo로 캐싱)
+  const totalHoldingsValue = useMemo(() => {
+    return holdings.reduce((sum: number, holding: any) => {
+      const qty = holding.qty ?? 0;
+      const price = holding.current_price ?? holding.currentPrice ?? 0;
+      return sum + price * qty;
+    }, 0);
+  }, [holdings]);
+
+  // 거래 계산 헬퍼 함수
   const getTransactionTotals = (list: any[]) =>
     list.reduce(
       (acc, transaction) => {
@@ -215,52 +227,95 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
       { buyAmount: 0, sellAmount: 0, buyCount: 0, sellCount: 0 }
     );
 
-  const [year, month] = activeMonth.split('-').map(Number);
-  const endOfMonth = new Date(year, month, 0); // 월의 마지막 날
-  const endDateStr = getLocalDateString(endOfMonth);
+  // 거래 내역 필터링 및 계산 (useMemo로 캐싱)
+  const {
+    cumulativeTransactions,
+    monthlyTransactions,
+    cumulativeTotals,
+    monthlyTotals,
+    cumulativeNetCash,
+    monthlyNetCash,
+    monthlyTransactionCount,
+  } = useMemo(() => {
+    const [year, month] = activeMonth.split('-').map(Number);
+    const endOfMonth = new Date(year, month, 0); // 월의 마지막 날
+    const endDateStr = getLocalDateString(endOfMonth);
 
-  const cumulativeTransactions = transactions.filter(
-    (transaction: any) =>
-      typeof transaction.trade_date === 'string' && transaction.trade_date <= endDateStr
-  );
-  const monthlyTransactions = transactions.filter(
-    (transaction: any) =>
-      typeof transaction.trade_date === 'string' &&
-      transaction.trade_date.slice(0, 7) === activeMonth
-  );
+    const cumulative = transactions.filter(
+      (transaction: any) =>
+        typeof transaction.trade_date === 'string' && transaction.trade_date <= endDateStr
+    );
+    const monthly = transactions.filter(
+      (transaction: any) =>
+        typeof transaction.trade_date === 'string' &&
+        transaction.trade_date.slice(0, 7) === activeMonth
+    );
 
-  const cumulativeTotals = getTransactionTotals(cumulativeTransactions);
-  const monthlyTotals = getTransactionTotals(monthlyTransactions);
+    const cumulativeTotals = getTransactionTotals(cumulative);
+    const monthlyTotals = getTransactionTotals(monthly);
 
-  const cumulativeNetCash = cumulativeTotals.sellAmount - cumulativeTotals.buyAmount;
-  const monthlyNetCash = monthlyTotals.sellAmount - monthlyTotals.buyAmount;
-  const monthlyTransactionCount = monthlyTransactions.length;
+    return {
+      cumulativeTransactions: cumulative,
+      monthlyTransactions: monthly,
+      cumulativeTotals,
+      monthlyTotals,
+      cumulativeNetCash: cumulativeTotals.sellAmount - cumulativeTotals.buyAmount,
+      monthlyNetCash: monthlyTotals.sellAmount - monthlyTotals.buyAmount,
+      monthlyTransactionCount: monthly.length,
+    };
+  }, [transactions, activeMonth]);
 
-  const monthsFromExpenses = expenses
-    .map((expense) => (typeof expense.date === 'string' ? expense.date.slice(0, 7) : null))
-    .filter((month): month is string => Boolean(month));
-  const monthsFromBudgets = budgets
-    .map((budget) => budget.month)
-    .filter((month): month is string => Boolean(month));
-  const monthsFromTransactions = transactions
-    .map((transaction) =>
-      typeof transaction.trade_date === 'string' ? transaction.trade_date.slice(0, 7) : null
-    )
-    .filter((month): month is string => Boolean(month));
-  const availableMonths = Array.from(
-    new Set([...monthsFromExpenses, ...monthsFromBudgets, ...monthsFromTransactions])
-  ).sort(
-    (a, b) => b.localeCompare(a)
-  );
+  // 사용 가능한 월 목록 계산 (useMemo로 캐싱)
+  const availableMonths = useMemo(() => {
+    const monthsFromExpenses = expenses
+      .map((expense) => (typeof expense.date === 'string' ? expense.date.slice(0, 7) : null))
+      .filter((month): month is string => Boolean(month));
+    const monthsFromBudgets = budgets
+      .map((budget) => budget.month)
+      .filter((month): month is string => Boolean(month));
+    const monthsFromTransactions = transactions
+      .map((transaction) =>
+        typeof transaction.trade_date === 'string' ? transaction.trade_date.slice(0, 7) : null
+      )
+      .filter((month): month is string => Boolean(month));
+
+    return Array.from(
+      new Set([...monthsFromExpenses, ...monthsFromBudgets, ...monthsFromTransactions])
+    ).sort((a, b) => b.localeCompare(a));
+  }, [expenses, budgets, transactions]);
 
   const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedMonth(event.target.value);
   };
 
-  // Quick Access 계산
-  const pendingNotesCount = notes.filter((note: any) => !note.isCompleted).length;
-  const unpaidPaymentsCount = fixedCostPayments.filter((payment: any) => payment.status !== 'paid').length;
-  const openIssuesCount = issues.filter((issue: any) => issue.status === 'Open' || issue.status === 'In Progress').length;
+  // Quick Access 카운트 (useMemo로 캐싱)
+  const { pendingNotesCount, unpaidPaymentsCount, openIssuesCount } = useMemo(() => ({
+    pendingNotesCount: notes.filter((note: any) => !note.isCompleted).length,
+    unpaidPaymentsCount: fixedCostPayments.filter((payment: any) => payment.status !== 'paid').length,
+    openIssuesCount: issues.filter((issue: any) => issue.status === 'Open' || issue.status === 'In Progress').length,
+  }), [notes, fixedCostPayments, issues]);
+
+  // Render loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="text-2xl text-gray-400">로딩중...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render error state
+  if (error) {
+    return (
+      <div className="p-8">
+        <Card title="대시보드 에러">
+          <p className="text-red-400 text-sm">{error}</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
