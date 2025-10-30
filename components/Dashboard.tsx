@@ -59,12 +59,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
   useEffect(() => {
     const fetchData = async () => {
       try {
+        console.log('[Dashboard] Starting data fetch...');
         // 현재 월만 필터링하여 가져오기 (성능 최적화)
         const currentMonth = getLocalDateString().slice(0, 7); // YYYY-MM
         const [year, month] = currentMonth.split('-').map(Number);
         const lastDay = new Date(year, month, 0).getDate();
         const fromDate = `${currentMonth}-01`;
         const toDate = `${currentMonth}-${lastDay.toString().padStart(2, '0')}`;
+        console.log('[Dashboard] Fetching data for:', fromDate, 'to', toDate);
 
         const [expensesData, categoriesData, budgetsData, holdingsData, transactionsData, notesData, issuesData] = await Promise.all([
           api.getExpenses({ from_date: fromDate, to_date: toDate }), // 현재 월만 가져오기
@@ -91,10 +93,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
         setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
         setNotes(Array.isArray(notesData) ? notesData : []);
         setIssues(Array.isArray(issuesData) ? issuesData : []);
+        console.log('[Dashboard] Data fetch completed successfully');
       } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
+        console.error('[Dashboard] Failed to fetch dashboard data:', err);
         setError('대시보드 데이터를 불러오지 못했습니다.');
       } finally {
+        console.log('[Dashboard] Setting loading to false');
         setLoading(false);
       }
     };
@@ -152,26 +156,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
       setSelectedMonth(availableMonths[0]);
     }
   }, [loading, expenses, budgets, transactions, selectedMonth]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="text-2xl text-gray-400">로딩중...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-8">
-        <Card title="대시보드 에러">
-          <p className="text-red-400 text-sm">{error}</p>
-        </Card>
-      </div>
-    );
-  }
 
   const nowMonth = new Date().toISOString().slice(0, 7);
   const activeMonth = selectedMonth || nowMonth;
@@ -310,6 +294,28 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
     unpaidPaymentsCount: fixedCostPayments.filter((payment: any) => payment.status !== 'paid').length,
     openIssuesCount: issues.filter((issue: any) => issue.status === 'Open' || issue.status === 'In Progress').length,
   }), [notes, fixedCostPayments, issues]);
+
+  // Render loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="text-2xl text-gray-400">로딩중...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render error state
+  if (error) {
+    return (
+      <div className="p-8">
+        <Card title="대시보드 에러">
+          <p className="text-red-400 text-sm">{error}</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">

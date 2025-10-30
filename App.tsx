@@ -23,7 +23,7 @@ const FixedCosts = lazy(() => import('./components/FixedCosts'));
 const Notes = lazy(() => import('./components/Notes'));
 
 const App: React.FC = () => {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, profileLoading, profileError } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>('Dashboard');
   const [currency, setCurrency] = useState<Currency>('KRW');
@@ -39,12 +39,41 @@ const App: React.FC = () => {
   // Show auth modal if user is not authenticated (after loading completes)
   // Also check if user is approved
   useEffect(() => {
-    if (!loading && !user) {
+    console.log('[App] Auth state:', {
+      loading,
+      profileLoading,
+      user: !!user,
+      profile: !!profile,
+      status: profile?.status,
+      profileError: profileError ? profileError.message : null,
+    });
+
+    if (loading) {
+      return;
+    }
+
+    if (!user) {
+      console.log('[App] No user, showing auth modal');
       setShowAuthModal(true);
-    } else if (user && profile) {
-      // Check if user is approved
+      return;
+    }
+
+    if (profileLoading) {
+      // Allow the app to render while the profile loads in the background
+      console.log('[App] Profile loading in background, keeping app accessible');
+      setShowAuthModal(false);
+      return;
+    }
+
+    if (profileError) {
+      console.warn('[App] Proceeding without profile due to error:', profileError);
+      setShowAuthModal(false);
+      return;
+    }
+
+    if (profile) {
       if (profile.status !== 'approved') {
-        // User is not approved, show modal and force logout
+        console.log('[App] User not approved:', profile.status);
         setShowAuthModal(true);
         alert(
           profile.status === 'pending'
@@ -53,10 +82,13 @@ const App: React.FC = () => {
         );
       } else {
         // User is logged in and approved, close modal
+        console.log('[App] User authenticated and approved');
         setShowAuthModal(false);
       }
+    } else {
+      setShowAuthModal(false);
     }
-  }, [loading, user, profile]);
+  }, [loading, profileLoading, profileError, user, profile]);
 
   // Register Service Worker
   useEffect(() => {

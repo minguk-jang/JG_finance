@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Supabase Connection Test</title>
+</head>
+<body>
+  <h1>Supabase Connection Test</h1>
+  <div id="output"></div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+    const supabaseUrl = 'https://nveoabqvztzyzkkzwdsc.supabase.co';
+    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52ZW9hYnF2enR6eXpra3p3ZHNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxMjkxNDMsImV4cCI6MjA3MjcwNTE0M30.hxgXGCt0vIwtGYz-ECC3txCw--iSeiJDjL1Jz0P5TBI';
+
+    const output = document.getElementById('output');
+
+    async function testConnection() {
+      output.innerHTML += '<p>🔄 Creating Supabase client...</p>';
+
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+      output.innerHTML += '<p>✅ Client created</p>';
+
+      // Test 1: Check if we can reach Supabase
+      output.innerHTML += '<p>🔄 Testing basic connection...</p>';
+      try {
+        const startTime = Date.now();
+        const { data, error } = await supabase.from('users').select('count').limit(0);
+        const endTime = Date.now();
+
+        if (error) {
+          output.innerHTML += `<p>❌ Error: ${error.message}</p>`;
+          output.innerHTML += `<pre>${JSON.stringify(error, null, 2)}</pre>`;
+        } else {
+          output.innerHTML += `<p>✅ Connection successful (${endTime - startTime}ms)</p>`;
+        }
+      } catch (err) {
+        output.innerHTML += `<p>❌ Exception: ${err.message}</p>`;
+      }
+
+      // Test 2: Check auth status
+      output.innerHTML += '<p>🔄 Checking auth status...</p>';
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          output.innerHTML += `<p>✅ Logged in as: ${session.user.email}</p>`;
+          output.innerHTML += `<p>User ID: ${session.user.id}</p>`;
+
+          // Test 3: Try to query users table
+          output.innerHTML += '<p>🔄 Querying users table...</p>';
+          const startTime = Date.now();
+          const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          const endTime = Date.now();
+
+          if (error) {
+            output.innerHTML += `<p>❌ Query error: ${error.message}</p>`;
+            output.innerHTML += `<pre>${JSON.stringify(error, null, 2)}</pre>`;
+          } else {
+            output.innerHTML += `<p>✅ Query successful (${endTime - startTime}ms)</p>`;
+            output.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+          }
+        } else {
+          output.innerHTML += '<p>⚠️ Not logged in</p>';
+        }
+      } catch (err) {
+        output.innerHTML += `<p>❌ Exception: ${err.message}</p>`;
+      }
+    }
+
+    testConnection();
+  </script>
+</body>
+</html>
