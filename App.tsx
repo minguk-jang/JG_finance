@@ -1,20 +1,26 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { Currency, Page } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import Dashboard from './components/Dashboard';
-import Expenses, { ExpensesHandle } from './components/Expenses';
-import Income, { IncomeHandle } from './components/Income';
-import Investments from './components/Investments';
-import Issues from './components/Issues';
-import Settings from './components/Settings';
-import FixedCosts from './components/FixedCosts';
-import Notes from './components/Notes';
 import QuickAddVoiceModal from './components/QuickAddVoiceModal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import AuthModal from './components/AuthModal';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from './constants';
 import { useAuth } from './lib/auth';
+
+// 타입 임포트는 번들에 포함되지 않음
+import type { ExpensesHandle } from './components/Expenses';
+import type { IncomeHandle } from './components/Income';
+
+// 페이지 컴포넌트들은 lazy loading으로 코드 스플리팅 (성능 최적화)
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const Expenses = lazy(() => import('./components/Expenses'));
+const Income = lazy(() => import('./components/Income'));
+const Investments = lazy(() => import('./components/Investments'));
+const Issues = lazy(() => import('./components/Issues'));
+const Settings = lazy(() => import('./components/Settings'));
+const FixedCosts = lazy(() => import('./components/FixedCosts'));
+const Notes = lazy(() => import('./components/Notes'));
 
 const App: React.FC = () => {
   const { user, profile, loading } = useAuth();
@@ -68,7 +74,7 @@ const App: React.FC = () => {
             registration.update().catch((err) => {
               console.warn('[App] Service Worker update check failed:', err);
             });
-          }, 3600000); // Check every hour
+          }, 21600000); // Check every 6 hours (성능 최적화)
 
           // Listen for updates
           registration.addEventListener('updatefound', () => {
@@ -236,7 +242,18 @@ const App: React.FC = () => {
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
         />
         <main className={`flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
-          {renderContent()}
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500 mx-auto mb-4"></div>
+                  <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>페이지 로딩 중...</p>
+                </div>
+              </div>
+            }
+          >
+            {renderContent()}
+          </Suspense>
         </main>
       </div>
 

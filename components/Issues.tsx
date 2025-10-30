@@ -38,7 +38,7 @@ interface IssueCardProps {
   onDelete: (issueId: string) => void;
 }
 
-const IssueCard: React.FC<IssueCardProps> = ({ issue, users, onView, onEdit, onDelete }) => {
+const IssueCard: React.FC<IssueCardProps> = React.memo(({ issue, users, onView, onEdit, onDelete }) => {
   // Handle both camelCase and snake_case
   const assigneeId = (issue as any).assigneeId || (issue as any).assignee_id;
   const assignee = users.find(u => u.id === assigneeId);
@@ -105,7 +105,7 @@ const IssueCard: React.FC<IssueCardProps> = ({ issue, users, onView, onEdit, onD
       </div>
     </div>
   );
-};
+});
 
 
 const statusLabels: { [key in IssueStatus]: string } = {

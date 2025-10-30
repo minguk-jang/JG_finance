@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef, useMemo } from 'react';
 import { Currency } from '../types';
 import Card from './ui/Card';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
@@ -185,7 +185,8 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
     }));
   };
 
-  const getSortedExpenses = () => {
+  // 정렬된 지출 목록 (useMemo로 캐싱)
+  const sortedExpenses = useMemo(() => {
     const sorted = [...expenses];
     sorted.sort((a, b) => {
       let aValue: any;
@@ -213,7 +214,7 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
       return 0;
     });
     return sorted;
-  };
+  }, [expenses, sortConfig, categories]); // categories는 getCategoryName에서 사용됨
 
   const SortIcon = ({ columnKey }: { columnKey: SortKey }) => {
     if (sortConfig.key !== columnKey) {
@@ -468,8 +469,6 @@ const Expenses = forwardRef<ExpensesHandle, ExpensesProps>(({ currency, exchange
       </div>
     );
   }
-
-  const sortedExpenses = getSortedExpenses();
 
   const renderCategoryCard = (category: { name: string; amount: number; count: number }, index: number, variant: 'scroll' | 'grid') => {
     const percentage = stats.totalAmount > 0 ? (category.amount / stats.totalAmount) * 100 : 0;
