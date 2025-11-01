@@ -12,6 +12,23 @@ interface FixedCostsProps {
   exchangeRate: number;
 }
 
+type VariableHistoryEntry = {
+  yearMonth: string;
+  amount: number | null;
+  actualAmount: number | null;
+  scheduledAmount: number | null;
+  status: FixedCostPayment['status'];
+};
+
+interface VariablePaymentStat {
+  average: number | null;
+  max: number | null;
+  min: number | null;
+  count: number;
+  entries: VariableHistoryEntry[];
+  latestAmount: number | null;
+}
+
 const formatCurrency = (value: number, currency: Currency, exchangeRate: number) => {
   const amount = currency === 'USD' ? value / exchangeRate : value;
   return new Intl.NumberFormat(currency === 'KRW' ? 'ko-KR' : 'en-US', {
@@ -79,8 +96,28 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
   });
   const [expenseLoading, setExpenseLoading] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
-  const [scheduledAmountEdits, setScheduledAmountEdits] = useState<Record<string, string>>({});
-  const [savingScheduledAmountId, setSavingScheduledAmountId] = useState<string | null>(null);
+  const [variablePaymentStats, setVariablePaymentStats] = useState<Record<string, VariablePaymentStat>>({});
+  const [scheduledAmountModal, setScheduledAmountModal] = useState<{ payment: FixedCostPayment; cost: FixedCost } | null>(null);
+  const [scheduledAmountDraft, setScheduledAmountDraft] = useState<string>('');
+  const [isSavingScheduledAmount, setIsSavingScheduledAmount] = useState(false);
+  const [statInfoModal, setStatInfoModal] = useState<{ payment: FixedCostPayment; cost: FixedCost } | null>(null);
+
+  const fieldBaseClasses =
+    'theme-field bg-gray-700 border-2 border-gray-600 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all';
+  const inputFieldClasses = `${fieldBaseClasses} px-3 py-2 text-sm`;
+  const selectFieldClasses = `${fieldBaseClasses} w-full px-3 py-2 text-sm appearance-none cursor-pointer pr-9`;
+  const getLastNYearMonths = useCallback((baseYearMonth: string, count: number) => {
+    if (!baseYearMonth) return [];
+    const [year, month] = baseYearMonth.split('-').map(Number);
+    if (!year || !month) return [];
+    const baseDate = new Date(year, month - 1, 1);
+    const results: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const target = new Date(baseDate.getFullYear(), baseDate.getMonth() - i, 1);
+      results.push(`${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`);
+    }
+    return results;
+  }, []);
 
   // Initialize selected month to current month
   useEffect(() => {
@@ -113,17 +150,6 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     };
     loadUsers();
   }, []);
-
-  useEffect(() => {
-    const next: Record<string, string> = {};
-    payments.forEach(payment => {
-      next[payment.id] =
-        payment.scheduledAmount !== null && payment.scheduledAmount !== undefined
-          ? payment.scheduledAmount.toString()
-          : '';
-    });
-    setScheduledAmountEdits(next);
-  }, [payments]);
 
   const fetchExpensesForSelection = useCallback(async () => {
     if (!selectedMonth) return;
@@ -484,8 +510,209 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     return users.find(u => u.id === userId)?.name || '알 수 없음';
   };
 
-  const getCostForPayment = (payment: FixedCostPayment): FixedCost | undefined => {
-    return payment.fixedCost || fixedCosts.find(cost => cost.id === payment.fixedCostId);
+  const getCostForPayment = useCallback(
+    (payment: FixedCostPayment): FixedCost | undefined => {
+      return payment.fixedCost || fixedCosts.find(cost => cost.id === payment.fixedCostId);
+    },
+    [fixedCosts]
+  );
+
+  useEffect(() => {
+    if (!selectedMonth) {
+      setVariablePaymentStats({});
+      return;
+    }
+
+    const variablePayments = payments
+      .map(payment => ({
+        payment,
+        cost: getCostForPayment(payment),
+      }))
+      .filter(
+        (item): item is { payment: FixedCostPayment; cost: FixedCost } =>
+          !!item.cost && !(item.cost.isFixedAmount ?? true)
+      );
+
+    if (variablePayments.length === 0) {
+      setVariablePaymentStats({});
+      return;
+    }
+
+    const targetMonths = getLastNYearMonths(selectedMonth, 3);
+    if (targetMonths.length === 0) {
+      setVariablePaymentStats({});
+      return;
+    }
+
+    const uniqueIds = Array.from(new Set(variablePayments.map(({ payment }) => payment.fixedCostId)));
+    let isMounted = true;
+
+    const loadStats = async () => {
+      try {
+        const results = await Promise.all(
+          uniqueIds.map(async (fixedCostId) => {
+            const history = await api.getFixedCostPayments({ fixed_cost_id: fixedCostId });
+            return {
+              fixedCostId,
+              history: Array.isArray(history) ? (history as FixedCostPayment[]) : [],
+            };
+          })
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        const next: Record<string, VariablePaymentStat> = {};
+        results.forEach(({ fixedCostId, history }) => {
+          const relevantEntries = history
+            .filter(entry => targetMonths.includes(entry.yearMonth))
+            .map(entry => {
+              const amount =
+                entry.actualAmount !== null && entry.actualAmount !== undefined
+                  ? entry.actualAmount
+                  : entry.scheduledAmount;
+              return {
+                yearMonth: entry.yearMonth,
+                amount: amount ?? null,
+                actualAmount: entry.actualAmount,
+                scheduledAmount: entry.scheduledAmount,
+                status: entry.status,
+              };
+            })
+            .sort((a, b) => b.yearMonth.localeCompare(a.yearMonth))
+            .slice(0, 3);
+
+          const amounts = relevantEntries
+            .map(entry => entry.amount)
+            .filter((value): value is number => value !== null && value !== undefined);
+
+          next[fixedCostId] = {
+            average: amounts.length > 0 ? amounts.reduce((sum, value) => sum + value, 0) / amounts.length : null,
+            max: amounts.length > 0 ? Math.max(...amounts) : null,
+            min: amounts.length > 0 ? Math.min(...amounts) : null,
+            count: relevantEntries.length,
+            entries: relevantEntries,
+            latestAmount: relevantEntries.length > 0 ? relevantEntries[0].amount : null,
+          };
+        });
+
+        setVariablePaymentStats(next);
+      } catch (err) {
+        console.error('Failed to load variable payment stats', err);
+      }
+    };
+
+    loadStats();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [payments, selectedMonth, getCostForPayment, getLastNYearMonths]);
+
+  const formatStatCurrency = useCallback(
+    (value: number | null) => {
+      if (value === null || value === undefined) {
+        return '-';
+      }
+      return formatCurrency(value, currency, exchangeRate);
+    },
+    [currency, exchangeRate]
+  );
+
+  const openScheduledAmountEditor = (payment: FixedCostPayment, cost: FixedCost) => {
+    setScheduledAmountModal({ payment, cost });
+    setScheduledAmountDraft(
+      payment.scheduledAmount !== null && payment.scheduledAmount !== undefined
+        ? payment.scheduledAmount.toString()
+        : ''
+    );
+    setIsSavingScheduledAmount(false);
+  };
+
+  const closeScheduledAmountModal = () => {
+    setScheduledAmountModal(null);
+    setScheduledAmountDraft('');
+    setIsSavingScheduledAmount(false);
+  };
+
+  const handleScheduledAmountSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!scheduledAmountModal) return;
+
+    const rawValue = scheduledAmountDraft.trim();
+    const parsedValue = rawValue === '' ? null : Number(rawValue);
+
+    if (parsedValue !== null && (Number.isNaN(parsedValue) || parsedValue < 0)) {
+      setError('예정 금액은 0 이상의 숫자여야 합니다.');
+      return;
+    }
+
+    try {
+      setIsSavingScheduledAmount(true);
+      await api.updateFixedCostPayment(scheduledAmountModal.payment.id, {
+        scheduledAmount: parsedValue,
+      });
+      closeScheduledAmountModal();
+      await fetchData();
+    } catch (err: any) {
+      console.error('Failed to save scheduled amount', err);
+      setError(err.message || '예정 금액을 저장하지 못했습니다.');
+      setIsSavingScheduledAmount(false);
+    }
+  };
+
+  const renderVariableStatContent = (payment: FixedCostPayment, cost: FixedCost) => {
+    const stat = variablePaymentStats[payment.fixedCostId];
+    if (!stat || stat.count === 0) {
+      return (
+        <div className="space-y-1 text-xs text-gray-200">
+          <p className="font-semibold text-gray-100">최근 3개월 데이터 없음</p>
+          <p className="text-gray-400">
+            아직 최근 기록이 없거나 LLM 추천으로만 관리되는 항목입니다.
+          </p>
+        </div>
+      );
+    }
+
+    const currentLabel =
+      payment.scheduledAmount !== null && payment.scheduledAmount !== undefined
+        ? formatCurrency(payment.scheduledAmount, currency, exchangeRate)
+        : '미지정';
+
+    return (
+      <div className="space-y-2 text-xs text-gray-100">
+        <div>
+          <p className="font-semibold text-gray-50">{cost.name}</p>
+          <p className="text-gray-400 mt-1">현재 예정 금액: {currentLabel}</p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 border border-gray-700/60 rounded-lg p-2 bg-gray-800/70">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-gray-400">평균</p>
+            <p className="font-semibold text-sky-300">{formatStatCurrency(stat.average)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-gray-400">최고</p>
+            <p className="font-semibold text-emerald-300">{formatStatCurrency(stat.max)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-gray-400">최저</p>
+            <p className="font-semibold text-rose-300">{formatStatCurrency(stat.min)}</p>
+          </div>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">최근 기록</p>
+          <ul className="space-y-1">
+            {stat.entries.map(entry => (
+              <li key={`${payment.fixedCostId}-${entry.yearMonth}`} className="flex items-center justify-between">
+                <span className="text-gray-300">{entry.yearMonth}</span>
+                <span className="font-medium text-gray-100">{formatStatCurrency(entry.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    );
   };
 
   // Open payment modal
@@ -559,35 +786,6 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       await fetchData();
     } catch (err: any) {
       setError(err.message || '지불 상태를 되돌리지 못했습니다.');
-    }
-  };
-
-  const handleScheduledAmountChange = (paymentId: string, value: string) => {
-    setScheduledAmountEdits(prev => ({
-      ...prev,
-      [paymentId]: value,
-    }));
-  };
-
-  const handleScheduledAmountSave = async (payment: FixedCostPayment) => {
-    const rawValue = (scheduledAmountEdits[payment.id] ?? '').trim();
-    const parsedValue = rawValue === '' ? null : Number(rawValue);
-
-    if (parsedValue !== null && (Number.isNaN(parsedValue) || parsedValue < 0)) {
-      setError('예정 금액은 0 이상의 숫자여야 합니다.');
-      return;
-    }
-
-    try {
-      setSavingScheduledAmountId(payment.id);
-      await api.updateFixedCostPayment(payment.id, {
-        scheduledAmount: parsedValue,
-      });
-      await fetchData();
-    } catch (err: any) {
-      setError(err.message || '예정 금액을 저장하지 못했습니다.');
-    } finally {
-      setSavingScheduledAmountId(null);
     }
   };
 
@@ -926,8 +1124,6 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                 const isFixedAmount = cost.isFixedAmount ?? true;
                 const canProcessPayment = !isPaid;
                 const scheduledDisplay = payment.scheduledAmount ?? (isFixedAmount ? cost.amount : null);
-                const scheduledInputValue = scheduledAmountEdits[payment.id] ?? '';
-
                 return (
                   <tr key={payment.id} className="border-b border-gray-800 hover:bg-gray-800/50">
                     <td className="py-3 px-4">
@@ -951,27 +1147,30 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                           ? formatCurrency(scheduledDisplay, currency, exchangeRate)
                           : <span className="text-gray-500">-</span>
                       ) : (
-                        <div className="flex items-center justify-end gap-2">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={scheduledInputValue}
-                            onChange={(e) => handleScheduledAmountChange(payment.id, e.target.value)}
-                            className="w-28 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-right"
-                            placeholder="금액"
-                          />
+                        <div className="flex items-center justify-end gap-3">
+                          <div className="relative group inline-flex">
+                            <button
+                              type="button"
+                              onClick={() => setStatInfoModal({ payment, cost })}
+                              className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/60 ${
+                                payment.scheduledAmount !== null && payment.scheduledAmount !== undefined
+                                  ? 'border-sky-400/60 bg-sky-500/10 text-sky-200 hover:border-sky-400 hover:text-sky-100'
+                                  : 'border-gray-600 bg-gray-700/60 text-gray-200 hover:border-sky-400 hover:text-sky-100'
+                              }`}
+                              aria-label="변동 고정비 최근 3개월 정보"
+                            >
+                              <span className="text-[11px] uppercase tracking-wide">변동 고정비</span>
+                            </button>
+                            <div className="pointer-events-none absolute bottom-full left-1/2 z-20 hidden w-64 -translate-x-1/2 -translate-y-3 rounded-lg border border-gray-700/80 bg-gray-900/95 p-3 text-left shadow-xl opacity-0 transition-all duration-150 md:block md:group-hover:translate-y-0 md:group-hover:opacity-100 md:group-focus-within:translate-y-0 md:group-focus-within:opacity-100">
+                              {renderVariableStatContent(payment, cost)}
+                            </div>
+                          </div>
                           <button
                             type="button"
-                            disabled={savingScheduledAmountId === payment.id}
-                            onClick={() => handleScheduledAmountSave(payment)}
-                            className={`px-2 py-1 text-xs rounded ${
-                              savingScheduledAmountId === payment.id
-                                ? 'bg-gray-600 text-gray-300'
-                                : 'bg-blue-600 hover:bg-blue-700 text-white'
-                            }`}
+                            onClick={() => openScheduledAmountEditor(payment, cost)}
+                            className="rounded-md border border-gray-600 px-2 py-1 text-xs text-gray-100 transition-colors hover:border-sky-500 hover:text-sky-300"
                           >
-                            {savingScheduledAmountId === payment.id ? '저장중' : '저장'}
+                            예정금액 입력
                           </button>
                         </div>
                       )}
@@ -1045,8 +1244,6 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
             const isFixedAmount = cost.isFixedAmount ?? true;
             const canProcessPayment = !isPaid;
             const scheduledDisplay = payment.scheduledAmount ?? (isFixedAmount ? cost.amount : null);
-            const scheduledInputValue = scheduledAmountEdits[payment.id] ?? '';
-
             return (
               <Card key={payment.id} className="p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -1070,27 +1267,25 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                           : '-'}
                       </span>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={scheduledInputValue}
-                          onChange={(e) => handleScheduledAmountChange(payment.id, e.target.value)}
-                          className="w-24 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-right"
-                          placeholder="금액"
-                        />
+                      <div className="flex flex-col items-end gap-2 text-right">
                         <button
                           type="button"
-                          disabled={savingScheduledAmountId === payment.id}
-                          onClick={() => handleScheduledAmountSave(payment)}
-                          className={`px-2 py-1 text-xs rounded ${
-                            savingScheduledAmountId === payment.id
-                              ? 'bg-gray-600 text-gray-300'
-                              : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          onClick={() => setStatInfoModal({ payment, cost })}
+                          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/60 ${
+                            payment.scheduledAmount !== null && payment.scheduledAmount !== undefined
+                              ? 'border-sky-400/60 bg-sky-500/10 text-sky-200'
+                              : 'border-gray-600 bg-gray-700/60 text-gray-200'
                           }`}
+                          aria-label="변동 고정비 최근 3개월 정보"
                         >
-                          {savingScheduledAmountId === payment.id ? '저장중' : '저장'}
+                          <span className="text-[11px] uppercase tracking-wide">변동 고정비</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openScheduledAmountEditor(payment, cost)}
+                          className="rounded-md border border-gray-600 px-3 py-1 text-xs text-gray-100 transition-colors hover:border-sky-500 hover:text-sky-300"
+                        >
+                          예정금액 입력
                         </button>
                       </div>
                     )}
@@ -1180,32 +1375,46 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">카테고리</label>
-                  <select
-                    value={expenseFilters.categoryId}
-                    onChange={(e) => setExpenseFilters(prev => ({ ...prev, categoryId: e.target.value }))}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-sm"
-                  >
-                    <option value="">전체</option>
-                    {categories
-                      .filter(c => c.type === 'expense')
-                      .map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={expenseFilters.categoryId}
+                      onChange={(e) => setExpenseFilters(prev => ({ ...prev, categoryId: e.target.value }))}
+                      className={selectFieldClasses}
+                    >
+                      <option value="" className="bg-gray-800">전체</option>
+                      {categories
+                        .filter(c => c.type === 'expense')
+                        .map(cat => (
+                          <option key={cat.id} value={cat.id} className="bg-gray-800">{cat.name}</option>
+                        ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-1">작성자</label>
-                  <select
-                    value={expenseFilters.createdBy}
-                    onChange={(e) => setExpenseFilters(prev => ({ ...prev, createdBy: e.target.value }))}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-sm"
-                  >
-                    <option value="">전체</option>
-                    {users.map(user => (
-                      <option key={user.id} value={user.id}>{user.name}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={expenseFilters.createdBy}
+                      onChange={(e) => setExpenseFilters(prev => ({ ...prev, createdBy: e.target.value }))}
+                      className={selectFieldClasses}
+                    >
+                      <option value="" className="bg-gray-800">전체</option>
+                      {users.map(user => (
+                        <option key={user.id} value={user.id} className="bg-gray-800">{user.name}</option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex flex-col">
@@ -1374,27 +1583,34 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                    className={`${inputFieldClasses} w-full`}
                     placeholder="Netflix 구독료"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-1">카테고리 *</label>
-                  <select
-                    required
-                    value={formData.categoryId}
-                    onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                  >
-                    <option value={0}>선택하세요</option>
-                    {categories
-                      .filter(c => c.type === 'expense')
-                      .map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))
-                    }
-                  </select>
+                  <div className="relative">
+                    <select
+                      required
+                      value={formData.categoryId}
+                      onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                      className={selectFieldClasses}
+                    >
+                      <option value="" className="bg-gray-800">선택하세요</option>
+                      {categories
+                        .filter(c => c.type === 'expense')
+                        .map(cat => (
+                          <option key={cat.id} value={cat.id} className="bg-gray-800">{cat.name}</option>
+                        ))
+                      }
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
 
                 <div>
@@ -1406,23 +1622,30 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                     step="0.01"
                     value={formData.amount}
                     onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                    className={`${inputFieldClasses} w-full`}
                     placeholder="14500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-1">매월 결제일 *</label>
-                  <select
-                    required
-                    value={formData.paymentDay}
-                    onChange={(e) => setFormData({ ...formData, paymentDay: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                  >
-                    {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                      <option key={day} value={day}>{day}일</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      required
+                      value={formData.paymentDay}
+                      onChange={(e) => setFormData({ ...formData, paymentDay: Number(e.target.value) })}
+                      className={selectFieldClasses}
+                    >
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                        <option key={day} value={day} className="bg-gray-800">{day}일</option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
 
                 <div>
@@ -1432,7 +1655,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                     required
                     value={formData.startDate}
                     onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                    className={`${inputFieldClasses} w-full`}
                   />
                 </div>
 
@@ -1442,7 +1665,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                     type="date"
                     value={formData.endDate}
                     onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                    className={`${inputFieldClasses} w-full`}
                   />
                   <p className="text-xs text-gray-500 mt-1">비워두면 무기한</p>
                 </div>
@@ -1452,7 +1675,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                   <textarea
                     value={formData.memo}
                     onChange={(e) => setFormData({ ...formData, memo: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                    className={`${inputFieldClasses} w-full resize-none`}
                     rows={3}
                     placeholder="연간 구독, 카드 자동결제"
                   />
@@ -1500,6 +1723,163 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scheduled Amount Modal */}
+      {scheduledAmountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-lg bg-gray-800 shadow-2xl">
+            <div className="border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-white">예정 금액 설정</h2>
+                <p className="text-sm text-gray-400 mt-1">{scheduledAmountModal.cost.name}</p>
+              </div>
+              <button
+                onClick={closeScheduledAmountModal}
+                className="text-gray-400 transition-colors hover:text-gray-200"
+                aria-label="예정 금액 입력 닫기"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleScheduledAmountSubmit} className="px-6 py-5 space-y-5">
+              <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-3 text-sm text-gray-300 space-y-1">
+                <p>
+                  현재 상태:{' '}
+                  {scheduledAmountModal.payment.scheduledAmount !== null && scheduledAmountModal.payment.scheduledAmount !== undefined
+                    ? formatCurrency(scheduledAmountModal.payment.scheduledAmount, currency, exchangeRate)
+                    : '미지정'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  금액을 비워 두면 이 항목은 “변동 · 미지정” 상태로 표시됩니다.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-200">예정 금액</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={scheduledAmountDraft}
+                  onChange={(e) => setScheduledAmountDraft(e.target.value)}
+                  className={`${inputFieldClasses} w-full`}
+                  placeholder="예: 45000"
+                />
+              </div>
+
+              {(() => {
+                const quickStat = variablePaymentStats[scheduledAmountModal.payment.fixedCostId];
+                const suggestions: Array<{ label: string; value: number }> = [];
+                if (quickStat) {
+                  if (quickStat.average !== null) {
+                    suggestions.push({ label: '평균 적용', value: quickStat.average });
+                  }
+                  if (quickStat.latestAmount !== null) {
+                    suggestions.push({ label: '최근 값', value: quickStat.latestAmount });
+                  }
+                  if (quickStat.max !== null) {
+                    suggestions.push({ label: '최고값', value: quickStat.max });
+                  }
+                }
+
+                if (suggestions.length === 0) {
+                  return null;
+                }
+
+                return (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-2">빠르게 채우기</p>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestions.map((item, index) => (
+                        <button
+                          key={`${item.label}-${index}`}
+                          type="button"
+                          onClick={() => setScheduledAmountDraft(String(item.value))}
+                          className="rounded-full border border-sky-500/40 px-3 py-1 text-xs text-sky-200 transition-colors hover:border-sky-400 hover:text-sky-100"
+                        >
+                          {item.label} · {formatStatCurrency(item.value)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeScheduledAmountModal}
+                  className="flex-1 rounded-lg border border-gray-600 px-4 py-2 text-gray-200 transition-colors hover:bg-gray-700"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingScheduledAmount}
+                  className={`flex-1 rounded-lg px-4 py-2 font-semibold transition-colors ${
+                    isSavingScheduledAmount
+                      ? 'bg-gray-600 text-gray-300'
+                      : 'bg-sky-600 text-white hover:bg-sky-500'
+                  }`}
+                >
+                  {isSavingScheduledAmount ? '저장 중...' : '저장'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Variable Stat Modal (Mobile & accessibility) */}
+      {statInfoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-lg bg-gray-800 shadow-2xl">
+            <div className="border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-white">최근 3개월 기록</h2>
+                <p className="text-sm text-gray-400 mt-1">{statInfoModal.cost.name}</p>
+              </div>
+              <button
+                onClick={() => setStatInfoModal(null)}
+                className="text-gray-400 transition-colors hover:text-gray-200"
+                aria-label="최근 기록 닫기"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-5">
+              <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-4">
+                {renderVariableStatContent(statInfoModal.payment, statInfoModal.cost)}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    openScheduledAmountEditor(statInfoModal.payment, statInfoModal.cost);
+                    setStatInfoModal(null);
+                  }}
+                  className="flex-1 rounded-lg border border-sky-500/50 px-4 py-2 text-sky-200 transition-colors hover:bg-sky-500/10"
+                >
+                  예정 금액 입력
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatInfoModal(null)}
+                  className="flex-1 rounded-lg border border-gray-600 px-4 py-2 text-gray-200 transition-colors hover:bg-gray-700"
+                >
+                  닫기
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1673,7 +2053,12 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                 <p className="text-sm text-gray-400">고정비 항목</p>
                 <p className="text-lg font-semibold">{processingPayment.cost.name}</p>
                 <p className="text-sm text-gray-400 mt-1">
-                  예정 금액: {formatCurrency(processingPayment.payment.scheduledAmount, currency, exchangeRate)}
+                  예정 금액:{' '}
+                  {processingPayment.payment.scheduledAmount !== null && processingPayment.payment.scheduledAmount !== undefined
+                    ? formatCurrency(processingPayment.payment.scheduledAmount, currency, exchangeRate)
+                    : processingPayment.cost.isFixedAmount
+                      ? formatCurrency(processingPayment.cost.amount, currency, exchangeRate)
+                      : '변동 · 미지정'}
                 </p>
               </div>
 
@@ -1687,7 +2072,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                     step="0.01"
                     value={paymentFormData.actualAmount}
                     onChange={(e) => setPaymentFormData({ ...paymentFormData, actualAmount: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                    className={`${inputFieldClasses} w-full`}
                     placeholder="14500"
                   />
                 </div>
@@ -1699,7 +2084,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                     required
                     value={paymentFormData.paymentDate}
                     onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                    className={`${inputFieldClasses} w-full`}
                   />
                 </div>
 
@@ -1708,7 +2093,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                   <textarea
                     value={paymentFormData.memo}
                     onChange={(e) => setPaymentFormData({ ...paymentFormData, memo: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
+                    className={`${inputFieldClasses} w-full resize-none`}
                     rows={3}
                     placeholder="추가 메모 사항"
                   />

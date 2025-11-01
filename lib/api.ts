@@ -854,9 +854,13 @@ export const api = {
         .update(snakeData)
         .eq('id', id)
         .select()
-        .single()
     );
-    return toCamelCase(data);
+
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      throw new Error('고정비 납부 내역을 찾을 수 없거나 업데이트할 수 없습니다.');
+    }
+
+    return toCamelCase(data[0]);
   },
 
   deleteFixedCostPayment: async (id: string) => {
