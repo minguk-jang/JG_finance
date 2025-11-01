@@ -1104,4 +1104,268 @@ export const api = {
   deleteStudyFollowUp: async (id: string) => {
     await handleRequest(supabase.from('study_followups').delete().eq('id', id));
   },
+
+  // ============================================
+  // Calendar Events
+  // ============================================
+
+  getCalendarEvents: async (params?: {
+    from_date?: string; // ISO 8601
+    to_date?: string; // ISO 8601
+    is_shared?: boolean;
+    created_by?: string;
+  }) => {
+    let query = supabase.from('calendar_events').select('*');
+
+    if (params?.from_date) {
+      query = query.gte('start_at', params.from_date);
+    }
+
+    if (params?.to_date) {
+      query = query.lte('end_at', params.to_date);
+    }
+
+    if (params?.is_shared !== undefined) {
+      query = query.eq('is_shared', params.is_shared);
+    }
+
+    if (params?.created_by) {
+      query = query.eq('created_by', params.created_by);
+    }
+
+    const data = await handleRequest(
+      query.order('start_at', { ascending: true })
+    );
+    return toCamelCase(data);
+  },
+
+  getCalendarEvent: async (id: string) => {
+    const data = await handleRequest(
+      supabase.from('calendar_events').select('*').eq('id', id).single()
+    );
+    return toCamelCase(data);
+  },
+
+  createCalendarEvent: async (eventData: any) => {
+    const snakeData = toSnakeCase(eventData);
+
+    // Add current user as creator if not specified
+    if (!snakeData.created_by) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+      snakeData.created_by = user.id;
+    }
+
+    const data = await handleRequest(
+      supabase.from('calendar_events').insert(snakeData).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateCalendarEvent: async (id: string, eventData: any) => {
+    const snakeData = toSnakeCase(eventData);
+    const data = await handleRequest(
+      supabase.from('calendar_events').update(snakeData).eq('id', id).select().single()
+    );
+    return toCamelCase(data);
+  },
+
+  deleteCalendarEvent: async (id: string) => {
+    await handleRequest(supabase.from('calendar_events').delete().eq('id', id));
+  },
+
+  deleteCalendarEvents: async (ids: string[]) => {
+    // Delete multiple events in batch
+    for (const id of ids) {
+      await handleRequest(supabase.from('calendar_events').delete().eq('id', id));
+    }
+  },
+
+  // ============================================
+  // User Calendar Preferences
+  // ============================================
+
+  getUserCalendarPreferences: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    let data = await handleRequest(
+      supabase
+        .from('user_calendar_preferences')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle()  // Returns null if no data instead of throwing error
+    );
+
+    // If no preferences exist, create default ones
+    if (!data) {
+      data = await api.createDefaultCalendarPreferences(user.id);
+    }
+
+    return toCamelCase(data);
+  },
+
+  getUserCalendarPreferencesForUser: async (userId: string) => {
+    let data = await handleRequest(
+      supabase
+        .from('user_calendar_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle()  // Returns null if no data instead of throwing error
+    );
+
+    // If no preferences exist, create default ones
+    if (!data) {
+      data = await api.createDefaultCalendarPreferences(userId);
+    }
+
+    return toCamelCase(data);
+  },
+
+  updateUserCalendarPreferences: async (preferences: any) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const snakeData = toSnakeCase(preferences);
+
+    const data = await handleRequest(
+      supabase
+        .from('user_calendar_preferences')
+        .update(snakeData)
+        .eq('user_id', user.id)
+        .select()
+        .single()
+    );
+    return toCamelCase(data);
+  },
+
+  // Admin: Create or get default preferences for a user
+  createDefaultCalendarPreferences: async (userId: string) => {
+    const snakeData = {
+      user_id: userId,
+      color_hex: '#0ea5e9',
+      palette_key: 'sky',
+      reminders_default: [{ type: 'notification', minutes_before: 15, method: 'in_app' }],
+      timezone: 'Asia/Seoul',
+      week_starts_on: 1,
+    };
+
+    const data = await handleRequest(
+      supabase
+        .from('user_calendar_preferences')
+        .upsert(snakeData, { onConflict: 'user_id' })
+        .select()
+        .single()
+    );
+    return toCamelCase(data);
+  },
+
+  // ============================================
+  // User Color Preferences
+  // ============================================
+
+  getUserColorPreferences: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    let data = await handleRequest(
+      supabase
+        .from('user_color_preferences')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle()
+    );
+
+    // If no preferences exist, create default ones
+    if (!data) {
+      data = await api.createDefaultColorPreferences(user.id);
+    }
+
+    return toCamelCase(data);
+  },
+
+  createDefaultColorPreferences: async (userId: string) => {
+    const snakeData = {
+      user_id: userId,
+      personal_color: '#0ea5e9',
+      personal_palette_key: 'sky',
+      shared_color: '#ec4899',
+      shared_palette_key: 'pink',
+    };
+
+    const data = await handleRequest(
+      supabase
+        .from('user_color_preferences')
+        .upsert(snakeData, { onConflict: 'user_id' })
+        .select()
+        .single()
+    );
+    return toCamelCase(data);
+  },
+
+  updateUserColorPreferences: async (preferences: any) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const snakeData = toSnakeCase({
+      userId: user.id,
+      ...preferences
+    });
+
+    const data = await handleRequest(
+      supabase
+        .from('user_color_preferences')
+        .upsert(snakeData, { onConflict: 'user_id' })
+        .select()
+        .single()
+    );
+    return toCamelCase(data);
+  },
+
+  // ============================================
+  // Admin Color Management
+  // ============================================
+
+  getAllUserColorPreferences: async () => {
+    const data = await handleRequest(
+      supabase
+        .from('user_color_preferences')
+        .select('*')
+        .order('created_at', { ascending: true })
+    );
+    return toCamelCase(data);
+  },
+
+  getUserColorPreferencesForUser: async (userId: string) => {
+    let data = await handleRequest(
+      supabase
+        .from('user_color_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle()
+    );
+
+    // If no preferences exist, create default ones
+    if (!data) {
+      data = await api.createDefaultColorPreferences(userId);
+    }
+
+    return toCamelCase(data);
+  },
+
+  updateUserColorPreferencesAdmin: async (userId: string, preferences: any) => {
+    const snakeData = toSnakeCase({
+      userId,
+      ...preferences
+    });
+
+    const data = await handleRequest(
+      supabase
+        .from('user_color_preferences')
+        .upsert(snakeData, { onConflict: 'user_id' })
+        .select()
+        .single()
+    );
+    return toCamelCase(data);
+  },
 };

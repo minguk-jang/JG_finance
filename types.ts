@@ -1,5 +1,5 @@
 export type Currency = 'KRW' | 'USD';
-export type Page = 'Dashboard' | 'Expenses' | 'Income' | 'Investments' | 'Issues' | 'Settings' | 'FixedCosts' | 'Notes';
+export type Page = 'Dashboard' | 'Expenses' | 'Income' | 'Investments' | 'Issues' | 'Settings' | 'FixedCosts' | 'Notes' | 'Schedule';
 
 // ============================================
 // Supabase Database Types
@@ -419,6 +419,101 @@ export interface Database {
           completed?: boolean;
         };
       };
+      calendar_events: {
+        Row: {
+          id: string; // UUID
+          title: string;
+          description: string | null;
+          location: string | null;
+          start_at: string; // TIMESTAMPTZ
+          end_at: string; // TIMESTAMPTZ
+          is_all_day: boolean;
+          recurrence_rule: string | null; // RFC 5545 RRULE format
+          reminders: Array<{
+            type: string;
+            minutes_before: number;
+            method: 'in_app' | 'push' | 'email';
+          }>;
+          is_shared: boolean;
+          color_override: string | null;
+          created_by: string; // UUID
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          title: string;
+          description?: string | null;
+          location?: string | null;
+          start_at: string;
+          end_at: string;
+          is_all_day?: boolean;
+          recurrence_rule?: string | null;
+          reminders?: Array<{
+            type: string;
+            minutes_before: number;
+            method: 'in_app' | 'push' | 'email';
+          }>;
+          is_shared?: boolean;
+          color_override?: string | null;
+          created_by: string;
+        };
+        Update: {
+          title?: string;
+          description?: string | null;
+          location?: string | null;
+          start_at?: string;
+          end_at?: string;
+          is_all_day?: boolean;
+          recurrence_rule?: string | null;
+          reminders?: Array<{
+            type: string;
+            minutes_before: number;
+            method: 'in_app' | 'push' | 'email';
+          }>;
+          is_shared?: boolean;
+          color_override?: string | null;
+        };
+      };
+      user_calendar_preferences: {
+        Row: {
+          id: string; // UUID
+          user_id: string; // UUID
+          color_hex: string;
+          palette_key: string;
+          reminders_default: Array<{
+            type: string;
+            minutes_before: number;
+            method: 'in_app' | 'push' | 'email';
+          }>;
+          timezone: string;
+          week_starts_on: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          color_hex?: string;
+          palette_key?: string;
+          reminders_default?: Array<{
+            type: string;
+            minutes_before: number;
+            method: 'in_app' | 'push' | 'email';
+          }>;
+          timezone?: string;
+          week_starts_on?: number;
+        };
+        Update: {
+          color_hex?: string;
+          palette_key?: string;
+          reminders_default?: Array<{
+            type: string;
+            minutes_before: number;
+            method: 'in_app' | 'push' | 'email';
+          }>;
+          timezone?: string;
+          week_starts_on?: number;
+        };
+      };
     };
   };
 }
@@ -549,6 +644,8 @@ export interface FixedCost {
   isActive: boolean;
   isFixedAmount: boolean;
   memo?: string;
+  isShared: boolean; // 공용 일정 여부
+  colorOverride: string | null; // 색상 커스터마이징 (hex color or palette key)
   createdBy: string; // UUID from users.id
   category?: Category; // Optional joined data
 }
@@ -609,3 +706,112 @@ export interface StudyFollowUp {
   completed: boolean;
   createdAt: string;
 }
+
+// ============================================
+// Calendar Types
+// ============================================
+
+export interface CalendarReminder {
+  type: string;
+  minutesBefore: number;
+  method: 'in_app' | 'push' | 'email';
+}
+
+export interface CalendarEvent {
+  id: string; // UUID
+  title: string;
+  description: string | null;
+  location: string | null;
+  startAt: string; // ISO 8601 with timezone
+  endAt: string; // ISO 8601 with timezone
+  isAllDay: boolean;
+  recurrenceRule: string | null; // RFC 5545 RRULE format
+  reminders: CalendarReminder[];
+  isShared: boolean;
+  colorOverride: string | null;
+  createdBy: string; // UUID
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserCalendarPreferences {
+  id: string; // UUID
+  userId: string; // UUID
+  colorHex: string;
+  paletteKey: string;
+  remindersDefault: CalendarReminder[];
+  timezone: string; // e.g., 'Asia/Seoul'
+  weekStartsOn: number; // 0 = Sunday, 1 = Monday
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================
+// Calendar Color Palettes
+// ============================================
+
+export type CalendarPaletteKey = 'sky' | 'coral' | 'orange' | 'tan' | 'amber' | 'dark' | 'custom';
+
+export interface CalendarPalette {
+  key: CalendarPaletteKey;
+  name: string;
+  hex: string;
+  description?: string;
+}
+
+export const CALENDAR_COLOR_PALETTES: Record<CalendarPaletteKey, CalendarPalette> = {
+  sky: {
+    key: 'sky',
+    name: 'Sky Blue',
+    hex: '#0ea5e9',
+    description: 'Light sky blue - modern and calm'
+  },
+  coral: {
+    key: 'coral',
+    name: 'Coral Red',
+    hex: '#FF7F50',
+    description: 'Hermès-inspired coral red'
+  },
+  orange: {
+    key: 'orange',
+    name: 'Bright Orange',
+    hex: '#FF6F61',
+    description: 'Vivid orange - energetic'
+  },
+  tan: {
+    key: 'tan',
+    name: 'Tan',
+    hex: '#E3985B',
+    description: 'Warm tan - sophisticated'
+  },
+  amber: {
+    key: 'amber',
+    name: 'Amber Gold',
+    hex: '#FF8F00',
+    description: 'Golden amber - premium'
+  },
+  dark: {
+    key: 'dark',
+    name: 'Dark Brown',
+    hex: '#3D3B30',
+    description: 'Deep brown - elegant'
+  },
+  custom: {
+    key: 'custom',
+    name: 'Custom Color',
+    hex: '#0ea5e9',
+    description: 'User-defined custom color'
+  }
+};
+
+// 사용자 색상 선호도
+export interface UserColorPreferences {
+  id: string;
+  userId: string; // UUID from users.id
+  personalColor: string; // 개인 일정 색상 (hex 또는 palette key)
+  personalPaletteKey: string; // 개인 일정 팔레트 키
+  sharedColor: string; // 공용 일정 색상 (hex 또는 palette key)
+  sharedPaletteKey: string; // 공용 일정 팔레트 키
+  createdAt: string;
+  updatedAt: string;
+};

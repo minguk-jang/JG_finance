@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Card from './ui/Card';
-import { User, UserRole, Budget, Category } from '../types';
+import { User, UserRole, Budget, Category, UserColorPreferences, CALENDAR_COLOR_PALETTES } from '../types';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { getLocalDateString } from '../lib/dateUtils';
@@ -20,6 +20,17 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
   const [exchangeRateError, setExchangeRateError] = useState<string | null>(null);
   const [exchangeRateMessage, setExchangeRateMessage] = useState<string | null>(null);
   const [isSavingExchangeRate, setIsSavingExchangeRate] = useState<boolean>(false);
+
+  // User color management state (Admin only)
+  const [allUserColors, setAllUserColors] = useState<UserColorPreferences[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [userColorFormData, setUserColorFormData] = useState({
+    personalColor: '#0ea5e9',
+    personalPaletteKey: 'sky',
+    sharedColor: '#ec4899',
+    sharedPaletteKey: 'pink'
+  });
+  const [isSavingUserColors, setIsSavingUserColors] = useState(false);
 
   // User modal state
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -55,6 +66,9 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
   // Fetch data on mount
   useEffect(() => {
     fetchData();
+    if (isAdmin()) {
+      loadAllUserColors();
+    }
   }, []);
 
   useEffect(() => {
@@ -90,6 +104,63 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
       setExchangeRateError(null);
     } finally {
       setIsSavingExchangeRate(false);
+    }
+  };
+
+  const loadAllUserColors = async () => {
+    if (!isAdmin()) return;
+
+    try {
+      const colors = await api.getAllUserColorPreferences();
+      setAllUserColors(colors);
+    } catch (error) {
+      console.error('Failed to load user colors:', error);
+    }
+  };
+
+  const handleUserSelect = async (userId: string) => {
+    setSelectedUserId(userId);
+
+    if (!userId) {
+      setUserColorFormData({
+        personalColor: '#0ea5e9',
+        personalPaletteKey: 'sky',
+        sharedColor: '#ec4899',
+        sharedPaletteKey: 'pink'
+      });
+      return;
+    }
+
+    try {
+      const colors = await api.getUserColorPreferencesForUser(userId);
+      setUserColorFormData({
+        personalColor: colors.personalColor,
+        personalPaletteKey: colors.personalPaletteKey,
+        sharedColor: colors.sharedColor,
+        sharedPaletteKey: colors.sharedPaletteKey
+      });
+    } catch (error) {
+      console.error('Failed to load user colors:', error);
+      alert('사용자 색상 설정을 불러오는데 실패했습니다.');
+    }
+  };
+
+  const handleSaveUserColors = async () => {
+    if (!selectedUserId) {
+      alert('사용자를 선택해주세요.');
+      return;
+    }
+
+    setIsSavingUserColors(true);
+    try {
+      await api.updateUserColorPreferencesAdmin(selectedUserId, userColorFormData);
+      await loadAllUserColors();
+      alert('색상 설정이 저장되었습니다.');
+    } catch (error: any) {
+      console.error('Failed to save user colors:', error);
+      alert(error.message || '색상 설정 저장에 실패했습니다.');
+    } finally {
+      setIsSavingUserColors(false);
     }
   };
 
@@ -630,6 +701,113 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
           </table>
         </div>
       </Card>
+
+      {/* User Color Management (Admin Only) */}
+      {isAdmin() && (
+        <Card title="사용자별 일정 색상 관리">
+          <p className="text-sm text-gray-400 mb-4">
+            각 사용자의 개인 일정과 공용 일정 색상을 관리합니다. 새로 생성되는 일정부터 적용됩니다.
+          </p>
+
+          <div className="space-y-6">
+            {/* User Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                사용자 선택
+              </label>
+              <select
+                value={selectedUserId}
+                onChange={(e) => handleUserSelect(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition"
+              >
+                <option value="">-- 사용자를 선택하세요 --</option>
+                {users.filter(u => u.status === 'approved').map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} ({user.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedUserId && (
+              <>
+                {/* Personal Color */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    개인 일정 색상
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(CALENDAR_COLOR_PALETTES).map(([key, palette]) => (
+                      <button
+                        key={key}
+                        onClick={() => setUserColorFormData({
+                          ...userColorFormData,
+                          personalColor: palette.hex,
+                          personalPaletteKey: palette.key
+                        })}
+                        className={`w-12 h-12 rounded-lg border-2 transition ${
+                          userColorFormData.personalPaletteKey === palette.key
+                            ? 'border-white ring-2 ring-white'
+                            : 'border-gray-600 hover:border-gray-500'
+                        }`}
+                        style={{ backgroundColor: palette.hex }}
+                        title={palette.name}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    선택됨: {CALENDAR_COLOR_PALETTES[userColorFormData.personalPaletteKey as keyof typeof CALENDAR_COLOR_PALETTES]?.name || 'Unknown'} ({userColorFormData.personalColor})
+                  </p>
+                </div>
+
+                {/* Shared Color */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    공용 일정 색상
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(CALENDAR_COLOR_PALETTES).map(([key, palette]) => (
+                      <button
+                        key={key}
+                        onClick={() => setUserColorFormData({
+                          ...userColorFormData,
+                          sharedColor: palette.hex,
+                          sharedPaletteKey: palette.key
+                        })}
+                        className={`w-12 h-12 rounded-lg border-2 transition ${
+                          userColorFormData.sharedPaletteKey === palette.key
+                            ? 'border-white ring-2 ring-white'
+                            : 'border-gray-600 hover:border-gray-500'
+                        }`}
+                        style={{ backgroundColor: palette.hex }}
+                        title={palette.name}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    선택됨: {CALENDAR_COLOR_PALETTES[userColorFormData.sharedPaletteKey as keyof typeof CALENDAR_COLOR_PALETTES]?.name || 'Unknown'} ({userColorFormData.sharedColor})
+                  </p>
+                </div>
+
+                {/* Save Button */}
+                <div className="pt-4 flex justify-end">
+                  <button
+                    onClick={handleSaveUserColors}
+                    disabled={isSavingUserColors}
+                    className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition ${
+                      isSavingUserColors
+                        ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                        : 'bg-sky-600 hover:bg-sky-700 text-white'
+                    }`}
+                  >
+                    {isSavingUserColors ? '저장 중...' : '색상 저장'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Budget Management */}
       <Card title="예산 설정">

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Currency, Page } from '../types';
+import { Currency, Page, CalendarEvent } from '../types';
 import Card from './ui/Card';
+import SharedCalendar from './calendar/SharedCalendar';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
 import { api } from '../lib/api';
 import { getLocalDateString } from '../lib/dateUtils';
@@ -23,11 +24,11 @@ const QuickAccessCard: React.FC<QuickAccessCardProps> = React.memo(({ icon, labe
   return (
     <button
       onClick={onClick}
-      className={`${color} p-3 sm:p-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer flex flex-col items-center justify-center gap-1 sm:gap-2`}
+      className={`${color} p-2 sm:p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer flex flex-col items-center justify-center gap-1`}
     >
-      <div className="text-2xl sm:text-3xl">{icon}</div>
-      <div className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800">{count}</div>
-      <div className="text-sm sm:text-base text-gray-700 opacity-90 font-medium">{label}</div>
+      <div className="text-xl sm:text-2xl">{icon}</div>
+      <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800">{count}</div>
+      <div className="text-xs sm:text-sm text-gray-700 opacity-90 font-medium">{label}</div>
     </button>
   );
 });
@@ -51,6 +52,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
   const [notes, setNotes] = useState<any[]>([]);
   const [fixedCostPayments, setFixedCostPayments] = useState<any[]>([]);
   const [issues, setIssues] = useState<any[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
@@ -60,22 +62,16 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
     const fetchData = async () => {
       try {
         console.log('[Dashboard] Starting data fetch...');
-        // 현재 월만 필터링하여 가져오기 (성능 최적화)
-        const currentMonth = getLocalDateString().slice(0, 7); // YYYY-MM
-        const [year, month] = currentMonth.split('-').map(Number);
-        const lastDay = new Date(year, month, 0).getDate();
-        const fromDate = `${currentMonth}-01`;
-        const toDate = `${currentMonth}-${lastDay.toString().padStart(2, '0')}`;
-        console.log('[Dashboard] Fetching data for:', fromDate, 'to', toDate);
 
-        const [expensesData, categoriesData, budgetsData, holdingsData, transactionsData, notesData, issuesData] = await Promise.all([
-          api.getExpenses({ from_date: fromDate, to_date: toDate }), // 현재 월만 가져오기
+        const [expensesData, categoriesData, budgetsData, holdingsData, transactionsData, notesData, issuesData, eventsData] = await Promise.all([
+          api.getExpenses(), // 모든 월 데이터 가져오기 (월 선택 기능 지원)
           api.getCategories(),
-          api.getBudgets(), // 예산은 모든 데이터 필요
+          api.getBudgets(),
           api.getHoldings(),
-          api.getInvestmentTransactions(), // 거래 내역은 누적 계산에 필요
+          api.getInvestmentTransactions(),
           api.getNotes().catch(() => []),
           api.getIssues().catch(() => []),
+          api.getCalendarEvents().catch(() => []), // 모든 캘린더 이벤트 가져오기
         ]);
 
         setExpenses(Array.isArray(expensesData) ? expensesData : []);
@@ -93,6 +89,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
         setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
         setNotes(Array.isArray(notesData) ? notesData : []);
         setIssues(Array.isArray(issuesData) ? issuesData : []);
+        setCalendarEvents(Array.isArray(eventsData) ? eventsData : []);
         console.log('[Dashboard] Data fetch completed successfully');
       } catch (err) {
         console.error('[Dashboard] Failed to fetch dashboard data:', err);
@@ -434,12 +431,24 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
             onClick={() => onPageChange('Issues')}
           />
           <button
-            className="bg-gradient-to-r from-pink-200 to-rose-200 hover:from-pink-300 hover:to-rose-300 p-3 sm:p-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer flex flex-col items-center justify-center gap-1 sm:gap-2"
+            className="bg-gradient-to-r from-pink-200 to-rose-200 hover:from-pink-300 hover:to-rose-300 p-2 sm:p-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer flex flex-col items-center justify-center gap-1"
           >
-            <div className="text-3xl sm:text-4xl">💖</div>
+            <div className="text-2xl sm:text-3xl">💖</div>
             <div className="text-xs sm:text-sm text-gray-700 font-semibold">쭈여니 사랑해</div>
           </button>
         </div>
+      </div>
+
+      {/* Calendar Preview */}
+      <div onClick={() => onPageChange('Schedule')} className="cursor-pointer">
+        <SharedCalendar
+          events={calendarEvents}
+          loading={loading}
+          onEventClick={() => onPageChange('Schedule')}
+          yearMonth={activeMonth}
+          theme="dark"
+          compact={true}
+        />
       </div>
 
       {/* 상세 정보 토글 */}

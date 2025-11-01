@@ -78,6 +78,8 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     endDate: '',
     memo: '',
     isFixedAmount: true,
+    isShared: false,
+    colorOverride: null as string | null,
   });
 
   // Payment form state
@@ -789,6 +791,19 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
     }
   };
 
+  // Handle share toggle
+  const handleShareToggle = async (cost: FixedCost) => {
+    try {
+      const newSharedStatus = !cost.isShared;
+      await api.updateFixedCost(cost.id, {
+        isShared: newSharedStatus,
+      });
+      await fetchData();
+    } catch (err: any) {
+      setError(err.message || '공유 설정 변경에 실패했습니다.');
+    }
+  };
+
   // Handle form submission for add/edit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -803,6 +818,8 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
         endDate: formData.endDate || null,
         memo: formData.memo || null,
         isFixedAmount: formData.isFixedAmount,
+        isShared: formData.isShared,
+        colorOverride: formData.colorOverride,
       };
 
       let savedCost: FixedCost | null = null;
@@ -841,6 +858,8 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       endDate: '',
       memo: '',
       isFixedAmount: true,
+      isShared: false,
+      colorOverride: null,
     });
   };
 
@@ -861,6 +880,8 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
       endDate: cost.endDate || '',
       memo: cost.memo || '',
       isFixedAmount: cost.isFixedAmount ?? true,
+      isShared: cost.isShared ?? false,
+      colorOverride: cost.colorOverride || null,
     });
     setEditingCost(cost);
     setSelectedExpense(null);
@@ -1130,7 +1151,18 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                       <span className="text-2xl">{isPaid ? '✅' : '⏳'}</span>
                     </td>
                     <td className="py-3 px-4">
-                      <div className="font-medium">{cost.name}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium">{cost.name}</div>
+                        <button
+                          onClick={() => handleShareToggle(cost)}
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold transition-colors ${
+                            cost.isShared ? 'bg-pink-600 text-white hover:bg-pink-700' : 'bg-gray-600 text-gray-200 hover:bg-gray-500'
+                          }`}
+                          title={cost.isShared ? '모든 사용자가 볼 수 있는 공용 일정입니다. 클릭하여 개인 일정으로 변경' : '본인만 볼 수 있는 개인 일정입니다. 클릭하여 공용 일정으로 변경'}
+                        >
+                          {cost.isShared ? '공용' : '개인'}
+                        </button>
+                      </div>
                       <div className="text-xs text-gray-500">{cost.category?.name || '-'}</div>
                     </td>
                     <td className="py-3 px-4">
@@ -1188,7 +1220,7 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
                         {canProcessPayment && (
                           <button
                             onClick={() => openPaymentModal(payment)}
@@ -1250,7 +1282,18 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">{isPaid ? '✅' : '⏳'}</span>
                     <div>
-                      <h3 className="font-semibold">{cost.name}</h3>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold">{cost.name}</h3>
+                        <button
+                          onClick={() => handleShareToggle(cost)}
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold transition-colors ${
+                            cost.isShared ? 'bg-pink-600 text-white hover:bg-pink-700' : 'bg-gray-600 text-gray-200 hover:bg-gray-500'
+                          }`}
+                          title={cost.isShared ? '모든 사용자가 볼 수 있는 공용 일정입니다. 클릭하여 개인 일정으로 변경' : '본인만 볼 수 있는 개인 일정입니다. 클릭하여 공용 일정으로 변경'}
+                        >
+                          {cost.isShared ? '공용' : '개인'}
+                        </button>
+                      </div>
                       <p className="text-sm text-gray-400">{cost.category?.name || '-'}</p>
                     </div>
                   </div>
@@ -1698,6 +1741,26 @@ const FixedCosts: React.FC<FixedCostsProps> = ({ currency, exchangeRate }) => {
                     }`}
                   >
                     {formData.isFixedAmount ? '고정' : '변동'}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-gray-700/60 border border-gray-600 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium">공유 여부</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {formData.isShared
+                        ? '모든 사용자가 볼 수 있는 공용 일정입니다.'
+                        : '본인만 볼 수 있는 개인 일정입니다.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, isShared: !formData.isShared })}
+                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+                      formData.isShared ? 'bg-pink-600 text-white' : 'bg-gray-600 text-gray-200'
+                    }`}
+                  >
+                    {formData.isShared ? '공용' : '개인'}
                   </button>
                 </div>
 

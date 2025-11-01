@@ -21,6 +21,7 @@ const Issues = lazy(() => import('./components/Issues'));
 const Settings = lazy(() => import('./components/Settings'));
 const FixedCosts = lazy(() => import('./components/FixedCosts'));
 const Notes = lazy(() => import('./components/Notes'));
+const Schedule = lazy(() => import('./components/Schedule'));
 
 const App: React.FC = () => {
   const { user, profile, loading, profileLoading, profileError } = useAuth();
@@ -225,6 +226,8 @@ const App: React.FC = () => {
         return <FixedCosts currency={currency} exchangeRate={exchangeRate} />;
       case 'Notes':
         return <Notes />;
+      case 'Schedule':
+        return <Schedule />;
       case 'Settings':
         return renderSettings();
       default:
