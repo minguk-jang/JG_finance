@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Currency, Page, CalendarEvent } from '../types';
+import { Currency, Page, CalendarEvent, UserColorPreferences } from '../types';
 import Card from './ui/Card';
 import SharedCalendar from './calendar/SharedCalendar';
 import { DEFAULT_USD_KRW_EXCHANGE_RATE } from '../constants';
@@ -53,6 +53,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
   const [fixedCostPayments, setFixedCostPayments] = useState<any[]>([]);
   const [issues, setIssues] = useState<any[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [colorPreferences, setColorPreferences] = useState<UserColorPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
@@ -63,7 +64,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
       try {
         console.log('[Dashboard] Starting data fetch...');
 
-        const [expensesData, categoriesData, budgetsData, holdingsData, transactionsData, notesData, issuesData, eventsData] = await Promise.all([
+        const [expensesData, categoriesData, budgetsData, holdingsData, transactionsData, notesData, issuesData, eventsData, colorPrefsData] = await Promise.all([
           api.getExpenses(), // 모든 월 데이터 가져오기 (월 선택 기능 지원)
           api.getCategories(),
           api.getBudgets(),
@@ -72,6 +73,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
           api.getNotes().catch(() => []),
           api.getIssues().catch(() => []),
           api.getCalendarEvents().catch(() => []), // 모든 캘린더 이벤트 가져오기
+          api.getUserColorPreferences().catch(() => null), // 사용자 색상 설정 가져오기
         ]);
 
         setExpenses(Array.isArray(expensesData) ? expensesData : []);
@@ -90,6 +92,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
         setNotes(Array.isArray(notesData) ? notesData : []);
         setIssues(Array.isArray(issuesData) ? issuesData : []);
         setCalendarEvents(Array.isArray(eventsData) ? eventsData : []);
+        setColorPreferences(colorPrefsData);
         console.log('[Dashboard] Data fetch completed successfully');
       } catch (err) {
         console.error('[Dashboard] Failed to fetch dashboard data:', err);
@@ -448,6 +451,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currency, exchangeRate, onPageCha
           yearMonth={activeMonth}
           theme="dark"
           compact={true}
+          colorPreferences={colorPreferences}
         />
       </div>
 

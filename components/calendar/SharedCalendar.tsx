@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { CalendarEvent, CALENDAR_COLOR_PALETTES } from '../../types';
+import { CalendarEvent, CALENDAR_COLOR_PALETTES, UserColorPreferences } from '../../types';
 import { getMonthRange, expandRecurrences, getLocalDateTimeWithTimezone } from '../../lib/dateUtils';
 
 interface SharedCalendarProps {
@@ -9,6 +9,7 @@ interface SharedCalendarProps {
   yearMonth?: string; // 'YYYY-MM', defaults to current month
   theme?: 'dark' | 'light';
   compact?: boolean; // true = 작은 대시보드 버전, false = 전체 버전
+  colorPreferences?: UserColorPreferences | null;
 }
 
 /**
@@ -25,7 +26,8 @@ const SharedCalendar: React.FC<SharedCalendarProps> = ({
   onEventClick,
   yearMonth = new Date().toISOString().slice(0, 7),
   theme = 'dark',
-  compact = true
+  compact = true,
+  colorPreferences = null
 }) => {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
@@ -139,9 +141,12 @@ const SharedCalendar: React.FC<SharedCalendarProps> = ({
     if (event.colorOverride) {
       return event.colorOverride;
     }
-    // 기본 색상 (팔레트에서)
-    const palette = CALENDAR_COLOR_PALETTES['sky'];
-    return palette.hex;
+    // Use color from user preferences based on isShared
+    if (colorPreferences) {
+      return event.isShared ? colorPreferences.sharedColor : colorPreferences.personalColor;
+    }
+    // Fallback to default colors
+    return event.isShared ? '#ec4899' : '#0ea5e9';
   };
 
   // 현재 월 확인
