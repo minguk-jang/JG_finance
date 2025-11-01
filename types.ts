@@ -750,7 +750,7 @@ export interface UserCalendarPreferences {
 // Calendar Color Palettes
 // ============================================
 
-export type CalendarPaletteKey = 'sky' | 'coral' | 'orange' | 'tan' | 'amber' | 'dark' | 'custom';
+export type CalendarPaletteKey = 'sky' | 'coral' | 'orange' | 'tan' | 'amber' | 'dark' | 'mint' | 'yellow' | 'lavender' | 'pink' | 'pastelBlue' | 'sage' | 'lightCoral' | 'custom';
 
 export interface CalendarPalette {
   key: CalendarPaletteKey;
@@ -795,6 +795,48 @@ export const CALENDAR_COLOR_PALETTES: Record<CalendarPaletteKey, CalendarPalette
     name: 'Dark Brown',
     hex: '#3D3B30',
     description: 'Deep brown - elegant'
+  },
+  mint: {
+    key: 'mint',
+    name: '하늘 민트',
+    hex: '#A8E6CF',
+    description: '상쾌하고 부드러운 민트빛'
+  },
+  yellow: {
+    key: 'yellow',
+    name: '파스텔 옐로우',
+    hex: '#FFF9C4',
+    description: '따뜻하고 밝지만 눈부시지 않음'
+  },
+  lavender: {
+    key: 'lavender',
+    name: '라벤더 퍼플',
+    hex: '#C5CAE9',
+    description: '차분하고 안정적인 느낌'
+  },
+  pink: {
+    key: 'pink',
+    name: '살구 핑크',
+    hex: '#FFD1DC',
+    description: '부드럽고 친근한 인상'
+  },
+  pastelBlue: {
+    key: 'pastelBlue',
+    name: '파스텔 블루',
+    hex: '#B3E5FC',
+    description: '맑고 시원한 느낌'
+  },
+  sage: {
+    key: 'sage',
+    name: '세이지 그린',
+    hex: '#C8E6C9',
+    description: '자연스럽고 평화로운 분위기'
+  },
+  lightCoral: {
+    key: 'lightCoral',
+    name: '라이트 코랄',
+    hex: '#FFCCBC',
+    description: '포근하고 감성적인 느낌'
   },
   custom: {
     key: 'custom',
