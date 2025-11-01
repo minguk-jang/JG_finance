@@ -208,11 +208,7 @@ const EventModal: React.FC<EventModalProps> = ({
       const startAt = getLocalDateTimeWithTimezone(startDate, 'Asia/Seoul');
       const endAt = getLocalDateTimeWithTimezone(endDate, 'Asia/Seoul');
 
-      // Determine color based on isShared and user color preferences
-      const colorOverride = userColors
-        ? (formData.isShared ? userColors.sharedColor : userColors.personalColor)
-        : null;
-
+      // Don't save color to DB - let it be determined dynamically by user preferences
       const eventData = {
         title: formData.title,
         description: formData.description || null,
@@ -221,7 +217,7 @@ const EventModal: React.FC<EventModalProps> = ({
         endAt,
         isAllDay: formData.isAllDay,
         isShared: formData.isShared,
-        colorOverride: event ? event.colorOverride : colorOverride, // Preserve existing color on update, apply user color on create
+        colorOverride: null, // Always use user preference colors dynamically
         recurrenceRule: buildRecurrenceRule(),
         reminders: formData.reminders
       };

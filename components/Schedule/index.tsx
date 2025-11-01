@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { CalendarEvent, UserCalendarPreferences } from '../../types';
+import { CalendarEvent, UserCalendarPreferences, UserColorPreferences } from '../../types';
 import Card from '../ui/Card';
 import { useAuth } from '../../lib/auth';
 import { api } from '../../lib/api';
@@ -23,6 +23,7 @@ const Schedule: React.FC<ScheduleProps> = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [preferences, setPreferences] = useState<UserCalendarPreferences | null>(null);
+  const [colorPreferences, setColorPreferences] = useState<UserColorPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +59,10 @@ const Schedule: React.FC<ScheduleProps> = () => {
         // Get user preferences
         const prefs = await api.getUserCalendarPreferences();
         setPreferences(prefs);
+
+        // Get user color preferences
+        const colorPrefs = await api.getUserColorPreferences();
+        setColorPreferences(colorPrefs);
 
         // Get events for the current month/week
         if (getDateRange) {
@@ -345,8 +350,11 @@ const Schedule: React.FC<ScheduleProps> = () => {
                     </div>
                     <div className="space-y-0.5 sm:space-y-1">
                       {getEventsForDate(day).map((event, idx) => {
-                        // 설정에서 선택한 색상 또는 기본 색상 사용
-                        const backgroundColor = event.colorOverride || preferences?.colorHex || '#0ea5e9';
+                        // Use color from user preferences based on isShared
+                        const backgroundColor = event.colorOverride ||
+                          (event.isShared
+                            ? (colorPreferences?.sharedColor || '#ec4899')
+                            : (colorPreferences?.personalColor || '#0ea5e9'));
 
                         return (
                           <div
@@ -405,6 +413,7 @@ const Schedule: React.FC<ScheduleProps> = () => {
           onClose={() => setShowDetailsModal(false)}
           onEdit={handleEditEvent}
           isOwner={isAdmin && selectedEvent.createdBy === user?.id}
+          colorPreferences={colorPreferences}
         />
       )}
     </div>
