@@ -19,6 +19,7 @@ interface SharedCalendarProps {
  * - Dashboard 하단에 공용 캘린더 미리보기로 사용
  * - Settings에서 색상 레전드 표시
  * - 읽기 전용 (편집 기능 없음)
+ * - 여러 날짜에 걸친 이벤트는 연결된 막대로 표시
  */
 const SharedCalendar: React.FC<SharedCalendarProps> = ({
   events,
@@ -94,44 +95,114 @@ const SharedCalendar: React.FC<SharedCalendarProps> = ({
     return expanded;
   }, [events, monthRange]);
 
-  // 날짜별 이벤트 그룹화
-  const eventsByDate = useMemo(() => {
-    const grouped: Record<string, Array<CalendarEvent & { expandedStartAt: string }>> = {};
-
-    for (const event of expandedEvents) {
-      const dateStr = event.expandedStartAt.split('T')[0];
-      if (!grouped[dateStr]) {
-        grouped[dateStr] = [];
-      }
-      grouped[dateStr].push(event);
-    }
-
-    return grouped;
-  }, [expandedEvents]);
-
   // 캘린더 그리드 생성
-  const weeks: (number | null)[][] = [];
-  let week: (number | null)[] = [];
+  const calendarDays = useMemo(() => {
+    const days: (number | null)[] = [];
 
-  // 월의 첫 날 요일에 맞춰 빈 셀 추가 (firstDay 사용)
-  for (let i = 0; i < firstDay.getDay(); i++) {
-    week.push(null);
-  }
-
-  for (let day = 1; day <= lastDay.getDate(); day++) {
-    week.push(day);
-    if (week.length === 7) {
-      weeks.push(week);
-      week = [];
+    // 월의 첫 날 요일에 맞춰 빈 셀 추가
+    for (let i = 0; i < firstDay.getDay(); i++) {
+      days.push(null);
     }
+
+    // 월의 날짜들
+    for (let day = 1; day <= lastDay.getDate(); day++) {
+      days.push(day);
+    }
+
+    return days;
+  }, [firstDay, lastDay]);
+
+  // 주 단위로 분할
+  const calendarWeeks = useMemo(() => {
+    const weeks: (number | null)[][] = [];
+    for (let i = 0; i < calendarDays.length; i += 7) {
+      weeks.push(calendarDays.slice(i, i + 7));
+    }
+    return weeks;
+  }, [calendarDays]);
+
+  // 이벤트 위치 계산
+  interface EventPosition {
+    event: CalendarEvent & { expandedStartAt: string };
+    dayIndex: number;
+    span: number;
+    row: number;
   }
 
-  while (week.length > 0 && week.length < 7) {
-    week.push(null);
-  }
-  if (week.length > 0) {
-    weeks.push(week);
-  }
+  const getWeekEventPositions = (weekDays: (number | null)[]): EventPosition[][] => {
+    const positions: EventPosition[] = [];
+
+    weekDays.forEach((day, dayIndex) => {
+      if (!day) return;
+
+      expandedEvents.forEach((event) => {
+        const eventStart = new Date(event.startAt);
+        const eventEnd = new Date(event.endAt);
+
+        // 이 날짜에 이벤트가 시작하는지 확인
+        if (
+          eventStart.getFullYear() === year &&
+          eventStart.getMonth() === month - 1 &&
+          eventStart.getDate() === day
+        ) {
+          // span 계산 (이 주에서 며칠 동안 표시되는지)
+          let span = 1;
+          for (let i = dayIndex + 1; i < 7; i++) {
+            const nextDay = weekDays[i];
+            if (!nextDay) break;
+
+            const checkDate = new Date(year, month - 1, nextDay, 0, 0, 0);
+            if (checkDate < eventEnd) {
+              span++;
+            } else {
+              break;
+            }
+          }
+
+          positions.push({
+            event,
+            dayIndex,
+            span,
+            row: 0
+          });
+        }
+      });
+    });
+
+    // 날짜순, span 큰 순으로 정렬
+    positions.sort((a, b) => {
+      if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+      return b.span - a.span;
+    });
+
+    // 행 배치 (겹치지 않도록)
+    const rows: EventPosition[][] = [];
+    positions.forEach((pos) => {
+      let placed = false;
+      for (let r = 0; r < rows.length; r++) {
+        const row = rows[r];
+        const hasOverlap = row.some((existing) => {
+          const existingEnd = existing.dayIndex + existing.span;
+          const posEnd = pos.dayIndex + pos.span;
+          return !(pos.dayIndex >= existingEnd || existing.dayIndex >= posEnd);
+        });
+
+        if (!hasOverlap) {
+          pos.row = r;
+          row.push(pos);
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed) {
+        pos.row = rows.length;
+        rows.push([pos]);
+      }
+    });
+
+    return rows;
+  };
 
   // 요일 이름
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -154,9 +225,7 @@ const SharedCalendar: React.FC<SharedCalendarProps> = ({
   const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month - 1;
 
   // 컴팩트 모드 크기
-  const cellSizeClass = compact ? 'h-12 sm:h-16' : 'h-20 sm:h-24';
   const textSizeClass = compact ? 'text-xs sm:text-sm' : 'text-sm';
-  const eventSizeClass = compact ? 'text-xs px-1 py-0.5' : 'text-xs px-2 py-1';
 
   return (
     <div
@@ -177,7 +246,7 @@ const SharedCalendar: React.FC<SharedCalendarProps> = ({
 
       {/* 로딩 상태 */}
       {loading && (
-        <div className={`flex items-center justify-center ${cellSizeClass} ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}`}>
+        <div className={`flex items-center justify-center h-64 ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'}`}>
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-sky-500"></div>
         </div>
       )}
@@ -198,89 +267,103 @@ const SharedCalendar: React.FC<SharedCalendarProps> = ({
             ))}
           </div>
 
-          {/* 캘린더 그리드 */}
-          <div className={`grid grid-cols-7`}>
-            {weeks.map((week, weekIdx) =>
-              week.map((day, dayIdx) => {
-                const dateStr = day
-                  ? `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                  : null;
-                const dayEvents = dateStr ? (eventsByDate[dateStr] || []) : [];
-                const isToday = isCurrentMonth && day === today.getDate();
+          {/* 캘린더 그리드 - 주 단위 */}
+          <div className="space-y-1">
+            {calendarWeeks.map((weekDays, weekIndex) => {
+              const eventRows = getWeekEventPositions(weekDays);
+              const maxRows = Math.max(eventRows.length, 1);
+              const minHeight = compact ? 60 : 80;
+              const rowHeight = compact ? 20 : 24;
 
-                return (
+              return (
+                <div key={weekIndex} className="relative">
+                  {/* 날짜 셀 */}
                   <div
-                    key={`${weekIdx}-${dayIdx}`}
-                    className={`
-                      ${cellSizeClass} border
-                      ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}
-                      ${isToday ? (theme === 'dark' ? 'bg-sky-900' : 'bg-blue-50') : theme === 'dark' ? 'bg-gray-800' : 'bg-white'}
-                      p-1 sm:p-2 overflow-hidden
-                      ${day ? 'cursor-default' : ''}
-                    `}
+                    className="grid grid-cols-7 gap-0.5"
+                    style={{ minHeight: `${minHeight + maxRows * rowHeight}px` }}
                   >
-                    {day && (
-                      <>
-                        {/* 날짜 */}
+                    {weekDays.map((day, dayIndex) => {
+                      const isToday = isCurrentMonth && day === today.getDate();
+
+                      return (
                         <div
+                          key={dayIndex}
                           className={`
-                            font-semibold mb-0.5 sm:mb-1
-                            ${textSizeClass}
-                            ${
-                              isToday
-                                ? theme === 'dark'
-                                  ? 'text-sky-300'
-                                  : 'text-sky-600'
-                                : theme === 'dark'
-                                ? 'text-gray-300'
-                                : 'text-gray-700'
-                            }
+                            relative border p-1 sm:p-2
+                            ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}
+                            ${isToday ? (theme === 'dark' ? 'bg-sky-900/30' : 'bg-blue-50') : theme === 'dark' ? 'bg-gray-800' : 'bg-white'}
                           `}
                         >
-                          {day}
-                        </div>
-
-                        {/* 이벤트 목록 */}
-                        <div className="space-y-0.5 sm:space-y-1">
-                          {dayEvents.slice(0, compact ? 2 : 3).map((event, idx) => (
-                            <div
-                              key={`${event.id}-${idx}`}
-                              onClick={() => {
-                                setSelectedEvent(event);
-                                onEventClick?.(event);
-                              }}
-                              className={`
-                                rounded px-1 sm:px-2 py-0.5 sm:py-1 truncate cursor-pointer
-                                transition-opacity hover:opacity-75
-                                ${eventSizeClass}
-                                text-white font-medium
-                              `}
-                              style={{ backgroundColor: getEventColor(event) }}
-                              title={event.title}
-                            >
-                              {event.title}
-                            </div>
-                          ))}
-
-                          {/* "더보기" 배지 */}
-                          {dayEvents.length > (compact ? 2 : 3) && (
+                          {day && (
                             <div
                               className={`
-                                text-center rounded
+                                font-semibold relative z-10
                                 ${textSizeClass}
-                                ${theme === 'dark' ? 'text-gray-400 bg-gray-700' : 'text-gray-600 bg-gray-200'}
+                                ${
+                                  isToday
+                                    ? theme === 'dark'
+                                      ? 'text-sky-300'
+                                      : 'text-sky-600'
+                                    : theme === 'dark'
+                                    ? 'text-gray-300'
+                                    : 'text-gray-700'
+                                }
                               `}
                             >
-                              +{dayEvents.length - (compact ? 2 : 3)}
+                              {day}
                             </div>
                           )}
                         </div>
-                      </>
-                    )}
+                      );
+                    })}
                   </div>
-                );
-              })
-            )}
+
+                  {/* 이벤트 막대 오버레이 */}
+                  <div
+                    className="absolute top-0 left-0 right-0 grid grid-cols-7 gap-0.5 pointer-events-none"
+                    style={{ paddingTop: compact ? '28px' : '36px' }}
+                  >
+                    {eventRows.map((row, rowIndex) => (
+                      <React.Fragment key={rowIndex}>
+                        {row.map((pos) => {
+                          const backgroundColor = getEventColor(pos.event);
+
+                          return (
+                            <div
+                              key={`${pos.event.id}-${pos.dayIndex}`}
+                              className={`
+                                rounded cursor-pointer truncate shadow-sm hover:shadow-md transition-all pointer-events-auto font-medium
+                                ${compact ? 'text-xs px-1 py-0.5' : 'text-xs px-2 py-1'}
+                              `}
+                              style={{
+                                backgroundColor,
+                                opacity: 0.9,
+                                gridColumn: `${pos.dayIndex + 1} / span ${pos.span}`,
+                                gridRow: rowIndex + 1,
+                                marginTop: `${rowIndex * rowHeight}px`,
+                                height: `${rowHeight - 2}px`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: '#fff',
+                                textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedEvent(pos.event);
+                                onEventClick?.(pos.event);
+                              }}
+                              title={pos.event.title}
+                            >
+                              <span className="truncate">{pos.event.title}</span>
+                            </div>
+                          );
+                        })}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </>
       )}

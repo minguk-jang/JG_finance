@@ -90,7 +90,10 @@ const Schedule: React.FC<ScheduleProps> = () => {
     const expanded: (CalendarEvent & { originalId: string; occurrenceDate: string })[] = [];
 
     for (const event of events) {
-      if (isAdmin || event.isShared) {
+      // 표시 권한: Admin이거나, 공유된 이벤트이거나, 자신이 생성한 개인 일정
+      const canViewEvent = isAdmin || event.isShared || event.createdBy === user?.id;
+
+      if (canViewEvent) {
         const occurrenceDates = expandRecurrences(
           event.startAt,
           event.recurrenceRule,
@@ -112,7 +115,7 @@ const Schedule: React.FC<ScheduleProps> = () => {
     }
 
     return expanded;
-  }, [events, getDateRange, isAdmin]);
+  }, [events, getDateRange, isAdmin, user?.id]);
 
   // Generate calendar grid (for month view)
   const calendarDays = useMemo(() => {
@@ -136,18 +139,105 @@ const Schedule: React.FC<ScheduleProps> = () => {
     return days;
   }, [year, month]);
 
-  // Get events for a specific date
-  const getEventsForDate = (date: number) => {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-    return expandedEvents.filter((event) => {
-      const eventDate = parseCalendarDateTime(event.occurrenceDate);
-      if (!eventDate) return false;
-      return (
-        eventDate.getFullYear() === year &&
-        eventDate.getMonth() === month &&
-        eventDate.getDate() === date
-      );
+  // Split calendar into weeks
+  const calendarWeeks = useMemo(() => {
+    const weeks: (number | null)[][] = [];
+    for (let i = 0; i < calendarDays.length; i += 7) {
+      weeks.push(calendarDays.slice(i, i + 7));
+    }
+    return weeks;
+  }, [calendarDays]);
+
+  // Calculate event positions for each week
+  interface EventPosition {
+    event: CalendarEvent & { originalId: string; occurrenceDate: string };
+    dayIndex: number;  // 0-6 (Sun-Sat)
+    span: number;      // How many days this event spans in this week
+    row: number;       // Which row in the week (for overlapping events)
+  }
+
+  const getWeekEventPositions = (weekDays: (number | null)[]): EventPosition[][] => {
+    const positions: EventPosition[] = [];
+
+    // For each day in the week
+    weekDays.forEach((day, dayIndex) => {
+      if (!day) return;
+
+      const currentDate = new Date(year, month, day, 0, 0, 0);
+
+      // Find events that start on this day
+      expandedEvents.forEach((event) => {
+        const eventStart = new Date(event.startAt);
+        const eventEnd = new Date(event.endAt);
+
+        // Check if event starts on this day
+        if (
+          eventStart.getFullYear() === year &&
+          eventStart.getMonth() === month &&
+          eventStart.getDate() === day
+        ) {
+          // Calculate span (how many days in this week)
+          let span = 1;
+          const endDay = eventEnd.getDate();
+          const endMonth = eventEnd.getMonth();
+          const endYear = eventEnd.getFullYear();
+
+          // Calculate how many days this event spans in this week
+          for (let i = dayIndex + 1; i < 7; i++) {
+            const nextDay = weekDays[i];
+            if (!nextDay) break;
+
+            const checkDate = new Date(year, month, nextDay, 0, 0, 0);
+            if (checkDate < eventEnd) {
+              span++;
+            } else {
+              break;
+            }
+          }
+
+          positions.push({
+            event,
+            dayIndex,
+            span,
+            row: 0 // Will be calculated next
+          });
+        }
+      });
     });
+
+    // Sort by dayIndex, then by span (longer events first)
+    positions.sort((a, b) => {
+      if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+      return b.span - a.span;
+    });
+
+    // Assign rows to avoid overlaps
+    const rows: EventPosition[][] = [];
+    positions.forEach((pos) => {
+      let placed = false;
+      for (let r = 0; r < rows.length; r++) {
+        const row = rows[r];
+        const hasOverlap = row.some((existing) => {
+          const existingEnd = existing.dayIndex + existing.span;
+          const posEnd = pos.dayIndex + pos.span;
+          return !(pos.dayIndex >= existingEnd || existing.dayIndex >= posEnd);
+        });
+
+        if (!hasOverlap) {
+          pos.row = r;
+          row.push(pos);
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed) {
+        pos.row = rows.length;
+        rows.push([pos]);
+      }
+    });
+
+    return rows;
   };
 
   // Handle navigation
@@ -327,61 +417,84 @@ const Schedule: React.FC<ScheduleProps> = () => {
             ))}
           </div>
 
-          {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-1 sm:gap-2">
-            {calendarDays.map((day, index) => (
-              <div
-                key={index}
-                className={`min-h-16 sm:min-h-20 md:min-h-28 p-1 sm:p-2 rounded border text-xs sm:text-sm cursor-pointer transition-all ${
-                  day === null
-                    ? 'bg-gray-900/50 border-gray-800'
-                    : day === new Date().getDate() &&
-                      month === new Date().getMonth() &&
-                      year === new Date().getFullYear()
-                    ? 'bg-blue-900/30 border-blue-600 hover:bg-blue-900/50'
-                    : 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:border-gray-600'
-                }`}
-                onClick={() => day && isAdmin && handleCreateEvent(day)}
-              >
-                {day && (
-                  <>
-                    <div className="text-xs sm:text-sm font-semibold text-gray-300 mb-0.5 sm:mb-1">
-                      {day}
-                    </div>
-                    <div className="space-y-0.5 sm:space-y-1">
-                      {getEventsForDate(day).map((event, idx) => {
-                        // Use color from user preferences based on isShared
-                        const backgroundColor = event.colorOverride ||
-                          (event.isShared
-                            ? (colorPreferences?.sharedColor || '#ec4899')
-                            : (colorPreferences?.personalColor || '#0ea5e9'));
+          {/* Calendar grid - Week by week */}
+          <div className="space-y-1">
+            {calendarWeeks.map((weekDays, weekIndex) => {
+              const eventRows = getWeekEventPositions(weekDays);
+              const maxRows = Math.max(eventRows.length, 1);
 
-                        return (
-                          <div
-                            key={`${event.originalId}-${idx}`}
-                            className="text-xs px-1 py-0.5 rounded cursor-pointer truncate line-clamp-2 hover:line-clamp-3 transition-all"
-                            style={{
-                              backgroundColor,
-                              opacity: 0.85
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();  // 이벤트 클릭 시 날짜 클릭 핸들러 실행 방지
-                              (isAdmin && event.createdBy === user?.id) ? handleEditEvent(event) : handleViewEvent(event);
-                            }}
-                            title={event.title}
-                          >
-                            {event.title}
-                            {event.recurrenceRule && (
-                              <span className="ml-0.5">↻</span>
-                            )}
+              return (
+                <div key={weekIndex} className="relative">
+                  {/* Day cells */}
+                  <div className="grid grid-cols-7 gap-1 sm:gap-2" style={{ minHeight: `${80 + maxRows * 28}px` }}>
+                    {weekDays.map((day, dayIndex) => (
+                      <div
+                        key={dayIndex}
+                        className={`relative p-1 sm:p-2 rounded border text-xs sm:text-sm cursor-pointer transition-all ${
+                          day === null
+                            ? 'bg-gray-900/50 border-gray-800'
+                            : day === new Date().getDate() &&
+                              month === new Date().getMonth() &&
+                              year === new Date().getFullYear()
+                            ? 'bg-blue-900/30 border-blue-600 hover:bg-blue-900/50'
+                            : 'bg-gray-800 border-gray-700 hover:bg-gray-700 hover:border-gray-600'
+                        }`}
+                        onClick={() => day && isAdmin && handleCreateEvent(day)}
+                      >
+                        {day && (
+                          <div className="text-xs sm:text-sm font-semibold text-gray-300 mb-0.5 sm:mb-1 relative z-10">
+                            {day}
                           </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Event bars overlay */}
+                  <div className="absolute top-0 left-0 right-0 grid grid-cols-7 gap-1 sm:gap-2 pointer-events-none" style={{ paddingTop: '32px' }}>
+                    {eventRows.map((row, rowIndex) => (
+                      <React.Fragment key={rowIndex}>
+                        {row.map((pos) => {
+                          const backgroundColor = pos.event.colorOverride ||
+                            (pos.event.isShared
+                              ? (colorPreferences?.sharedColor || '#ec4899')
+                              : (colorPreferences?.personalColor || '#0ea5e9'));
+
+                          return (
+                            <div
+                              key={`${pos.event.originalId}-${pos.dayIndex}`}
+                              className="text-xs px-2 py-1 rounded-md cursor-pointer truncate shadow-sm hover:shadow-md transition-all pointer-events-auto font-medium"
+                              style={{
+                                backgroundColor,
+                                opacity: 0.9,
+                                gridColumn: `${pos.dayIndex + 1} / span ${pos.span}`,
+                                gridRow: rowIndex + 1,
+                                marginTop: `${rowIndex * 28}px`,
+                                height: '24px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: '#fff',
+                                textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                (isAdmin && pos.event.createdBy === user?.id) ? handleEditEvent(pos.event) : handleViewEvent(pos.event);
+                              }}
+                              title={pos.event.title}
+                            >
+                              <span className="truncate">
+                                {pos.event.title}
+                                {pos.event.recurrenceRule && <span className="ml-1">↻</span>}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}

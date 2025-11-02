@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarEvent } from '../../types';
+import { CalendarEvent, CALENDAR_COLOR_PALETTES } from '../../types';
 import { api } from '../../lib/api';
 import { getLocalDateTimeWithTimezone, parseCalendarDateTime, getLocalDateString } from '../../lib/dateUtils';
 
@@ -20,16 +20,31 @@ const EventModal: React.FC<EventModalProps> = ({
   onDelete,
   currentDate
 }) => {
+  // 기본 날짜값 설정 (안전한 기본값)
+  const getDefaultDate = (): string => {
+    try {
+      if (currentDate && currentDate instanceof Date && !isNaN(currentDate.getTime())) {
+        return getLocalDateString(currentDate);
+      }
+      return getLocalDateString(new Date());
+    } catch {
+      return getLocalDateString(new Date());
+    }
+  };
+
+  const defaultDate = getDefaultDate();
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     location: '',
-    startDate: '',
+    startDate: defaultDate,
     startTime: '09:00',
-    endDate: '',
+    endDate: defaultDate,
     endTime: '10:00',
     isAllDay: false,
     isShared: false,
+    colorOverride: null as string | null,
     recurrenceFreq: 'NONE' as RecurrenceFreq,
     recurrenceInterval: 1,
     recurrenceEndDate: '',
@@ -106,6 +121,7 @@ const EventModal: React.FC<EventModalProps> = ({
           endTime: endTimeStr,
           isAllDay: event.isAllDay,
           isShared: event.isShared,
+          colorOverride: event.colorOverride,
           recurrenceFreq,
           recurrenceInterval: 1,
           recurrenceEndDate,
@@ -114,16 +130,30 @@ const EventModal: React.FC<EventModalProps> = ({
         setShowReminders(hasReminders);
       }
     } else {
-      // New event - set default dates
-      const today = currentDate;
-      const dateStr = getLocalDateString(today);
-      setFormData((prev) => ({
-        ...prev,
-        startDate: dateStr,
-        endDate: dateStr,
-        startTime: '09:00',
-        endTime: '10:00'
-      }));
+      // New event - set default dates (robust against invalid dates)
+      try {
+        const today = (currentDate && currentDate instanceof Date && !isNaN(currentDate.getTime()))
+          ? currentDate
+          : new Date();
+        const dateStr = getLocalDateString(today);
+
+        setFormData((prev) => ({
+          ...prev,
+          startDate: dateStr,
+          endDate: dateStr,
+          startTime: '09:00',
+          endTime: '10:00'
+        }));
+      } catch (err) {
+        console.error('Error setting default dates:', err);
+        setFormData((prev) => ({
+          ...prev,
+          startDate: getLocalDateString(new Date()),
+          endDate: getLocalDateString(new Date()),
+          startTime: '09:00',
+          endTime: '10:00'
+        }));
+      }
       setShowReminders(false);
     }
   }, [event, currentDate]);
@@ -208,7 +238,7 @@ const EventModal: React.FC<EventModalProps> = ({
       const startAt = getLocalDateTimeWithTimezone(startDate, 'Asia/Seoul');
       const endAt = getLocalDateTimeWithTimezone(endDate, 'Asia/Seoul');
 
-      // Don't save color to DB - let it be determined dynamically by user preferences
+      // Save event with optional custom color override
       const eventData = {
         title: formData.title,
         description: formData.description || null,
@@ -217,7 +247,7 @@ const EventModal: React.FC<EventModalProps> = ({
         endAt,
         isAllDay: formData.isAllDay,
         isShared: formData.isShared,
-        colorOverride: null, // Always use user preference colors dynamically
+        colorOverride: formData.colorOverride || null, // Use custom color if set, otherwise use user preference colors
         recurrenceRule: buildRecurrenceRule(),
         reminders: formData.reminders
       };
@@ -338,47 +368,94 @@ const EventModal: React.FC<EventModalProps> = ({
           </div>
 
           {/* Date and Time */}
-          <div className="flex gap-2">
-            <div className="flex-1 min-w-0">
-              <label className="block text-xs font-medium text-gray-300 mb-1">시작 날짜</label>
-              <input
-                type="date"
-                value={formData.startDate}
-                onChange={(e) => handleChange('startDate', e.target.value)}
-                className="w-full px-2 py-1.5 text-sm bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition"
-              />
-            </div>
-            {!formData.isAllDay && (
-              <div className="w-24">
-                <label className="block text-xs font-medium text-gray-300 mb-1">시작 시간</label>
+          <div className="space-y-4">
+            {/* Start Date & Time */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-300 mb-2">시작 날짜</label>
                 <input
-                  type="time"
-                  value={formData.startTime}
-                  onChange={(e) => handleChange('startTime', e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition"
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => handleChange('startDate', e.target.value)}
+                  className="w-full px-3 py-2 text-sm bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition"
                 />
               </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <label className="block text-xs font-medium text-gray-300 mb-1">종료 날짜</label>
-              <input
-                type="date"
-                value={formData.endDate}
-                onChange={(e) => handleChange('endDate', e.target.value)}
-                className="w-full px-2 py-1.5 text-sm bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition"
-              />
+              {!formData.isAllDay && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-300 mb-2">시작 시간</label>
+                  <input
+                    type="time"
+                    value={formData.startTime}
+                    onChange={(e) => handleChange('startTime', e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition"
+                  />
+                </div>
+              )}
             </div>
-            {!formData.isAllDay && (
-              <div className="w-24">
-                <label className="block text-xs font-medium text-gray-300 mb-1">종료 시간</label>
+
+            {/* End Date & Time */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-300 mb-2">종료 날짜</label>
                 <input
-                  type="time"
-                  value={formData.endTime}
-                  onChange={(e) => handleChange('endTime', e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition"
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => handleChange('endDate', e.target.value)}
+                  className="w-full px-3 py-2 text-sm bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition"
                 />
               </div>
-            )}
+              {!formData.isAllDay && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-300 mb-2">종료 시간</label>
+                  <input
+                    type="time"
+                    value={formData.endTime}
+                    onChange={(e) => handleChange('endTime', e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Color Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-3">일정 색상</label>
+            <div className="grid grid-cols-7 sm:grid-cols-8 gap-2">
+              {/* No Color (Default) */}
+              <button
+                type="button"
+                onClick={() => handleChange('colorOverride', null)}
+                className={`p-2 rounded-lg border-2 transition-all ${
+                  formData.colorOverride === null
+                    ? 'border-sky-400 ring-2 ring-sky-400/50'
+                    : 'border-gray-600 hover:border-gray-500'
+                }`}
+                title="사용자 기본 색상"
+              >
+                <div className="text-xs text-gray-400 font-medium">자동</div>
+              </button>
+              {/* Color Palette Options */}
+              {Object.values(CALENDAR_COLOR_PALETTES)
+                .filter((palette) => palette.key !== 'custom')
+                .map((palette) => (
+                  <button
+                    key={palette.key}
+                    type="button"
+                    onClick={() => handleChange('colorOverride', palette.hex)}
+                    className={`p-3 rounded-lg border-2 transition-all hover:scale-105 ${
+                      formData.colorOverride === palette.hex
+                        ? 'border-white ring-2 ring-white/50'
+                        : 'border-transparent'
+                    }`}
+                    style={{ backgroundColor: palette.hex }}
+                    title={palette.name}
+                  />
+                ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-2">
+              {formData.colorOverride ? '선택한 색상으로 표시됩니다' : '사용자 선호도에 따라 색상이 자동 결정됩니다'}
+            </p>
           </div>
 
           {/* All Day Checkbox */}
