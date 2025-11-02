@@ -33,9 +33,17 @@ const Schedule: React.FC<ScheduleProps> = () => {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
-  // Get year and month for display
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
+  // Get year and month for display (with safety check)
+  const year = useMemo(() => {
+    const y = currentDate.getFullYear();
+    return isNaN(y) ? new Date().getFullYear() : y;
+  }, [currentDate]);
+
+  const month = useMemo(() => {
+    const m = currentDate.getMonth();
+    return isNaN(m) ? new Date().getMonth() : m;
+  }, [currentDate]);
+
   const yearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
 
   // Get date range based on view mode
@@ -242,11 +250,31 @@ const Schedule: React.FC<ScheduleProps> = () => {
 
   // Handle navigation
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
+    // year, month 유효성 검증
+    const safeYear = isNaN(year) ? new Date().getFullYear() : year;
+    const safeMonth = isNaN(month) ? new Date().getMonth() : month;
+    const newDate = new Date(safeYear, safeMonth - 1, 1);
+
+    if (!isNaN(newDate.getTime())) {
+      setCurrentDate(newDate);
+    } else {
+      console.error('Failed to create previous month date, using current date');
+      setCurrentDate(new Date());
+    }
   };
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
+    // year, month 유효성 검증
+    const safeYear = isNaN(year) ? new Date().getFullYear() : year;
+    const safeMonth = isNaN(month) ? new Date().getMonth() : month;
+    const newDate = new Date(safeYear, safeMonth + 1, 1);
+
+    if (!isNaN(newDate.getTime())) {
+      setCurrentDate(newDate);
+    } else {
+      console.error('Failed to create next month date, using current date');
+      setCurrentDate(new Date());
+    }
   };
 
   const handleToday = () => {
@@ -258,10 +286,30 @@ const Schedule: React.FC<ScheduleProps> = () => {
     setEditingEvent(null);
     // 특정 날짜가 전달되면 그 날짜를 선택
     if (day) {
-      const selectedDate = new Date(year, month, day);
-      setCurrentDate(selectedDate);
+      // year, month 유효성 검증
+      const safeYear = isNaN(year) ? new Date().getFullYear() : year;
+      const safeMonth = isNaN(month) ? new Date().getMonth() : month;
+      const selectedDate = new Date(safeYear, safeMonth, day);
+
+      // 생성된 날짜 유효성 검증
+      if (!isNaN(selectedDate.getTime())) {
+        setCurrentDate(selectedDate);
+      } else {
+        console.error('Failed to create valid date, using current date');
+        setCurrentDate(new Date());
+      }
+
+      // 상태 업데이트 완료 후 모달 표시
+      setTimeout(() => {
+        setShowEventModal(true);
+      }, 0);
+    } else {
+      // currentDate가 유효하지 않으면 현재 날짜로 리셋
+      if (isNaN(currentDate.getTime())) {
+        setCurrentDate(new Date());
+      }
+      setShowEventModal(true);
     }
-    setShowEventModal(true);
   };
 
   const handleEditEvent = (event: CalendarEvent & { occurrenceDate: string }) => {
@@ -511,6 +559,7 @@ const Schedule: React.FC<ScheduleProps> = () => {
       {/* Event Modal */}
       {showEventModal && (
         <EventModal
+          key={editingEvent ? `edit-${editingEvent.id}` : `new-${Date.now()}`}
           event={editingEvent}
           onClose={() => setShowEventModal(false)}
           onSave={handleEventSaved}

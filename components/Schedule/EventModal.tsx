@@ -20,27 +20,16 @@ const EventModal: React.FC<EventModalProps> = ({
   onDelete,
   currentDate
 }) => {
-  // 기본 날짜값 설정 (안전한 기본값)
-  const getDefaultDate = (): string => {
-    try {
-      if (currentDate && currentDate instanceof Date && !isNaN(currentDate.getTime())) {
-        return getLocalDateString(currentDate);
-      }
-      return getLocalDateString(new Date());
-    } catch {
-      return getLocalDateString(new Date());
-    }
-  };
-
-  const defaultDate = getDefaultDate();
+  // 안전한 기본 날짜값 (하드코딩)
+  const safeDefaultDate = getLocalDateString(new Date());
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     location: '',
-    startDate: defaultDate,
+    startDate: safeDefaultDate,
     startTime: '09:00',
-    endDate: defaultDate,
+    endDate: safeDefaultDate,
     endTime: '10:00',
     isAllDay: false,
     isShared: false,
@@ -132,26 +121,61 @@ const EventModal: React.FC<EventModalProps> = ({
     } else {
       // New event - set default dates (robust against invalid dates)
       try {
-        const today = (currentDate && currentDate instanceof Date && !isNaN(currentDate.getTime()))
-          ? currentDate
-          : new Date();
-        const dateStr = getLocalDateString(today);
+        let dateToUse = new Date();
+
+        // currentDate 유효성 검증
+        if (currentDate && currentDate instanceof Date) {
+          const timeValue = currentDate.getTime();
+          if (!isNaN(timeValue) && timeValue > 0) {
+            dateToUse = currentDate;
+          } else {
+            console.warn('Invalid currentDate detected:', currentDate, 'using fallback');
+          }
+        }
+
+        const dateStr = getLocalDateString(dateToUse);
+
+        // 날짜 문자열 검증
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || dateStr.includes('NaN')) {
+          throw new Error('Invalid date string format: ' + dateStr);
+        }
 
         setFormData((prev) => ({
           ...prev,
+          title: '',
+          description: '',
+          location: '',
           startDate: dateStr,
           endDate: dateStr,
           startTime: '09:00',
-          endTime: '10:00'
+          endTime: '10:00',
+          isAllDay: false,
+          isShared: false,
+          colorOverride: null,
+          recurrenceFreq: 'NONE',
+          recurrenceInterval: 1,
+          recurrenceEndDate: '',
+          reminders: []
         }));
       } catch (err) {
         console.error('Error setting default dates:', err);
+        const safeDateStr = getLocalDateString(new Date());
         setFormData((prev) => ({
           ...prev,
-          startDate: getLocalDateString(new Date()),
-          endDate: getLocalDateString(new Date()),
+          title: '',
+          description: '',
+          location: '',
+          startDate: safeDateStr,
+          endDate: safeDateStr,
           startTime: '09:00',
-          endTime: '10:00'
+          endTime: '10:00',
+          isAllDay: false,
+          isShared: false,
+          colorOverride: null,
+          recurrenceFreq: 'NONE',
+          recurrenceInterval: 1,
+          recurrenceEndDate: '',
+          reminders: []
         }));
       }
       setShowReminders(false);
@@ -208,6 +232,30 @@ const EventModal: React.FC<EventModalProps> = ({
     }
 
     return rrule;
+  };
+
+  // 취소 핸들러 - 상태 초기화
+  const handleCancel = () => {
+    const safeDate = getLocalDateString(new Date());
+    setFormData({
+      title: '',
+      description: '',
+      location: '',
+      startDate: safeDate,
+      startTime: '09:00',
+      endDate: safeDate,
+      endTime: '10:00',
+      isAllDay: false,
+      isShared: false,
+      colorOverride: null,
+      recurrenceFreq: 'NONE',
+      recurrenceInterval: 1,
+      recurrenceEndDate: '',
+      reminders: []
+    });
+    setError(null);
+    setSaving(false);
+    onClose();
   };
 
   const handleSave = async () => {
@@ -585,7 +633,7 @@ const EventModal: React.FC<EventModalProps> = ({
           )}
           <div className="flex gap-3 ml-auto">
             <button
-              onClick={onClose}
+              onClick={handleCancel}
               disabled={saving}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-600 text-white rounded-lg font-medium transition-colors"
             >
