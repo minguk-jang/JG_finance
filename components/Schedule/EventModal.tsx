@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarEvent, CALENDAR_COLOR_PALETTES } from '../../types';
+import { CalendarEvent } from '../../types';
 import { api } from '../../lib/api';
 import { getLocalDateTimeWithTimezone, parseCalendarDateTime, getLocalDateString } from '../../lib/dateUtils';
 
@@ -295,7 +295,7 @@ const EventModal: React.FC<EventModalProps> = ({
         endAt,
         isAllDay: formData.isAllDay,
         isShared: formData.isShared,
-        colorOverride: formData.colorOverride || null, // Use custom color if set, otherwise use user preference colors
+        colorOverride: null, // Color is determined by user preferences in Settings
         recurrenceRule: buildRecurrenceRule(),
         reminders: formData.reminders
       };
@@ -464,46 +464,6 @@ const EventModal: React.FC<EventModalProps> = ({
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Color Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-3">일정 색상</label>
-            <div className="grid grid-cols-7 sm:grid-cols-8 gap-2">
-              {/* No Color (Default) */}
-              <button
-                type="button"
-                onClick={() => handleChange('colorOverride', null)}
-                className={`p-2 rounded-lg border-2 transition-all ${
-                  formData.colorOverride === null
-                    ? 'border-sky-400 ring-2 ring-sky-400/50'
-                    : 'border-gray-600 hover:border-gray-500'
-                }`}
-                title="사용자 기본 색상"
-              >
-                <div className="text-xs text-gray-400 font-medium">자동</div>
-              </button>
-              {/* Color Palette Options */}
-              {Object.values(CALENDAR_COLOR_PALETTES)
-                .filter((palette) => palette.key !== 'custom')
-                .map((palette) => (
-                  <button
-                    key={palette.key}
-                    type="button"
-                    onClick={() => handleChange('colorOverride', palette.hex)}
-                    className={`p-3 rounded-lg border-2 transition-all hover:scale-105 ${
-                      formData.colorOverride === palette.hex
-                        ? 'border-white ring-2 ring-white/50'
-                        : 'border-transparent'
-                    }`}
-                    style={{ backgroundColor: palette.hex }}
-                    title={palette.name}
-                  />
-                ))}
-            </div>
-            <p className="text-xs text-gray-400 mt-2">
-              {formData.colorOverride ? '선택한 색상으로 표시됩니다' : '사용자 선호도에 따라 색상이 자동 결정됩니다'}
-            </p>
           </div>
 
           {/* All Day Checkbox */}

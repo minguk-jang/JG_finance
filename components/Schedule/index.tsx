@@ -166,51 +166,61 @@ const Schedule: React.FC<ScheduleProps> = () => {
 
   const getWeekEventPositions = (weekDays: (number | null)[]): EventPosition[][] => {
     const positions: EventPosition[] = [];
+    const processedEvents = new Set<string>(); // Track which events we've already added
 
-    // For each day in the week
-    weekDays.forEach((day, dayIndex) => {
-      if (!day) return;
+    // Get the week's date range
+    const weekStart = weekDays.find(d => d !== null);
+    const weekEnd = weekDays[weekDays.length - 1];
+    if (!weekStart || !weekEnd) return [];
 
-      const currentDate = new Date(year, month, day, 0, 0, 0);
+    const weekStartDate = new Date(year, month, weekStart, 0, 0, 0);
+    const weekEndDate = new Date(year, month, weekEnd, 23, 59, 59);
 
-      // Find events that start on this day
-      expandedEvents.forEach((event) => {
-        const eventStart = new Date(event.startAt);
-        const eventEnd = new Date(event.endAt);
+    // Find all events that overlap with this week
+    expandedEvents.forEach((event) => {
+      const eventStart = new Date(event.startAt);
+      const eventEnd = new Date(event.endAt);
 
-        // Check if event starts on this day
-        if (
-          eventStart.getFullYear() === year &&
-          eventStart.getMonth() === month &&
-          eventStart.getDate() === day
-        ) {
-          // Calculate span (how many days in this week)
-          let span = 1;
-          const endDay = eventEnd.getDate();
-          const endMonth = eventEnd.getMonth();
-          const endYear = eventEnd.getFullYear();
+      // Check if event overlaps with this week
+      if (eventStart <= weekEndDate && eventEnd >= weekStartDate) {
+        // Avoid duplicate entries
+        const eventKey = `${event.originalId}-${event.occurrenceDate}`;
+        if (processedEvents.has(eventKey)) return;
+        processedEvents.add(eventKey);
 
-          // Calculate how many days this event spans in this week
-          for (let i = dayIndex + 1; i < 7; i++) {
-            const nextDay = weekDays[i];
-            if (!nextDay) break;
-
-            const checkDate = new Date(year, month, nextDay, 0, 0, 0);
-            if (checkDate < eventEnd) {
-              span++;
-            } else {
-              break;
-            }
-          }
-
-          positions.push({
-            event,
-            dayIndex,
-            span,
-            row: 0 // Will be calculated next
-          });
+        // Find which day of the week this event starts (or 0 if it started before this week)
+        let dayIndex = 0;
+        if (eventStart >= weekStartDate) {
+          // Event starts within this week - find the day index
+          const eventDay = eventStart.getDate();
+          dayIndex = weekDays.findIndex(d => d === eventDay);
+          if (dayIndex === -1) return; // Safety check
+        } else {
+          // Event started before this week - starts at Sunday (index 0)
+          dayIndex = 0;
         }
-      });
+
+        // Calculate span (how many days this event spans in this week)
+        let span = 1;
+        for (let i = dayIndex + 1; i < 7; i++) {
+          const nextDay = weekDays[i];
+          if (!nextDay) break;
+
+          const checkDate = new Date(year, month, nextDay, 0, 0, 0);
+          if (checkDate < eventEnd) {
+            span++;
+          } else {
+            break;
+          }
+        }
+
+        positions.push({
+          event,
+          dayIndex,
+          span,
+          row: 0 // Will be calculated next
+        });
+      }
     });
 
     // Sort by dayIndex, then by span (longer events first)

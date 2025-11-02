@@ -131,42 +131,61 @@ const SharedCalendar: React.FC<SharedCalendarProps> = ({
 
   const getWeekEventPositions = (weekDays: (number | null)[]): EventPosition[][] => {
     const positions: EventPosition[] = [];
+    const processedEvents = new Set<string>(); // 중복 방지
 
-    weekDays.forEach((day, dayIndex) => {
-      if (!day) return;
+    // 주의 날짜 범위 계산
+    const weekStart = weekDays.find(d => d !== null);
+    const weekEnd = weekDays[weekDays.length - 1];
+    if (!weekStart || !weekEnd) return [];
 
-      expandedEvents.forEach((event) => {
-        const eventStart = new Date(event.startAt);
-        const eventEnd = new Date(event.endAt);
+    const weekStartDate = new Date(year, month - 1, weekStart, 0, 0, 0);
+    const weekEndDate = new Date(year, month - 1, weekEnd, 23, 59, 59);
 
-        // 이 날짜에 이벤트가 시작하는지 확인
-        if (
-          eventStart.getFullYear() === year &&
-          eventStart.getMonth() === month - 1 &&
-          eventStart.getDate() === day
-        ) {
-          // span 계산 (이 주에서 며칠 동안 표시되는지)
-          let span = 1;
-          for (let i = dayIndex + 1; i < 7; i++) {
-            const nextDay = weekDays[i];
-            if (!nextDay) break;
+    // 이 주와 겹치는 모든 이벤트 찾기
+    expandedEvents.forEach((event) => {
+      const eventStart = new Date(event.startAt);
+      const eventEnd = new Date(event.endAt);
 
-            const checkDate = new Date(year, month - 1, nextDay, 0, 0, 0);
-            if (checkDate < eventEnd) {
-              span++;
-            } else {
-              break;
-            }
-          }
+      // 이벤트가 이 주와 겹치는지 확인
+      if (eventStart <= weekEndDate && eventEnd >= weekStartDate) {
+        // 중복 방지
+        const eventKey = `${event.id}-${event.expandedStartAt}`;
+        if (processedEvents.has(eventKey)) return;
+        processedEvents.add(eventKey);
 
-          positions.push({
-            event,
-            dayIndex,
-            span,
-            row: 0
-          });
+        // 이벤트가 이 주의 어느 날부터 시작하는지 찾기
+        let dayIndex = 0;
+        if (eventStart >= weekStartDate) {
+          // 이벤트가 이 주 안에서 시작됨
+          const eventDay = eventStart.getDate();
+          dayIndex = weekDays.findIndex(d => d === eventDay);
+          if (dayIndex === -1) return; // 안전 체크
+        } else {
+          // 이벤트가 이전 주에 시작됨 - 일요일(index 0)부터 표시
+          dayIndex = 0;
         }
-      });
+
+        // span 계산 (이 주에서 며칠 동안 표시되는지)
+        let span = 1;
+        for (let i = dayIndex + 1; i < 7; i++) {
+          const nextDay = weekDays[i];
+          if (!nextDay) break;
+
+          const checkDate = new Date(year, month - 1, nextDay, 0, 0, 0);
+          if (checkDate < eventEnd) {
+            span++;
+          } else {
+            break;
+          }
+        }
+
+        positions.push({
+          event,
+          dayIndex,
+          span,
+          row: 0
+        });
+      }
     });
 
     // 날짜순, span 큰 순으로 정렬
