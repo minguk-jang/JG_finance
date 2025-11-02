@@ -64,7 +64,7 @@ export const api = {
   // ============================================
   getCategories: async () => {
     const data = await handleRequest(
-      supabase.from('categories').select('*').order('id')
+      supabase.from('categories').select('*').order('sort_order', { ascending: true, nullsFirst: false }).order('created_at').order('id')
     );
     return toCamelCase(data);
   },
@@ -94,6 +94,19 @@ export const api = {
 
   deleteCategory: async (id: string) => {
     await handleRequest(supabase.from('categories').delete().eq('id', id));
+  },
+
+  updateCategoriesOrder: async (orderedCategories: Array<{ id: string; sortOrder: number }>) => {
+    // Update each category's sort_order in a batch
+    const updates = orderedCategories.map(({ id, sortOrder }) =>
+      supabase
+        .from('categories')
+        .update({ sort_order: sortOrder })
+        .eq('id', id)
+    );
+
+    // Execute all updates
+    await Promise.all(updates.map(update => handleRequest(update)));
   },
 
   // ============================================
