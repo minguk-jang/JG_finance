@@ -40,15 +40,18 @@ export interface Database {
           id: string;
           name: string;
           type: 'income' | 'expense';
+          sort_order: number | null;
           created_at: string;
         };
         Insert: {
           name: string;
           type: 'income' | 'expense';
+          sort_order?: number | null;
         };
         Update: {
           name?: string;
           type?: 'income' | 'expense';
+          sort_order?: number | null;
         };
       };
       expenses: {
@@ -543,6 +546,7 @@ export interface Category {
   id: string;
   name: string;
   type: 'income' | 'expense';
+  sortOrder?: number | null;
 }
 
 export interface Expense {

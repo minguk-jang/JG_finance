@@ -4,11 +4,94 @@ import { User, UserRole, Budget, Category, UserColorPreferences, CALENDAR_COLOR_
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { getLocalDateString } from '../lib/dateUtils';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface SettingsProps {
   exchangeRate: number;
   onExchangeRateChange: (value: number) => void;
 }
+
+// Sortable category row component
+interface SortableCategoryRowProps {
+  category: Category;
+  onEdit: (category: Category) => void;
+  onDelete: (categoryId: string) => void;
+}
+
+const SortableCategoryRow: React.FC<SortableCategoryRowProps> = ({ category, onEdit, onDelete }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: category.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className="border-b border-gray-700 hover:bg-gray-600/20"
+    >
+      <td className="p-3">
+        <button
+          className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-300 focus:outline-none"
+          {...attributes}
+          {...listeners}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+          </svg>
+        </button>
+      </td>
+      <td className="p-3 font-medium">{category.name}</td>
+      <td className="p-3">
+        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+          category.type === 'income' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          {category.type === 'income' ? '수입' : '지출'}
+        </span>
+      </td>
+      <td className="p-3">
+        <button
+          onClick={() => onEdit(category)}
+          className="text-sky-400 hover:text-sky-300 mr-2"
+        >
+          수정
+        </button>
+        <button
+          onClick={() => onDelete(category.id)}
+          className="text-red-400 hover:text-red-300"
+        >
+          삭제
+        </button>
+      </td>
+    </tr>
+  );
+};
 
 const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange }) => {
   const { signOut, user: currentUser, profile: currentProfile, isAdmin } = useAuth();
@@ -31,6 +114,18 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
     sharedPaletteKey: 'pink'
   });
   const [isSavingUserColors, setIsSavingUserColors] = useState(false);
+
+  // Category ordering state
+  const [isSavingCategoryOrder, setIsSavingCategoryOrder] = useState(false);
+  const [hasUnsavedCategoryOrder, setHasUnsavedCategoryOrder] = useState(false);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // User modal state
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -500,6 +595,44 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
     }
   };
 
+  // Handle category drag end
+  const handleCategoryDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    setCategories((items) => {
+      const oldIndex = items.findIndex((item) => item.id === active.id);
+      const newIndex = items.findIndex((item) => item.id === over.id);
+      const reordered = arrayMove(items, oldIndex, newIndex);
+      setHasUnsavedCategoryOrder(true);
+      return reordered;
+    });
+  };
+
+  // Save category order
+  const handleSaveCategoryOrder = async () => {
+    setIsSavingCategoryOrder(true);
+    try {
+      // Create ordered list with sort_order values
+      const orderedCategories = categories.map((category, index) => ({
+        id: category.id,
+        sortOrder: index + 1,
+      }));
+
+      await api.updateCategoriesOrder(orderedCategories);
+      setHasUnsavedCategoryOrder(false);
+      alert('카테고리 순서가 저장되었습니다.');
+    } catch (error: any) {
+      console.error('Failed to save category order:', error);
+      alert(error.message || '카테고리 순서 저장에 실패했습니다.');
+    } finally {
+      setIsSavingCategoryOrder(false);
+    }
+  };
+
   const getCategoryName = (categoryId: string) => {
     return categories.find(c => c.id === categoryId)?.name || 'Unknown';
   };
@@ -514,60 +647,70 @@ const Settings: React.FC<SettingsProps> = ({ exchangeRate, onExchangeRateChange 
 
       {/* Category Management */}
       <Card title="카테고리 관리">
-        <div className="mb-4 flex justify-end">
+        <div className="mb-4 flex justify-end gap-2">
           <button
             onClick={handleCreateCategory}
             className="bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition"
           >
             카테고리 추가
           </button>
+          <button
+            onClick={handleSaveCategoryOrder}
+            disabled={!hasUnsavedCategoryOrder || isSavingCategoryOrder}
+            className={`px-4 py-2 rounded-lg transition ${
+              hasUnsavedCategoryOrder && !isSavingCategoryOrder
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            {isSavingCategoryOrder ? '저장 중...' : '순서 저장'}
+          </button>
         </div>
+        {hasUnsavedCategoryOrder && (
+          <div className="mb-4 p-3 bg-amber-900/20 border border-amber-700/50 rounded-lg text-amber-200 text-sm">
+            카테고리 순서가 변경되었습니다. "순서 저장" 버튼을 클릭하여 변경사항을 저장하세요.
+          </div>
+        )}
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-700">
-              <tr>
-                <th className="p-3">카테고리명</th>
-                <th className="p-3">유형</th>
-                <th className="p-3">작업</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categories.length === 0 ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleCategoryDragEnd}
+          >
+            <table className="w-full text-left">
+              <thead className="bg-gray-700">
                 <tr>
-                  <td colSpan={3} className="p-8 text-center text-gray-400">
-                    카테고리가 없습니다. "카테고리 추가"를 클릭하여 생성하세요.
-                  </td>
+                  <th className="p-3 w-12"></th>
+                  <th className="p-3">카테고리명</th>
+                  <th className="p-3">유형</th>
+                  <th className="p-3">작업</th>
                 </tr>
-              ) : (
-                categories.map(category => (
-                  <tr key={category.id} className="border-b border-gray-700 hover:bg-gray-600/20">
-                    <td className="p-3 font-medium">{category.name}</td>
-                    <td className="p-3">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        category.type === 'income' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-                      }`}>
-                        {category.type === 'income' ? '수입' : '지출'}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <button
-                        onClick={() => handleEditCategory(category)}
-                        className="text-sky-400 hover:text-sky-300 mr-2"
-                      >
-                        수정
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCategory(category.id)}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        삭제
-                      </button>
+              </thead>
+              <tbody>
+                {categories.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="p-8 text-center text-gray-400">
+                      카테고리가 없습니다. "카테고리 추가"를 클릭하여 생성하세요.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  <SortableContext
+                    items={categories.map(c => c.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {categories.map(category => (
+                      <SortableCategoryRow
+                        key={category.id}
+                        category={category}
+                        onEdit={handleEditCategory}
+                        onDelete={handleDeleteCategory}
+                      />
+                    ))}
+                  </SortableContext>
+                )}
+              </tbody>
+            </table>
+          </DndContext>
         </div>
       </Card>
 
