@@ -97,33 +97,30 @@ const Schedule: React.FC<ScheduleProps> = () => {
 
     const expanded: (CalendarEvent & { originalId: string; occurrenceDate: string })[] = [];
 
+    // RLS 정책이 DB 레벨에서 접근 제어를 처리하므로 모든 가져온 이벤트를 표시
+    // 모든 인증된 사용자가 서로의 일정을 조회할 수 있음 (수정은 작성자만 가능)
     for (const event of events) {
-      // 표시 권한: Admin이거나, 공유된 이벤트이거나, 자신이 생성한 개인 일정
-      const canViewEvent = isAdmin || event.isShared || event.createdBy === user?.id;
+      const occurrenceDates = expandRecurrences(
+        event.startAt,
+        event.recurrenceRule,
+        getDateRange.startAt,
+        getDateRange.endAt
+      );
 
-      if (canViewEvent) {
-        const occurrenceDates = expandRecurrences(
-          event.startAt,
-          event.recurrenceRule,
-          getDateRange.startAt,
-          getDateRange.endAt
-        );
-
-        for (const occurrenceDate of occurrenceDates) {
-          const occurrenceDateTime = parseCalendarDateTime(occurrenceDate);
-          if (occurrenceDateTime) {
-            expanded.push({
-              ...event,
-              originalId: event.id,
-              occurrenceDate: occurrenceDate
-            });
-          }
+      for (const occurrenceDate of occurrenceDates) {
+        const occurrenceDateTime = parseCalendarDateTime(occurrenceDate);
+        if (occurrenceDateTime) {
+          expanded.push({
+            ...event,
+            originalId: event.id,
+            occurrenceDate: occurrenceDate
+          });
         }
       }
     }
 
     return expanded;
-  }, [events, getDateRange, isAdmin, user?.id]);
+  }, [events, getDateRange]);
 
   // Generate calendar grid (for month view)
   const calendarDays = useMemo(() => {
@@ -584,7 +581,7 @@ const Schedule: React.FC<ScheduleProps> = () => {
           event={selectedEvent}
           onClose={() => setShowDetailsModal(false)}
           onEdit={handleEditEvent}
-          isOwner={isAdmin && selectedEvent.createdBy === user?.id}
+          isOwner={isAdmin || selectedEvent.createdBy === user?.id}
           colorPreferences={colorPreferences}
         />
       )}

@@ -284,6 +284,10 @@ npx supabase migration new add_feature_name
 - `010_add_notes.sql`: 노트 관리 기능 (notes 테이블)
 - `011_add_study_sessions.sql`: 학습 세션 관리 기능 (study_sessions, study_references, study_followups 테이블)
 - `012_share_notes.sql`: 노트 공유 정책 (모든 인증 사용자가 조회 가능)
+- `017_add_calendar_events.sql`: 캘린더 이벤트 관리 기능 (calendar_events, user_calendar_preferences 테이블)
+- `019_add_user_color_preferences.sql`: 사용자 색상 설정 (개인/공유 일정 색상 구분)
+- `020_admin_color_management.sql`: Admin 색상 관리 권한
+- `021_share_all_calendar_events.sql`: 일정 전체 공유 정책 (모든 인증 사용자가 서로의 일정 조회 가능, 수정은 작성자만 가능)
 
 **예시**:
 ```sql
