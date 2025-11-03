@@ -975,9 +975,10 @@ export const api = {
   createNote: async (noteData: any) => {
     const snakeData = toSnakeCase(noteData);
     const data = await handleRequest(
-      supabase.from('notes').insert(snakeData).select().single()
+      supabase.from('notes').insert(snakeData).select()
     );
-    return toCamelCase(data);
+    // Return first item from array instead of using .single()
+    return toCamelCase(data?.[0]);
   },
 
   updateNote: async (id: string, noteData: any) => {
