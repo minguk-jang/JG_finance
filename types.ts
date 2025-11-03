@@ -669,7 +669,7 @@ export interface FixedCostPayment {
 }
 
 export interface Note {
-  id: string;
+  id: string;  // UUID (converted from SERIAL)
   content: string;
   isCompleted: boolean;
   createdBy: string; // UUID from users.id
